@@ -402,6 +402,18 @@ const LinkedGoalItem: React.FC<LinkedGoalItemProps> = ({
       {isOpen && (
         <div className="mt-2 space-y-2 animate-in slide-in-from-top-1 duration-200 pl-2">
           
+          {/* OBSERVATION CALLOUT */}
+          {goal.observation && (
+            <div className="p-3 bg-white/5 border-l-2 border-white/20 rounded-r-lg mb-3">
+                <div className="flex items-start gap-2">
+                    <TextCursor size={14} className="text-white/50 shrink-0 mt-0.5" />
+                    <p className="text-xs text-white/80 italic leading-relaxed">
+                        {goal.observation}
+                    </p>
+                </div>
+            </div>
+          )}
+          
           {/* 1. VIDEOS */}
           {goal.type === 'lesson' && goal.videos?.map((video, idx) => (
             <div 

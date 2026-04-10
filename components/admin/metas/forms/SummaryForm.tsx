@@ -42,6 +42,7 @@ const SummaryForm: React.FC<SummaryFormProps> = ({ isOpen, onClose, onSave, init
     intervals: '1, 7, 15, 30',
     repeatLast: false
   });
+  const [observation, setObservation] = useState('');
 
   // UI State
   const [uploading, setUploading] = useState(false);
@@ -53,6 +54,7 @@ const SummaryForm: React.FC<SummaryFormProps> = ({ isOpen, onClose, onSave, init
         setEstimatedTime(initialData.summaryConfig?.estimatedTime || '');
         setReferences(initialData.summaryConfig?.references || []);
         setColor(initialData.color || '#a855f7');
+        setObservation(initialData.observation || '');
         
         // Carrega o mapa salvo ou inicia vazio
         setMindMap(initialData.summaryConfig?.mindMap || []);
@@ -80,6 +82,7 @@ const SummaryForm: React.FC<SummaryFormProps> = ({ isOpen, onClose, onSave, init
         setMindMap([]); // Reseta mapa
         setLinks([]);
         setFiles([]);
+        setObservation('');
         setReviewConfig({ active: false, intervals: '1, 7, 15, 30', repeatLast: false });
       }
     }
@@ -110,7 +113,8 @@ const SummaryForm: React.FC<SummaryFormProps> = ({ isOpen, onClose, onSave, init
         },
         reviewConfig: cleanReviewConfig,
         files: processedFiles || [],
-        links: links || []
+        links: links || [],
+        observation
       });
       
     } catch (error: any) {
@@ -188,6 +192,20 @@ const SummaryForm: React.FC<SummaryFormProps> = ({ isOpen, onClose, onSave, init
                  </div>
 
                  <MetaColorSelector color={color} onChange={setColor} />
+                 
+                 <div className="space-y-2">
+                     <label className="text-[10px] font-black text-zinc-500 tracking-widest">Aviso / Dica / Observação (Opcional)</label>
+                     <textarea 
+                         value={observation}
+                         onChange={(e) => setObservation(e.target.value)}
+                         placeholder="Ex: Foco total no Artigo 5º..."
+                         className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-3 text-xs text-white placeholder-zinc-700 focus:outline-none font-bold"
+                         style={{ caretColor: color }}
+                         onFocus={(e) => e.target.style.borderColor = color}
+                         onBlur={(e) => e.target.style.borderColor = '#27272a'}
+                         rows={3}
+                     />
+                 </div>
                  
                  <div className="h-px bg-zinc-900"></div>
 

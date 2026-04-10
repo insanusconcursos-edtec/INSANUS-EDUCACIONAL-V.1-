@@ -124,32 +124,46 @@ export function CoursePlayerContent({ lesson }: CoursePlayerContentProps) {
                     )}
 
                     {/* PDF (COM SEGURANÇA) */}
-                    {item.type === 'pdf' && (
-                        <div 
-                            onClick={() => handleOpenPdf(item.fileUrl || '', item.id)}
-                            className={`
-                                flex items-center gap-4 p-4 bg-[#1a1d24] border border-gray-800 rounded-xl transition-all group mb-4 cursor-pointer
-                                ${openingPdfId === item.id ? 'opacity-75 pointer-events-none' : 'hover:border-red-600/50 hover:bg-[#202329]'}
-                            `}
-                        >
-                            <div className="w-10 h-10 rounded bg-red-900/20 flex items-center justify-center text-red-500 group-hover:scale-110 transition-transform shrink-0">
-                                {openingPdfId === item.id ? (
-                                    <div className="animate-spin h-5 w-5 border-2 border-red-500 border-t-transparent rounded-full"></div>
-                                ) : (
-                                    renderPdfIcon(item.pdfClassification)
+                    {item.type === 'pdf' && (() => {
+                        const isTheory = item.pdfClassification === 'TEORIA';
+                        const isQuestions = item.pdfClassification === 'QUESTÕES';
+                        const colorClass = isTheory ? 'text-yellow-500' : 'text-orange-500';
+                        const bgClass = isTheory ? 'bg-yellow-500/10' : 'bg-orange-500/10';
+                        const borderClass = isTheory ? 'border-yellow-500/20' : 'border-orange-500/20';
+                        const isLinked = item.isLinkedToPreviousTheory;
+
+                        return (
+                            <div className={`relative ${isLinked ? 'ml-16' : ''}`}>
+                                {isLinked && (
+                                    <div className="absolute -left-8 top-0 w-8 h-1/2 border-l-2 border-b-2 border-orange-500/30 rounded-bl-lg"></div>
                                 )}
+                                <div 
+                                    onClick={() => handleOpenPdf(item.fileUrl || '', item.id)}
+                                    className={`
+                                        flex items-center gap-4 p-4 bg-[#1a1d24] border ${borderClass} rounded-xl transition-all group mb-4 cursor-pointer
+                                        ${openingPdfId === item.id ? 'opacity-75 pointer-events-none' : `hover:border-red-600/50 hover:bg-[#202329]` }
+                                    `}
+                                >
+                                    <div className={`w-10 h-10 rounded ${bgClass} flex items-center justify-center ${colorClass} group-hover:scale-110 transition-transform shrink-0`}>
+                                        {openingPdfId === item.id ? (
+                                            <div className={`animate-spin h-5 w-5 border-2 ${colorClass} border-t-transparent rounded-full`}></div>
+                                        ) : (
+                                            isTheory ? <FileText size={24} /> : isQuestions ? <FileQuestion size={24} /> : <Layers size={24} />
+                                        )}
+                                    </div>
+                                    <div className="flex-1">
+                                        <h4 className="text-white font-bold text-sm">{item.title}</h4>
+                                        <span className={`text-[10px] uppercase transition-colors ${openingPdfId === item.id ? 'text-red-400 animate-pulse' : 'text-gray-500 group-hover:text-gray-400'}`}>
+                                            {openingPdfId === item.id ? 'Gerando documento seguro...' : `Material em PDF • ${item.pdfClassification || 'TEORIA'} • Clique para acessar`}
+                                        </span>
+                                    </div>
+                                    {openingPdfId !== item.id && (
+                                        <Download className="w-5 h-5 text-gray-500 group-hover:text-white" />
+                                    )}
+                                </div>
                             </div>
-                            <div className="flex-1">
-                                <h4 className="text-white font-bold text-sm">{item.title}</h4>
-                                <span className={`text-[10px] uppercase transition-colors ${openingPdfId === item.id ? 'text-red-400 animate-pulse' : 'text-gray-500 group-hover:text-gray-400'}`}>
-                                    {openingPdfId === item.id ? 'Gerando documento seguro...' : `Material em PDF • ${item.pdfClassification || 'TEORIA'} • Clique para acessar`}
-                                </span>
-                            </div>
-                            {openingPdfId !== item.id && (
-                                <Download className="w-5 h-5 text-gray-500 group-hover:text-white" />
-                            )}
-                        </div>
-                    )}
+                        );
+                    })()}
 
                     {/* Link */}
                     {item.type === 'link' && (

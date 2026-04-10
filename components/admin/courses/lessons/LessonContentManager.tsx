@@ -57,6 +57,16 @@ export function LessonContentManager({ lesson, onBack }: LessonContentManagerPro
     const targetIndex = direction === 'up' ? index - 1 : index + 1;
     [newContents[index], newContents[targetIndex]] = [newContents[targetIndex], newContents[index]];
     
+    // Check rule and reset flag if broken
+    newContents.forEach((item, i) => {
+        if (item.isLinkedToPreviousTheory) {
+            const previous = newContents[i - 1];
+            if (item.type !== 'pdf' || item.pdfClassification !== 'QUESTÕES' || previous?.pdfClassification !== 'TEORIA') {
+                item.isLinkedToPreviousTheory = false;
+            }
+        }
+    });
+    
     setContents(newContents);
     await courseService.reorderContents(newContents);
   };
@@ -113,6 +123,7 @@ export function LessonContentManager({ lesson, onBack }: LessonContentManagerPro
         onSave={handleSave}
         initialData={editingContent}
         lessonId={lesson.id}
+        contents={contents}
       />
 
       <ConfirmationModal 

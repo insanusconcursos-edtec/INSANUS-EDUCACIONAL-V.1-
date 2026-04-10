@@ -116,6 +116,8 @@ export interface Meta {
   // Configuração Global de Revisão Espaçada (Quando essa meta deve reaparecer)
   reviewConfig?: SpacedReviewConfig;
 
+  observation?: string;
+
   createdAt?: any;
 }
 

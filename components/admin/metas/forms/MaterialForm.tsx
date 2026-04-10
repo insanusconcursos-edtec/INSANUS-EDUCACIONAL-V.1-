@@ -24,6 +24,7 @@ const MaterialForm: React.FC<MaterialFormProps> = ({ isOpen, onClose, onSave, in
   // Lists
   const [links, setLinks] = useState<MaterialLink[]>([]);
   const [files, setFiles] = useState<FileItem[]>([]);
+  const [observation, setObservation] = useState('');
   
   // Upload State
   const [uploading, setUploading] = useState(false);
@@ -35,6 +36,7 @@ const MaterialForm: React.FC<MaterialFormProps> = ({ isOpen, onClose, onSave, in
         setPageCount(initialData.pageCount || '');
         setColor(initialData.color || '#f97316');
         setLinks(initialData.links || []);
+        setObservation(initialData.observation || '');
         
         // Map existing files to UI structure
         const mappedFiles = (initialData.files || []).map((f: MaterialFile, i: number) => ({
@@ -49,6 +51,7 @@ const MaterialForm: React.FC<MaterialFormProps> = ({ isOpen, onClose, onSave, in
         setColor('#f97316');
         setLinks([]);
         setFiles([]);
+        setObservation('');
       }
     }
   }, [isOpen, initialData]);
@@ -72,7 +75,8 @@ const MaterialForm: React.FC<MaterialFormProps> = ({ isOpen, onClose, onSave, in
         pageCount: Number(pageCount),
         color,
         files: processedFiles,
-        links: links
+        links: links,
+        observation
       });
       
     } catch (error) {
@@ -142,6 +146,20 @@ const MaterialForm: React.FC<MaterialFormProps> = ({ isOpen, onClose, onSave, in
                     onBlur={(e) => e.target.style.borderColor = '#27272a'}
                 />
             </div>
+          </div>
+
+          <div className="space-y-2">
+              <label className="text-[10px] font-black text-zinc-500 tracking-widest">Aviso / Dica / Observação (Opcional)</label>
+              <textarea 
+                  value={observation}
+                  onChange={(e) => setObservation(e.target.value)}
+                  placeholder="Ex: Foco total no Artigo 5º..."
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-3 text-xs text-white placeholder-zinc-700 focus:outline-none font-bold"
+                  style={{ caretColor: color }}
+                  onFocus={(e) => e.target.style.borderColor = color}
+                  onBlur={(e) => e.target.style.borderColor = '#27272a'}
+                  rows={3}
+              />
           </div>
 
           <MetaColorSelector color={color} onChange={setColor} />

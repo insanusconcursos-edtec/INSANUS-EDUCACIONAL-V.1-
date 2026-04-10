@@ -134,6 +134,7 @@ export interface CourseContent {
   
   fileUrl?: string; // Para PDF
   pdfClassification?: 'TEORIA' | 'QUESTÕES' | 'TEORIA_QUESTÕES';
+  isLinkedToPreviousTheory?: boolean;
   
   linkUrl?: string; // Para Links
   

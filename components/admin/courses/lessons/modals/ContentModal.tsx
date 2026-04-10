@@ -13,9 +13,10 @@ interface ContentModalProps {
   onSave: (data: Partial<CourseContent>) => Promise<void>;
   initialData?: CourseContent | null;
   lessonId: string;
+  contents: CourseContent[];
 }
 
-export function ContentModal({ isOpen, onClose, onSave, initialData, lessonId }: ContentModalProps) {
+export function ContentModal({ isOpen, onClose, onSave, initialData, lessonId, contents }: ContentModalProps) {
   // Estado base
   const [type, setType] = useState<ContentType>('video');
   const [title, setTitle] = useState('');
@@ -33,6 +34,7 @@ export function ContentModal({ isOpen, onClose, onSave, initialData, lessonId }:
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [existingPdfUrl, setExistingPdfUrl] = useState('');
   const [pdfClassification, setPdfClassification] = useState<'TEORIA' | 'QUESTÕES' | 'TEORIA_QUESTÕES'>('TEORIA');
+  const [isLinkedToPreviousTheory, setIsLinkedToPreviousTheory] = useState(false);
   const [selectingVideo, setSelectingVideo] = useState(false);
   
   // Panda Media Picker
@@ -164,6 +166,7 @@ export function ContentModal({ isOpen, onClose, onSave, initialData, lessonId }:
         setTextContent(initialData.textContent || '');
         setExistingPdfUrl(initialData.fileUrl || '');
         setPdfClassification(initialData.pdfClassification || 'TEORIA');
+        setIsLinkedToPreviousTheory(initialData.isLinkedToPreviousTheory || false);
       } else {
         // Reset
         setType('video');
@@ -177,6 +180,7 @@ export function ContentModal({ isOpen, onClose, onSave, initialData, lessonId }:
         setExistingPdfUrl('');
         setPdfFile(null);
         setPdfClassification('TEORIA');
+        setIsLinkedToPreviousTheory(false);
       }
     }
   }, [isOpen, initialData]);
@@ -197,7 +201,8 @@ export function ContentModal({ isOpen, onClose, onSave, initialData, lessonId }:
       const data: Partial<CourseContent> = {
         title,
         type,
-        lessonId
+        lessonId,
+        isLinkedToPreviousTheory
       };
 
       if (type === 'video') {
@@ -383,6 +388,29 @@ export function ContentModal({ isOpen, onClose, onSave, initialData, lessonId }:
                         ))}
                     </div>
                 </div>
+
+                {(() => {
+                    const currentIndex = initialData ? contents.findIndex(c => c.id === initialData.id) : contents.length;
+                    const previousContent = contents[currentIndex - 1];
+                    const canLink = pdfClassification === 'QUESTÕES' && previousContent?.pdfClassification === 'TEORIA';
+                    
+                    if (!canLink) return null;
+
+                    return (
+                        <div className="flex items-center gap-3 p-3 bg-orange-900/10 border border-orange-900/30 rounded">
+                            <input 
+                                type="checkbox" 
+                                id="linkTheory"
+                                checked={isLinkedToPreviousTheory}
+                                onChange={e => setIsLinkedToPreviousTheory(e.target.checked)}
+                                className="w-4 h-4 accent-orange-500 cursor-pointer"
+                            />
+                            <label htmlFor="linkTheory" className="text-sm text-orange-500 font-bold cursor-pointer">
+                                Vincular à Teoria imediatamente acima
+                            </label>
+                        </div>
+                    );
+                })()}
 
                 {/* Preview da Identificação Visual */}
                 <div className="p-4 bg-black/40 rounded-lg border border-gray-800 space-y-3">

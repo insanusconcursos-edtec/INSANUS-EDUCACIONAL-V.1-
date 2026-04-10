@@ -34,6 +34,7 @@ const LawForm: React.FC<LawFormProps> = ({ isOpen, onClose, onSave, initialData,
     intervals: '1, 7, 15, 30',
     repeatLast: false
   });
+  const [observation, setObservation] = useState('');
 
   // UI State
   const [uploading, setUploading] = useState(false);
@@ -46,6 +47,7 @@ const LawForm: React.FC<LawFormProps> = ({ isOpen, onClose, onSave, initialData,
         setPages(initialData.lawConfig?.pages || '');
         setMultiplier(initialData.lawConfig?.multiplier || initialData.lawConfig?.speedFactor || 1);
         setColor(initialData.color || '#eab308');
+        setObservation(initialData.observation || '');
         
         setLinks(initialData.links || []);
         
@@ -70,6 +72,7 @@ const LawForm: React.FC<LawFormProps> = ({ isOpen, onClose, onSave, initialData,
         setColor('#eab308');
         setLinks([]);
         setFiles([]);
+        setObservation('');
         setReviewConfig({ active: false, intervals: '1, 7, 15, 30', repeatLast: false });
       }
     }
@@ -95,7 +98,8 @@ const LawForm: React.FC<LawFormProps> = ({ isOpen, onClose, onSave, initialData,
         },
         reviewConfig,
         files: processedFiles,
-        links: links
+        links: links,
+        observation
       });
       
     } catch (error) {
@@ -204,6 +208,20 @@ const LawForm: React.FC<LawFormProps> = ({ isOpen, onClose, onSave, initialData,
           </div>
 
           <MetaColorSelector color={color} onChange={setColor} />
+
+          <div className="space-y-2">
+              <label className="text-[10px] font-black text-zinc-500 tracking-widest">Aviso / Dica / Observação (Opcional)</label>
+              <textarea 
+                  value={observation}
+                  onChange={(e) => setObservation(e.target.value)}
+                  placeholder="Ex: Foco total no Artigo 5º..."
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-3 text-xs text-white placeholder-zinc-700 focus:outline-none font-bold"
+                  style={{ caretColor: color }}
+                  onFocus={(e) => e.target.style.borderColor = color}
+                  onBlur={(e) => e.target.style.borderColor = '#27272a'}
+                  rows={3}
+              />
+          </div>
 
           <div className="h-px bg-zinc-900"></div>
 
