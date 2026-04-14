@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Save, Upload, Image as ImageIcon, Loader2, Link as LinkIcon, GraduationCap } from 'lucide-react';
+import { X, Save, Upload, Image as ImageIcon, Loader2, Link as LinkIcon, GraduationCap, Headphones } from 'lucide-react';
 import { Plan, Category, createPlan, updatePlan, uploadPlanImage } from '../../services/planService';
 import { getSimulatedClasses, SimulatedClass } from '../../services/simulatedService';
+import { subscribeToMentors } from '../../services/mentorService';
+import { Mentor } from '../../types/chat';
 
 interface PlanFormProps {
   isOpen: boolean;
@@ -19,7 +21,8 @@ const PlanForm: React.FC<PlanFormProps> = ({ isOpen, onClose, planToEdit, catego
     subcategory: '',
     organ: '',
     purchaseLink: '',
-    linkedSimuladoClassId: '' // NOVO: Campo de vínculo
+    linkedSimuladoClassId: '', // NOVO: Campo de vínculo
+    linkedMentors: [] as string[]
   });
   
   // Estado para lidar com upload
@@ -28,13 +31,17 @@ const PlanForm: React.FC<PlanFormProps> = ({ isOpen, onClose, planToEdit, catego
   const [loading, setLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Estado para as turmas de simulados
+  // Estado para as turmas de simulados e mentores
   const [simClasses, setSimClasses] = useState<SimulatedClass[]>([]);
+  const [availableMentors, setAvailableMentors] = useState<Mentor[]>([]);
 
   useEffect(() => {
-    // Busca turmas disponíveis ao abrir
+    // Busca turmas e mentores disponíveis ao abrir
+    let unsubscribeMentors: () => void;
+
     if (isOpen) {
         getSimulatedClasses().then(setSimClasses).catch(console.error);
+        unsubscribeMentors = subscribeToMentors(setAvailableMentors);
     }
 
     if (planToEdit) {
@@ -45,7 +52,8 @@ const PlanForm: React.FC<PlanFormProps> = ({ isOpen, onClose, planToEdit, catego
         subcategory: planToEdit.subcategory,
         organ: planToEdit.organ,
         purchaseLink: planToEdit.purchaseLink,
-        linkedSimuladoClassId: planToEdit.linkedSimuladoClassId || ''
+        linkedSimuladoClassId: planToEdit.linkedSimuladoClassId || '',
+        linkedMentors: planToEdit.linkedMentors || []
       });
       setPreviewUrl(planToEdit.imageUrl);
       setSelectedFile(null);
@@ -57,11 +65,16 @@ const PlanForm: React.FC<PlanFormProps> = ({ isOpen, onClose, planToEdit, catego
         subcategory: '',
         organ: '',
         purchaseLink: '',
-        linkedSimuladoClassId: ''
+        linkedSimuladoClassId: '',
+        linkedMentors: []
       });
       setPreviewUrl('');
       setSelectedFile(null);
     }
+
+    return () => {
+      if (unsubscribeMentors) unsubscribeMentors();
+    };
   }, [planToEdit, isOpen]);
 
   if (!isOpen) return null;
@@ -69,6 +82,16 @@ const PlanForm: React.FC<PlanFormProps> = ({ isOpen, onClose, planToEdit, catego
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const toggleMentor = (mentorId: string) => {
+    setFormData(prev => {
+      const current = prev.linkedMentors || [];
+      const updated = current.includes(mentorId)
+        ? current.filter(id => id !== mentorId)
+        : [...current, mentorId];
+      return { ...prev, linkedMentors: updated };
+    });
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -273,6 +296,45 @@ const PlanForm: React.FC<PlanFormProps> = ({ isOpen, onClose, planToEdit, catego
                                 Ao salvar, os usuários deste plano ganharão acesso automático a esta turma de simulados.
                             </span>
                         </div>
+                    )}
+                </div>
+          </div>
+
+          {/* --- VINCULAÇÃO DE MENTORES --- */}
+          <div className="bg-[#1a1d24] p-6 rounded-2xl border border-gray-800 mb-6 mt-6">
+                <div className="flex items-center gap-3 mb-4">
+                    <div className="p-2 bg-blue-500/10 rounded-lg text-blue-500">
+                        <Headphones size={20} />
+                    </div>
+                    <div>
+                        <h3 className="text-white font-bold text-sm uppercase tracking-wider">Mentores Vinculados</h3>
+                        <p className="text-gray-500 text-[10px] mt-0.5">Selecione os mentores que atenderão os alunos deste plano.</p>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {availableMentors.map((mentor) => (
+                        <div 
+                          key={mentor.id}
+                          onClick={() => toggleMentor(mentor.id)}
+                          className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                            formData.linkedMentors?.includes(mentor.id)
+                              ? 'bg-blue-500/10 border-blue-500/50'
+                              : 'bg-zinc-900 border-zinc-800 hover:border-zinc-700'
+                          }`}
+                        >
+                          <div className="w-8 h-8 rounded-full overflow-hidden border border-zinc-800">
+                            <img src={mentor.photoUrl} alt={mentor.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                          </div>
+                          <span className={`text-[10px] font-bold uppercase tracking-tight ${
+                            formData.linkedMentors?.includes(mentor.id) ? 'text-white' : 'text-zinc-500'
+                          }`}>
+                            {mentor.name}
+                          </span>
+                        </div>
+                    ))}
+                    {availableMentors.length === 0 && (
+                      <p className="col-span-full text-[10px] text-zinc-600 italic">Nenhum mentor cadastrado.</p>
                     )}
                 </div>
           </div>

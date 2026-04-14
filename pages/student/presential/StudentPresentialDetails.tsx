@@ -6,7 +6,7 @@ import { classScheduleService } from '../../../services/classScheduleService';
 import { curriculumService } from '../../../services/curriculumService';
 import { Class } from '../../../types/class';
 import { OnlineCourse, CourseModule } from '../../../types/course';
-import { ArrowLeft, Calendar, GraduationCap, BookOpen, ChevronDown, Radio, Video, Clock, Play } from 'lucide-react';
+import { ArrowLeft, Calendar, GraduationCap, BookOpen, ChevronDown, Radio, Video, Clock, Play, FileText } from 'lucide-react';
 import { StudentClassSchedule } from '../../../components/student/presential/StudentClassSchedule';
 import { StudentModuleCard } from '../../../components/student/courses/StudentModuleCard';
 import { CoursePlayer } from '../../../components/student/courses/player/CoursePlayer';
@@ -14,6 +14,7 @@ import { StudentPedagogicalPlanning } from '../../../components/student/presenti
 import { ConcursoStatusBanner } from '../../../components/student/presential/ConcursoStatusBanner';
 import { liveEventService } from '../../../services/liveEventService';
 import { LiveEvent } from '../../../types/liveEvent';
+import { LinkedSimulatedView } from '../../../components/student/simulados/LinkedSimulatedView';
 
 export const StudentPresentialDetails: React.FC = () => {
   const { classId } = useParams<{ classId: string }>();
@@ -22,7 +23,7 @@ export const StudentPresentialDetails: React.FC = () => {
   const moduleIdParam = searchParams.get('module');
   
   const [currentClass, setCurrentClass] = useState<Class | null>(null);
-  const [activeTab, setActiveTab] = useState<'SCHEDULE' | 'PLANNING' | 'TEACHING' | 'LIVE'>('TEACHING');
+  const [activeTab, setActiveTab] = useState<'TEACHING' | 'SCHEDULE' | 'PLANNING' | 'LIVE' | 'SIMULADOS'>('TEACHING');
   const [loading, setLoading] = useState(true);
   const [classLiveEvents, setClassLiveEvents] = useState<LiveEvent[]>([]);
   
@@ -41,7 +42,8 @@ export const StudentPresentialDetails: React.FC = () => {
     { id: 'SCHEDULE', label: 'CRONOGRAMA', icon: Calendar, show: hasSchedule },
     { id: 'PLANNING', label: 'PLANEJAMENTO PEDAGÓGICO', icon: BookOpen, show: hasPlanning },
     { id: 'LIVE', label: '🔴 EVENTOS AO VIVO', icon: Radio, show: classLiveEvents.length > 0 },
-  ].filter(tab => tab.show), [hasModules, hasSchedule, hasPlanning, classLiveEvents]);
+    { id: 'SIMULADOS', label: 'SIMULADOS', icon: FileText, show: !!currentClass?.linkedSimulatedId },
+  ].filter(tab => tab.show), [hasModules, hasSchedule, hasPlanning, classLiveEvents, currentClass]);
 
   useEffect(() => {
     const fetchClass = async () => {
@@ -63,6 +65,7 @@ export const StudentPresentialDetails: React.FC = () => {
             const hSchedule = eventsData.length > 0;
             const hPlanning = subjectsData.length > 0;
             const hLive = liveEventsData.length > 0;
+            const hSimulated = !!data.linkedSimulatedId;
             
             setHasModules(hModules);
             setHasSchedule(hSchedule);
@@ -75,7 +78,8 @@ export const StudentPresentialDetails: React.FC = () => {
               ...(hModules ? ['TEACHING'] : []),
               ...(hSchedule ? ['SCHEDULE'] : []),
               ...(hPlanning ? ['PLANNING'] : []),
-              ...(hLive ? ['LIVE'] : [])
+              ...(hLive ? ['LIVE'] : []),
+              ...(hSimulated ? ['SIMULADOS'] : [])
             ];
 
             if (availableIds.length > 0 && !availableIds.includes(activeTab)) {
@@ -379,6 +383,10 @@ export const StudentPresentialDetails: React.FC = () => {
               ))}
             </div>
           </div>
+        )}
+
+        {activeTab === 'SIMULADOS' && currentClass?.linkedSimulatedId && (
+          <LinkedSimulatedView simulatedId={currentClass.linkedSimulatedId} />
         )}
       </div>
     </div>

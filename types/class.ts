@@ -46,6 +46,7 @@ export interface Class {
   organization?: string;
   status: ClassStatus;
   concursoStatus?: ConcursoStatus;
+  linkedSimulatedId?: string | null;
   bancaName?: string;
   examDate?: string;
   examShift?: 'MANHÃ' | 'TARDE' | 'NOITE';

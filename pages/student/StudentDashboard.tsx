@@ -18,11 +18,13 @@ import { db } from '../../services/firebase';
 import { getExams } from '../../services/simulatedService';
 import { SimuladoFocusMode } from '../../components/student/goals/SimuladoFocusMode';
 import StudentMentorshipViewer from '../../components/student/mentorship/StudentMentorshipViewer';
+import StudentChatView from '../../components/student/chat/StudentChatView';
 import { CourseReviewDashboard } from '../../components/student/courses/reviews/CourseReviewDashboard';
 import { courseReviewService } from '../../services/courseReviewService';
 import { useNavigate } from 'react-router-dom';
 
 import { useSpacedReviewModal } from '../../contexts/SpacedReviewModalContext';
+import { PlanHeroBanner } from '../../components/student/PlanHeroBanner';
 
 const StudentDashboard: React.FC = () => {
   const { currentUser } = useAuth();
@@ -777,7 +779,31 @@ const StudentDashboard: React.FC = () => {
   // --- RENDERIZAÇÃO DA ABA DE MENTORIA ---
   if (currentTab === 'mentorship') {
       return (
-          <StudentMentorshipViewer planId={currentPlanId} />
+          <div className="relative w-full min-h-screen bg-zinc-950 flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-700">
+            {fullPlanData && (
+              <PlanHeroBanner currentTab="mentorship" planData={fullPlanData} />
+            )}
+            <div className="relative z-10 w-full max-w-[1600px] mx-auto px-4 md:px-8 pt-8 md:pt-12 flex-1 flex flex-col mb-10 -mt-10 md:-mt-20">
+              <StudentMentorshipViewer planId={currentPlanId} />
+            </div>
+          </div>
+      );
+  }
+
+  // --- RENDERIZAÇÃO DA ABA DE CALL (CHAT) ---
+  if (currentTab === 'call') {
+      return (
+          <div className="relative w-full min-h-screen bg-zinc-950 flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-700">
+            {fullPlanData && (
+              <PlanHeroBanner currentTab="call" planData={fullPlanData} />
+            )}
+            <div className="relative z-10 w-full max-w-[1600px] mx-auto px-4 md:px-8 pt-8 md:pt-12 flex-1 flex flex-col mb-10 -mt-10 md:-mt-20">
+              <StudentChatView 
+                planId={currentPlanId} 
+                linkedMentorIds={fullPlanData?.linkedMentors || []} 
+              />
+            </div>
+          </div>
       );
   }
 
@@ -793,6 +819,13 @@ const StudentDashboard: React.FC = () => {
   return (
     <div className="pb-20 animate-in fade-in slide-in-from-bottom-4 duration-700">
       
+      {/* HERO BANNER */}
+      {fullPlanData && (
+        <PlanHeroBanner currentTab="today" planData={fullPlanData} />
+      )}
+
+      <div className="relative z-10 w-full max-w-[1600px] mx-auto px-4 md:px-8 pt-8 md:pt-12 flex-1 flex flex-col mb-10 -mt-10 md:-mt-20">
+
       {/* OVERLAY MODO FOCO (COM ACESSO AO PDF CORRIGIDO) */}
       {isExamMode && activeSimulado && (
           <SimuladoFocusMode 
@@ -1116,6 +1149,7 @@ const StudentDashboard: React.FC = () => {
 
       {/* MODAL DE REVISÃO ESPAÇADA (DIRETRIZ ESTRITA - MONTADO NO DASHBOARD) */}
       {/* Spaced Review Modal (GERENCIADO VIA CONTEXTO) */}
+      </div>
     </div>
   );
 };

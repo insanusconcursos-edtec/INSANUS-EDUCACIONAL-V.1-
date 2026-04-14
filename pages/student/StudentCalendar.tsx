@@ -7,6 +7,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { getRangeSchedule, ScheduledEvent, generateSchedule, fetchFullPlanData } from '../../services/scheduleService';
 import { getStudentConfig, getStudentCompletedMetas } from '../../services/studentService';
 import toast from 'react-hot-toast';
+import { PlanHeroBanner } from '../../components/student/PlanHeroBanner';
 
 // Type Config for Visuals (Fallback)
 const TYPE_CONFIG: Record<string, { label: string; color: string; }> = {
@@ -224,6 +225,7 @@ const StudentCalendar: React.FC = () => {
   const [isPaused, setIsPaused] = useState(false);
 
   const [selectedDayData, setSelectedDayData] = useState<{ date: Date; goals: ScheduledEvent[] } | null>(null);
+  const [fullPlanData, setFullPlanData] = useState<any>(null);
 
   // Rolling Window State
   const [lastScheduledDate, setLastScheduledDate] = useState<string | null>(null);
@@ -302,6 +304,7 @@ const StudentCalendar: React.FC = () => {
         // Check plan completion
         if (activePlanId) {
             const fullPlan = await fetchFullPlanData(activePlanId);
+            setFullPlanData(fullPlan);
             const completedIdsSet = await getStudentCompletedMetas(currentUser.uid, activePlanId);
             
             let totalMetas = 0;
@@ -458,10 +461,15 @@ const StudentCalendar: React.FC = () => {
 
   return (
     // Height constrained to viewport minus header/margins to force internal scrolling
-    <div className="h-[calc(100vh-180px)] flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-700">
+    <div className="relative w-full min-h-screen bg-zinc-950 flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-700">
       
-      {/* HEADER SECTION */}
-      <div className="flex-none flex flex-col md:flex-row md:items-end justify-between gap-6 mb-4">
+      {fullPlanData && (
+        <PlanHeroBanner currentTab="calendar" planData={fullPlanData} />
+      )}
+
+      <div className="relative z-10 w-full max-w-[1600px] mx-auto px-4 md:px-8 pt-8 md:pt-12 flex-1 flex flex-col mb-10 -mt-10 md:-mt-20">
+        {/* HEADER SECTION */}
+        <div className="flex-none flex flex-col md:flex-row md:items-end justify-between gap-6 mb-4">
         <div>
           <h1 className="text-3xl font-black text-white uppercase tracking-tighter leading-none flex items-center gap-3">
             <CalendarIcon size={28} className="text-zinc-600" />
@@ -538,7 +546,7 @@ const StudentCalendar: React.FC = () => {
       )}
 
       {/* CALENDAR BODY */}
-      <div className="flex-1 border border-zinc-800 rounded-2xl overflow-hidden bg-zinc-950 flex flex-col shadow-xl min-h-0">
+      <div className="flex-1 min-h-[600px] lg:min-h-[800px] border border-zinc-800 rounded-2xl overflow-hidden bg-zinc-950 flex flex-col shadow-xl">
         
         {viewMode === 'week' && (
             <>
@@ -751,9 +759,7 @@ const StudentCalendar: React.FC = () => {
                 </div>
             </>
         )}
-
       </div>
-
       {selectedDayData && createPortal(
         <div 
             className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200"
@@ -792,7 +798,7 @@ const StudentCalendar: React.FC = () => {
         </div>,
         document.body
       )}
-
+      </div>
     </div>
   );
 };

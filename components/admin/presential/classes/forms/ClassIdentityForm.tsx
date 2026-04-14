@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import { Upload, Video, FileText, Type, X, Filter, Layers, Building2, Image as ImageIcon, Smartphone, Monitor } from 'lucide-react';
 import { Class } from '../../../../../types/class';
 import { classMetadataService, MetadataItem } from '../../../../../services/classMetadataService';
+import { getSimulatedClasses, SimulatedClass } from '../../../../../services/simulatedService';
 
 interface ClassIdentityFormProps {
   data: Partial<Class>;
@@ -26,18 +27,21 @@ export const ClassIdentityForm: React.FC<ClassIdentityFormProps> = ({
   const [categories, setCategories] = useState<MetadataItem[]>([]);
   const [subcategories, setSubcategories] = useState<MetadataItem[]>([]);
   const [organizations, setOrganizations] = useState<MetadataItem[]>([]);
+  const [simulatedClasses, setSimulatedClasses] = useState<SimulatedClass[]>([]);
 
   useEffect(() => {
     const fetchMetadata = async () => {
       try {
-        const [cats, subs, orgs] = await Promise.all([
+        const [cats, subs, orgs, simClasses] = await Promise.all([
           classMetadataService.getCategories(),
           classMetadataService.getSubcategories(),
-          classMetadataService.getOrganizations()
+          classMetadataService.getOrganizations(),
+          getSimulatedClasses()
         ]);
         setCategories(cats);
         setSubcategories(subs);
         setOrganizations(orgs);
+        setSimulatedClasses(simClasses);
       } catch (error) {
         console.error("Error fetching metadata:", error);
       }
@@ -545,6 +549,27 @@ export const ClassIdentityForm: React.FC<ClassIdentityFormProps> = ({
               <div className={`w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${data.hasRecordings ? 'translate-x-6' : 'translate-x-0'}`} />
             </div>
           </div>
+        </div>
+
+        {/* Cruzamento de Produtos */}
+        <div className="col-span-2 border-t border-zinc-800 pt-6">
+          <label className="block text-xs font-bold text-zinc-400 uppercase mb-1 flex items-center gap-2">
+            <Layers className="w-4 h-4 text-yellow-500" />
+            Turma de Simulados Vinculada
+          </label>
+          <select
+            value={data.linkedSimulatedId || ''}
+            onChange={(e) => onChange({ linkedSimulatedId: e.target.value || null })}
+            className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-brand-red transition-colors appearance-none"
+          >
+            <option value="">Nenhum simulado vinculado</option>
+            {simulatedClasses.map((cls) => (
+              <option key={cls.id} value={cls.id}>{cls.title}</option>
+            ))}
+          </select>
+          <p className="text-[10px] text-zinc-500 mt-1 uppercase">
+            Ao vincular, uma aba &quot;SIMULADOS&quot; será ativada na área do aluno desta turma.
+          </p>
         </div>
       </div>
     </div>

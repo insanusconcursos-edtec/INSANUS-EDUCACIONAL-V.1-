@@ -16,61 +16,9 @@ import {
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from './firebase';
 import { sanitizeData as cleanObject } from './firestoreUtils';
+import { Plan, Folder, Cycle, CycleItem, CycleSystem } from '../types/plan';
 
 // Interfaces
-export interface Folder {
-  id: string;
-  name: string;
-  order: number;
-}
-
-export type CycleSystem = 'continuous' | 'rotative';
-
-export interface CycleItem {
-  id: string;
-  type: 'discipline' | 'folder' | 'simulado';
-  referenceId: string; // ID da disciplina, pasta ou simulado
-  topicsPerTurn: number;
-  order: number;
-  // Metadata opcional para simulados
-  simuladoTitle?: string;
-  duration?: number;
-}
-
-export interface Cycle {
-  id: string;
-  name: string;
-  order: number;
-  items: CycleItem[];
-}
-
-export interface Plan {
-  id?: string;
-  title: string;
-  imageUrl: string;
-  category: string;
-  subcategory: string;
-  organ: string;
-  purchaseLink: string;
-  folders?: Folder[];
-  
-  // Ciclos
-  cycleSystem?: CycleSystem;
-  cycles?: Cycle[];
-
-  // Edital Config
-  isEdictEnabled?: boolean;
-  isActiveUserMode?: boolean; // Novo campo: Controle de Usuário Ativo
-
-  // Simulados Vinculados
-  linkedSimuladoClassId?: string; // Turma de simulados vinculada
-
-  // Sync Metadata
-  createdAt?: any;
-  lastModifiedAt?: any; // Timestamp da última edição (Draft)
-  lastSyncedAt?: any;   // Timestamp da última publicação (Published)
-}
-
 export interface Category {
   id?: string;
   name: string;

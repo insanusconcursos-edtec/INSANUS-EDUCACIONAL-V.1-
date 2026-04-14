@@ -1,8 +1,9 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Layout, Layers, RefreshCw, FileText, GraduationCap } from 'lucide-react';
-import { getPlanById, Plan } from '../../services/planService';
+import { ChevronLeft, Layout, Layers, RefreshCw, FileText, GraduationCap, MessageSquare } from 'lucide-react';
+import { getPlanById, Plan, updatePlan } from '../../services/planService';
+import { PlanVisualEditor } from '../../components/admin/plan/visual/PlanVisualEditor';
 import { 
   getDisciplines, 
   addDiscipline, 
@@ -26,12 +27,13 @@ import CycleManager from '../../components/admin/cycles/CycleManager';
 import MetaManager from '../../components/admin/metas/MetaManager';
 import VerticalEdictManager from '../../components/admin/edict/VerticalEdictManager';
 import { PlanMentorshipTab } from '../../components/admin/plan/mentorship/PlanMentorshipTab';
+import MentorChatWorkspace from '../admin/MentorChatWorkspace';
 import ConfirmationModal from '../../components/ui/ConfirmationModal';
 import Loading from '../../components/ui/Loading';
 import SyncControlPanel from '../../components/admin/sync/SyncControlPanel';
 import { usePlanSync } from '../../hooks/usePlanSync';
 
-type TabView = 'STRUCTURE' | 'CYCLES' | 'EDICT' | 'MENTORSHIP';
+type TabView = 'STRUCTURE' | 'CYCLES' | 'EDICT' | 'MENTORSHIP' | 'VISUAL' | 'CHAT';
 
 const PlanEditor: React.FC = () => {
   const { planId } = useParams<{ planId: string }>();
@@ -89,6 +91,17 @@ const PlanEditor: React.FC = () => {
   useEffect(() => {
     fetchPlanAndStructure();
   }, [fetchPlanAndStructure]);
+
+  const handleUpdatePlan = async (updates: Partial<Plan>) => {
+    if (!planId) return;
+    try {
+      await updatePlan(planId, updates);
+      setPlan(prev => prev ? { ...prev, ...updates } : null);
+    } catch (e) {
+      console.error(e);
+      alert('Erro ao atualizar plano');
+    }
+  };
 
   // 2. Browser Exit Protection
   useEffect(() => {
@@ -355,6 +368,18 @@ const PlanEditor: React.FC = () => {
             >
                 <GraduationCap size={14} /> Mentoria
             </button>
+            <button 
+                onClick={() => setActiveTab('VISUAL')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'VISUAL' ? 'bg-zinc-800 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
+            >
+                <Layout size={14} /> Visual
+            </button>
+            <button 
+                onClick={() => setActiveTab('CHAT')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'CHAT' ? 'bg-zinc-800 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
+            >
+                <MessageSquare size={14} /> Chat
+            </button>
         </div>
       </div>
 
@@ -447,6 +472,18 @@ const PlanEditor: React.FC = () => {
       {activeTab === 'MENTORSHIP' && plan && (
           <div className="flex-1 overflow-hidden">
              <PlanMentorshipTab planId={plan.id!} />
+          </div>
+      )}
+
+      {activeTab === 'VISUAL' && plan && (
+          <div className="flex-1 overflow-hidden">
+             <PlanVisualEditor plan={plan} onUpdate={handleUpdatePlan} />
+          </div>
+      )}
+
+      {activeTab === 'CHAT' && planId && (
+          <div className="flex-1 overflow-hidden">
+             <MentorChatWorkspace planId={planId} />
           </div>
       )}
 

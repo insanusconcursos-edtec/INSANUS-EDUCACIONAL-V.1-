@@ -40,7 +40,7 @@ export const MentorshipCard: React.FC<MentorshipCardProps> = ({ module, onClick 
     <div 
       onClick={handleClick}
       // Se bloqueado, remove o cursor pointer e o efeito de escala. Se liberado, mantém comportamento padrão.
-      className={`relative flex-none w-40 md:w-60 aspect-[474/1000] rounded-lg overflow-hidden transition-all duration-300 transform group bg-[#1a1d24] border border-transparent
+      className={`relative flex-none flex-shrink-0 w-40 md:w-60 aspect-[474/1000] rounded-lg overflow-hidden transition-all duration-300 transform group bg-[#1a1d24] border border-transparent snap-start
         ${isLocked 
             ? 'cursor-not-allowed opacity-80' // Estilo Bloqueado
             : 'cursor-pointer hover:scale-105 hover:z-10 hover:border-red-600/50' // Estilo Liberado

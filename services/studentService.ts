@@ -312,6 +312,8 @@ export const saveStudentRoutine = async (
     currentPlanId: string;
     routine: StudentRoutine;
     studyProfile: StudyProfile;
+    savedRoutines?: any[];
+    activeRoutineId?: string;
   }
 ) => {
   const userRef = doc(db, 'users', uid);
@@ -320,6 +322,8 @@ export const saveStudentRoutine = async (
     currentPlanId: payload.currentPlanId,
     routine: payload.routine,
     studyProfile: payload.studyProfile,
+    savedRoutines: payload.savedRoutines || [],
+    activeRoutineId: payload.activeRoutineId || '',
     onboardingCompleted: true
   });
 };
@@ -721,6 +725,8 @@ export const getStudentConfig = async (uid: string) => {
     currentPlanId: data.currentPlanId,
     routine: data.routine,
     studyProfile: data.studyProfile,
+    savedRoutines: data.savedRoutines || [],
+    activeRoutineId: data.activeRoutineId,
     isPlanPaused: data.isPlanPaused || false,
     lastScheduledDate
   };

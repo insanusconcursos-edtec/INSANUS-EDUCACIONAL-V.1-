@@ -1,0 +1,127 @@
+import { 
+  collection, 
+  getDocs, 
+  addDoc, 
+  updateDoc, 
+  doc, 
+  query, 
+  where,
+  orderBy,
+  serverTimestamp,
+  onSnapshot,
+  increment
+} from 'firebase/firestore';
+import { db } from './firebase';
+import { Call, Message } from '../types/chat';
+
+export const getOrCreateCall = async (
+  planId: string, 
+  studentId: string, 
+  studentName: string, 
+  mentorId: string, 
+  mentorName: string,
+  studentPhotoUrl?: string,
+  mentorPhotoUrl?: string
+): Promise<string> => {
+  const callsRef = collection(db, 'calls');
+  const q = query(
+    callsRef, 
+    where('planId', '==', planId),
+    where('studentId', '==', studentId),
+    where('mentorId', '==', mentorId)
+  );
+  
+  const snapshot = await getDocs(q);
+  
+  if (!snapshot.empty) {
+    return snapshot.docs[0].id;
+  }
+  
+  const newCall = await addDoc(callsRef, {
+    planId,
+    studentId,
+    studentName,
+    studentPhotoUrl: studentPhotoUrl || '',
+    mentorId,
+    mentorName,
+    mentorPhotoUrl: mentorPhotoUrl || '',
+    lastMessage: '',
+    lastMessageTime: serverTimestamp(),
+    unreadCount: 0
+  });
+  
+  return newCall.id;
+};
+
+export const sendMessage = async (
+  callId: string, 
+  senderId: string, 
+  senderRole: 'student' | 'mentor', 
+  text: string
+) => {
+  const messagesRef = collection(db, 'calls', callId, 'messages');
+  
+  await addDoc(messagesRef, {
+    senderId,
+    senderRole,
+    text,
+    timestamp: serverTimestamp()
+  });
+  
+  // Update call metadata
+  const callRef = doc(db, 'calls', callId);
+  await updateDoc(callRef, {
+    lastMessage: text,
+    lastMessageTime: serverTimestamp(),
+    unreadCount: senderRole === 'student' ? increment(1) : 0 // If student sends, increment for mentor. If mentor sends, reset (assuming mentor read it)
+  });
+};
+
+export const subscribeToMessages = (callId: string, callback: (messages: Message[]) => void) => {
+  const messagesRef = collection(db, 'calls', callId, 'messages');
+  const q = query(messagesRef, orderBy('timestamp', 'asc'));
+  
+  return onSnapshot(q, (snapshot) => {
+    const messages = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    } as Message));
+    callback(messages);
+  });
+};
+
+export const subscribeToCalls = (
+  mentorId: string, 
+  callback: (calls: Call[]) => void,
+  planId?: string
+) => {
+  const callsRef = collection(db, 'calls');
+  const constraints = [];
+  
+  if (mentorId) {
+    constraints.push(where('mentorId', '==', mentorId));
+  }
+  
+  if (planId) {
+    constraints.push(where('planId', '==', planId));
+  }
+  
+  constraints.push(orderBy('lastMessageTime', 'desc'));
+  
+  const q = query(callsRef, ...constraints);
+  
+  return onSnapshot(q, (snapshot) => {
+    const calls = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    } as Call));
+    callback(calls);
+  });
+};
+
+export const markAsRead = async (callId: string) => {
+  const callRef = doc(db, 'calls', callId);
+  await updateDoc(callRef, {
+    unreadCount: 0
+  });
+};

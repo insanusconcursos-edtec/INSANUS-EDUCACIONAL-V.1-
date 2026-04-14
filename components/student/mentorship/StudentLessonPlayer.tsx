@@ -215,7 +215,7 @@ export function StudentLessonPlayer({ module, planId, onBack }: StudentLessonPla
   };
 
   return (
-    <div className="fixed top-[120px] left-0 right-0 bottom-0 bg-[#0f1115] z-40 flex flex-col md:flex-row overflow-hidden animate-in fade-in">
+    <div className="fixed top-[120px] left-0 right-0 bottom-0 bg-zinc-950 z-40 flex flex-col md:flex-row overflow-hidden animate-in fade-in">
       
       {/* --- HEADER MOBILE (SÓ APARECE EM TELAS PEQUENAS) --- */}
       <div className="md:hidden p-4 bg-[#121418] border-b border-gray-800 flex justify-between items-center shrink-0">

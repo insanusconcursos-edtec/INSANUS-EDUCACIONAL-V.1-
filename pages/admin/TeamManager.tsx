@@ -1,9 +1,9 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { 
-  Plus, Search, Trash2, Shield, Users, Layers, GraduationCap, 
+  Plus, Trash2, Shield, Users, Layers, GraduationCap, 
   CheckCircle2, XCircle, User, Lock, Key, Loader2, Pencil,
-  Package, Monitor, MapPin, Radio
+  Package, Monitor, MapPin, Radio, Headphones
 } from 'lucide-react';
 import { 
   getCollaborators, 
@@ -15,6 +15,7 @@ import {
   CollaboratorPermissions 
 } from '../../services/collaboratorService';
 import ConfirmationModal from '../../components/ui/ConfirmationModal';
+import MentorManager from './MentorManager';
 
 // === INTERNAL COMPONENTS ===
 
@@ -27,7 +28,7 @@ const PermissionToggle = ({
   colorClass 
 }: { 
   label: string; 
-  icon: any; 
+  icon: React.ElementType; 
   checked: boolean; 
   onChange: (val: boolean) => void;
   colorClass: string;
@@ -71,7 +72,7 @@ const CreateCollaboratorModal = ({
 }: { 
   isOpen: boolean; 
   onClose: () => void; 
-  onSave: (data: any) => Promise<void>; 
+  onSave: (data: Partial<CreateCollaboratorData>) => Promise<void>; 
   editingCollaborator?: Collaborator | null;
 }) => {
   const [name, setName] = useState('');
@@ -121,13 +122,14 @@ const CreateCollaboratorModal = ({
 
     setLoading(true);
     try {
-      const data: any = { name, username, permissions };
+      const data: Partial<CreateCollaboratorData> = { name, username, permissions };
       if (password) data.password = password;
       
       await onSave(data);
       onClose();
     } catch (error: any) {
-      alert(error.message);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      alert(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -282,6 +284,7 @@ const CreateCollaboratorModal = ({
 // === MAIN PAGE ===
 
 const TeamManager: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<'COLLABORATORS' | 'MENTORS'>('COLLABORATORS');
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -306,7 +309,7 @@ const TeamManager: React.FC = () => {
     fetchData();
   }, [fetchData]);
 
-  const handleSave = async (data: any) => {
+  const handleSave = async (data: Partial<CreateCollaboratorData>) => {
     if (editingCollaborator) {
       await updateCollaborator(editingCollaborator.uid, data);
     } else {
@@ -353,75 +356,99 @@ const TeamManager: React.FC = () => {
           <div className="w-12 h-1 bg-brand-red shadow-[0_0_15px_rgba(255,0,0,0.5)]"></div>
         </div>
         
-        <button 
-            onClick={() => setIsModalOpen(true)}
-            className="flex items-center gap-2 px-8 py-3 bg-zinc-100 hover:bg-white text-black rounded-lg text-[10px] font-black uppercase shadow-lg shadow-white/10 hover:scale-[1.02] transition-all tracking-widest"
-        >
-            <Plus size={14} strokeWidth={3} />
-            Novo Colaborador
-        </button>
+        <div className="flex items-center gap-4">
+          {/* TAB SWITCHER */}
+          <div className="bg-zinc-900 p-1 rounded-xl border border-zinc-800 flex gap-1">
+              <button 
+                  onClick={() => setActiveTab('COLLABORATORS')}
+                  className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'COLLABORATORS' ? 'bg-zinc-800 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
+              >
+                  <Users size={14} /> Colaboradores
+              </button>
+              <button 
+                  onClick={() => setActiveTab('MENTORS')}
+                  className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'MENTORS' ? 'bg-zinc-800 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
+              >
+                  <Headphones size={14} /> Mentores
+              </button>
+          </div>
+
+          {activeTab === 'COLLABORATORS' && (
+            <button 
+                onClick={() => setIsModalOpen(true)}
+                className="flex items-center gap-2 px-8 py-3 bg-zinc-100 hover:bg-white text-black rounded-lg text-[10px] font-black uppercase shadow-lg shadow-white/10 hover:scale-[1.02] transition-all tracking-widest"
+            >
+                <Plus size={14} strokeWidth={3} />
+                Novo Colaborador
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* List */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-        {loading ? (
-           <div className="col-span-full flex justify-center py-20">
-             <Loader2 className="animate-spin text-brand-red" size={32} />
-           </div>
-        ) : collaborators.length === 0 ? (
-           <div className="col-span-full text-center py-20 border-2 border-dashed border-zinc-800 rounded-2xl">
-             <p className="text-zinc-500 text-xs font-bold uppercase">Nenhum colaborador encontrado</p>
-           </div>
-        ) : (
-           collaborators.map(collab => (
-             <div key={collab.uid} className="bg-zinc-950 border border-zinc-800 rounded-2xl p-5 flex flex-col gap-4 group hover:border-zinc-700 transition-all shadow-sm hover:shadow-xl">
-                
-                {/* Header Card */}
-                <div className="flex items-center justify-between">
-                   <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-sm font-black text-white shadow-inner">
-                         {getInitials(collab.name)}
-                      </div>
-                      <div>
-                         <h3 className="text-sm font-black text-white uppercase tracking-tight">{collab.name}</h3>
-                         <span className="text-[10px] text-zinc-500 font-mono">@{collab.username}</span>
-                      </div>
-                   </div>
-                   
-                   <div className="flex items-center gap-2">
-                      <button 
-                        onClick={() => handleOpenEdit(collab)}
-                        className="p-2 text-zinc-600 hover:text-brand-red hover:bg-brand-red/10 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-                        title="Editar"
-                      >
-                        <Pencil size={16} />
-                      </button>
-                      <button 
-                        onClick={() => setCollabToDelete(collab)}
-                        className="p-2 text-zinc-600 hover:text-red-500 hover:bg-red-900/10 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-                        title="Excluir"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                   </div>
-                </div>
-
-                {/* Permissions Grid */}
-                <div className="bg-zinc-900/50 rounded-xl p-3 border border-zinc-800/50 grid grid-cols-2 gap-y-3 gap-x-2">
-                   <PermissionBadge label="PLANOS" active={collab.permissions.planos} color="text-blue-500" />
-                   <PermissionBadge label="ALUNOS" active={collab.permissions.alunos} color="text-emerald-500" />
-                   <PermissionBadge label="SIMULADOS" active={collab.permissions.simulados} color="text-orange-500" />
-                   <PermissionBadge label="EQUIPE" active={collab.permissions.equipe} color="text-purple-500" />
-                   <PermissionBadge label="PRODUTOS" active={collab.permissions.produtos} color="text-pink-500" />
-                   <PermissionBadge label="CURSOS" active={collab.permissions.cursos_online} color="text-cyan-500" />
-                   <PermissionBadge label="PRESENCIAL" active={collab.permissions.turmas_presenciais} color="text-yellow-500" />
-                   <PermissionBadge label="EVENTOS" active={collab.permissions.eventos_ao_vivo} color="text-red-500" />
-                </div>
-
+      {activeTab === 'COLLABORATORS' ? (
+        /* List */
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          {loading ? (
+             <div className="col-span-full flex justify-center py-20">
+               <Loader2 className="animate-spin text-brand-red" size={32} />
              </div>
-           ))
-        )}
-      </div>
+          ) : collaborators.length === 0 ? (
+             <div className="col-span-full text-center py-20 border-2 border-dashed border-zinc-800 rounded-2xl">
+               <p className="text-zinc-500 text-xs font-bold uppercase">Nenhum colaborador encontrado</p>
+             </div>
+          ) : (
+             collaborators.map(collab => (
+               <div key={collab.uid} className="bg-zinc-950 border border-zinc-800 rounded-2xl p-5 flex flex-col gap-4 group hover:border-zinc-700 transition-all shadow-sm hover:shadow-xl">
+                  
+                  {/* Header Card */}
+                  <div className="flex items-center justify-between">
+                     <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-sm font-black text-white shadow-inner">
+                           {getInitials(collab.name)}
+                        </div>
+                        <div>
+                           <h3 className="text-sm font-black text-white uppercase tracking-tight">{collab.name}</h3>
+                           <span className="text-[10px] text-zinc-500 font-mono">@{collab.username}</span>
+                        </div>
+                     </div>
+                     
+                     <div className="flex items-center gap-2">
+                        <button 
+                          onClick={() => handleOpenEdit(collab)}
+                          className="p-2 text-zinc-600 hover:text-brand-red hover:bg-brand-red/10 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                          title="Editar"
+                        >
+                          <Pencil size={16} />
+                        </button>
+                        <button 
+                          onClick={() => setCollabToDelete(collab)}
+                          className="p-2 text-zinc-600 hover:text-red-500 hover:bg-red-900/10 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                          title="Excluir"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                     </div>
+                  </div>
+
+                  {/* Permissions Grid */}
+                  <div className="bg-zinc-900/50 rounded-xl p-3 border border-zinc-800/50 grid grid-cols-2 gap-y-3 gap-x-2">
+                     <PermissionBadge label="PLANOS" active={collab.permissions.planos} color="text-blue-500" />
+                     <PermissionBadge label="ALUNOS" active={collab.permissions.alunos} color="text-emerald-500" />
+                     <PermissionBadge label="SIMULADOS" active={collab.permissions.simulados} color="text-orange-500" />
+                     <PermissionBadge label="EQUIPE" active={collab.permissions.equipe} color="text-purple-500" />
+                     <PermissionBadge label="PRODUTOS" active={collab.permissions.produtos} color="text-pink-500" />
+                     <PermissionBadge label="CURSOS" active={collab.permissions.cursos_online} color="text-cyan-500" />
+                     <PermissionBadge label="PRESENCIAL" active={collab.permissions.turmas_presenciais} color="text-yellow-500" />
+                     <PermissionBadge label="EVENTOS" active={collab.permissions.eventos_ao_vivo} color="text-red-500" />
+                  </div>
+
+               </div>
+             ))
+          )}
+        </div>
+      ) : (
+        <MentorManager hideHeader />
+      )}
 
       <CreateCollaboratorModal 
         isOpen={isModalOpen}

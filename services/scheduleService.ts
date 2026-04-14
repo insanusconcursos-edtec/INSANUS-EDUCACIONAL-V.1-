@@ -875,26 +875,41 @@ export const rescheduleOverdueTasks = async (
     overdueSnap.docs.forEach(docSnap => {
       const data = docSnap.data();
       const items = data.items || [];
-      const uncompletedItems = items.filter((item: any) => item.status !== 'completed');
       
-      if (uncompletedItems.length > 0) {
-        delayedGoals.push(...uncompletedItems);
+      // 1. Filtra apenas metas ATRASADAS do PLANO ATUAL
+      const uncompletedOfThisPlan = items.filter((item: any) => 
+        item.status !== 'completed' && String(item.planId) === String(planId)
+      );
+      
+      if (uncompletedOfThisPlan.length > 0) {
+        delayedGoals.push(...uncompletedOfThisPlan);
         
-        // Remove os itens não concluídos do dia passado
-        const completedItems = items.filter((item: any) => item.status === 'completed');
-        if (completedItems.length === 0) {
+        // 2. Remove apenas os itens que foram movidos para o "delayedGoals" do dia passado
+        // Mantemos: metas concluídas do plano atual E todas as metas de outros planos
+        const itemsToKeep = items.filter((item: any) => 
+          !(String(item.planId) === String(planId) && item.status !== 'completed')
+        );
+
+        if (itemsToKeep.length === 0) {
           batch.delete(docSnap.ref);
         } else {
-          batch.update(docSnap.ref, { items: completedItems });
+          batch.update(docSnap.ref, { items: itemsToKeep });
         }
       }
     });
 
-    // 2. Captura e remove todos os agendamentos futuros (>= hoje) para reconstrução total
+    // 2. Captura e remove apenas agendamentos futuros DO PLANO ATUAL para reconstrução
     const futureQuery = query(schedulesRef, where('date', '>=', todayStr));
     const futureSnap = await getDocs(futureQuery);
     futureSnap.docs.forEach(docSnap => {
-      batch.delete(docSnap.ref);
+      const currentItems = docSnap.data().items || [];
+      const keptItems = currentItems.filter((item: any) => String(item.planId) !== String(planId));
+      
+      if (keptItems.length === 0) {
+        batch.delete(docSnap.ref);
+      } else {
+        batch.update(docSnap.ref, { items: keptItems });
+      }
     });
 
     // Executa o batch de limpeza

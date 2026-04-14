@@ -5,7 +5,7 @@ import {
   CheckCircle, Clock, Zap, BookOpen, 
   Layout, Search, Filter, Building2,
   PlayCircle, FileText, Scale, Loader2,
-  Maximize, MonitorPlay
+  Maximize, CalendarClock
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { 
@@ -19,6 +19,7 @@ import {
 import { generateSchedule } from '../../services/scheduleService';
 import Loading from '../../components/ui/Loading';
 import PlanControlPanel from '../../components/student/config/PlanControlPanel';
+import WeeklyPlannerModal, { RoutineTemplate } from '../../components/student/config/WeeklyPlannerModal';
 
 const DAYS_OF_WEEK = [
   { id: 0, label: 'Domingo' },
@@ -51,6 +52,9 @@ const StudentConfigPage: React.FC = () => {
   const [initialPlanId, setInitialPlanId] = useState<string | null>(null);
   const [showPlanChangeModal, setShowPlanChangeModal] = useState(false);
   const [isPlanPaused, setIsPlanPaused] = useState(false); // New State
+  const [isPlannerOpen, setIsPlannerOpen] = useState(false);
+  const [savedRoutines, setSavedRoutines] = useState<RoutineTemplate[]>([]);
+  const [activeRoutineId, setActiveRoutineId] = useState<string>('');
   
   const [studyProfile, setStudyProfile] = useState<StudyProfile>({
     level: 'intermediate',
@@ -93,6 +97,8 @@ const StudentConfigPage: React.FC = () => {
              });
           }
           if (currentConfig.routine) setRoutine(currentConfig.routine);
+          if (currentConfig.savedRoutines) setSavedRoutines(currentConfig.savedRoutines);
+          if (currentConfig.activeRoutineId) setActiveRoutineId(currentConfig.activeRoutineId);
         } else if (fetchedPlans.length > 0) {
           setSelectedPlanId(fetchedPlans[0].id!);
         }
@@ -136,6 +142,10 @@ const StudentConfigPage: React.FC = () => {
     setRoutine(prev => ({ ...prev, [dayId]: Math.max(0, minutes) }));
   };
 
+  const handlePlannerSave = (newRoutine: Record<number, number>) => {
+    setRoutine(newRoutine as any);
+  };
+
   const calculateWeeklyHours = () => {
     const totalMinutes = (Object.values(routine) as number[]).reduce((acc, curr) => acc + curr, 0);
     return (totalMinutes / 60).toFixed(1);
@@ -160,7 +170,9 @@ const StudentConfigPage: React.FC = () => {
       await saveStudentRoutine(currentUser.uid, {
         currentPlanId: selectedPlanId,
         routine,
-        studyProfile
+        studyProfile,
+        savedRoutines,
+        activeRoutineId
       });
 
       // 2. Generate Schedule (Includes Fetching & Saving)
@@ -560,9 +572,17 @@ const StudentConfigPage: React.FC = () => {
             <h3 className="text-xs font-black text-zinc-400 uppercase tracking-widest flex items-center gap-2">
               <Clock size={14} /> Disponibilidade Diária
             </h3>
-            <span className="text-[10px] font-bold text-zinc-500 bg-zinc-900 px-2 py-1 rounded border border-zinc-800">
-              Total: <span className="text-white">{calculateWeeklyHours()}h</span> / semana
-            </span>
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={() => setIsPlannerOpen(true)}
+                className="text-[10px] font-black text-brand-red bg-brand-red/10 px-3 py-1.5 rounded-lg border border-brand-red/20 hover:bg-brand-red/20 transition-all flex items-center gap-2 uppercase tracking-widest"
+              >
+                <CalendarClock size={14} /> Planejar Semana Visualmente
+              </button>
+              <span className="text-[10px] font-bold text-zinc-500 bg-zinc-900 px-2 py-1 rounded border border-zinc-800">
+                Total: <span className="text-white">{calculateWeeklyHours()}h</span> / semana
+              </span>
+            </div>
           </div>
 
           <div className="bg-zinc-900/30 border border-zinc-800 rounded-2xl p-4 space-y-2">
@@ -643,6 +663,18 @@ const StudentConfigPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      <WeeklyPlannerModal 
+        isOpen={isPlannerOpen}
+        onClose={() => setIsPlannerOpen(false)}
+        onSave={handlePlannerSave}
+        initialRoutines={savedRoutines}
+        initialActiveRoutineId={activeRoutineId}
+        onSaveTemplates={(templates, activeId) => {
+          setSavedRoutines(templates);
+          setActiveRoutineId(activeId);
+        }}
+      />
 
     </div>
   );

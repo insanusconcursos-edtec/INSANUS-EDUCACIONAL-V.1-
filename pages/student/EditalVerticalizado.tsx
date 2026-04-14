@@ -14,6 +14,7 @@ import { useEditalProgress } from '../../hooks/useEditalProgress';
 import { useSpacedReviewModal } from '../../contexts/SpacedReviewModalContext';
 import { courseReviewService } from '../../services/courseReviewService';
 import { fetchFullPlanData } from '../../services/scheduleService';
+import { PlanHeroBanner } from '../../components/student/PlanHeroBanner';
 
 const EditalVerticalizado: React.FC = () => {
   const { currentUser } = useAuth();
@@ -396,7 +397,13 @@ const EditalVerticalizado: React.FC = () => {
   }
 
   return (
-    <div className="pb-20 animate-in fade-in slide-in-from-bottom-4 duration-700">
+    <div className="relative w-full min-h-screen bg-zinc-950 flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-700">
+      
+      {fullPlanData && (
+        <PlanHeroBanner currentTab="edict" planData={fullPlanData} />
+      )}
+
+      <div className="relative z-10 w-full max-w-[1600px] mx-auto px-4 md:px-8 pt-8 md:pt-12 flex-1 flex flex-col mb-10 -mt-10 md:-mt-20">
         
         {/* HEADER */}
         <div className="mb-10">
@@ -551,7 +558,7 @@ const EditalVerticalizado: React.FC = () => {
             </div>,
             document.body
         )}
-
+      </div>
     </div>
   );
 };

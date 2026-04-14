@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { MentorshipSection, MentorshipModule } from '../../../types/mentorship';
 import { MentorshipCard } from './MentorshipCard';
 
@@ -8,10 +8,39 @@ interface MentorshipRowProps {
 }
 
 export const MentorshipRow: React.FC<MentorshipRowProps> = ({ section, onModuleClick }) => {
-  const rowRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   
   // Estado para controlar se a seção está expandida ou recolhida
   const [isOpen, setIsOpen] = useState(true);
+  const [isAtStart, setIsAtStart] = useState(true);
+  const [isAtEnd, setIsAtEnd] = useState(false);
+
+  // Reset de scroll no mount
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollLeft = 0;
+      handleScroll();
+    }
+  }, []);
+
+  const handleScroll = () => {
+    if (scrollRef.current) {
+      const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current;
+      setIsAtStart(scrollLeft <= 5);
+      setIsAtEnd(scrollLeft + clientWidth >= scrollWidth - 5);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!scrollRef.current) return;
+    const scrollAmount = 350; // Largura aproximada de um card + gap
+    
+    if (e.key === 'ArrowRight') {
+        scrollRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+    } else if (e.key === 'ArrowLeft') {
+        scrollRef.current.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
+    }
+  };
 
   if (!section.modules || section.modules.length === 0) return null;
 
@@ -48,9 +77,11 @@ export const MentorshipRow: React.FC<MentorshipRowProps> = ({ section, onModuleC
         {/* CORREÇÃO AQUI: Removemos a classe 'group' desta div para evitar ativar todos os cards */}
         <div className="relative">
             <div 
-            ref={rowRef}
-            className="flex gap-4 overflow-x-auto px-4 md:px-8 pb-4 pt-2 scrollbar-hide scroll-smooth"
-            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+            ref={scrollRef}
+            tabIndex={0}
+            onKeyDown={handleKeyDown}
+            onScroll={handleScroll}
+            className="flex gap-4 overflow-x-auto px-4 md:px-8 pb-6 pt-2 scroll-smooth snap-x snap-mandatory focus:outline-none custom-scrollbar scroll-pl-4 md:scroll-pl-8"
             >
             {section.modules
                 .sort((a, b) => (a.order || 0) - (b.order || 0))
@@ -63,9 +94,9 @@ export const MentorshipRow: React.FC<MentorshipRowProps> = ({ section, onModuleC
             ))}
             </div>
             
-            {/* Gradientes Laterais */}
-            <div className="absolute top-0 bottom-0 left-0 w-12 bg-gradient-to-r from-[#0f1115] via-[#0f1115]/80 to-transparent pointer-events-none hidden md:block" />
-            <div className="absolute top-0 bottom-0 right-0 w-12 bg-gradient-to-l from-[#0f1115] via-[#0f1115]/80 to-transparent pointer-events-none hidden md:block" />
+            {/* Gradientes Laterais Dinâmicos */}
+            <div className={`absolute top-0 bottom-0 left-0 w-16 bg-gradient-to-r from-zinc-950 via-zinc-950/80 to-transparent pointer-events-none hidden md:block transition-opacity duration-300 ${isAtStart ? 'opacity-0' : 'opacity-100'}`} />
+            <div className={`absolute top-0 bottom-0 right-0 w-16 bg-gradient-to-l from-zinc-950 via-zinc-950/80 to-transparent pointer-events-none hidden md:block transition-opacity duration-300 ${isAtEnd ? 'opacity-0' : 'opacity-100'}`} />
         </div>
       </div>
     </div>

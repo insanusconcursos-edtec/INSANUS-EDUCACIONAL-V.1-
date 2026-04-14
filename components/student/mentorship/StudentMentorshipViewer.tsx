@@ -49,7 +49,7 @@ const StudentMentorshipViewer: React.FC<StudentMentorshipViewerProps> = ({ planI
 
   // --- RENDERIZAÇÃO: VITRINE LIMPA (SEM BANNER) ---
   return (
-    <div className="min-h-screen bg-[#0f1115] pb-20 animate-in fade-in pt-8">
+    <div className="animate-in fade-in">
       
       {/* Loading State */}
       {loading ? (

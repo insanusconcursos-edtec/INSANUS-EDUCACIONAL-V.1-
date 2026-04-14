@@ -28,7 +28,7 @@ const StudentLayout: React.FC = () => {
         
         <div className={
           // Remove padding and max-width for Presential Details, Courses, and Live Event Room to allow full-width banner
-          location.pathname.includes('/app/presential/') || location.pathname.includes('/app/courses') || location.pathname.includes('/app/eventos-ao-vivo/sala/')
+          location.pathname.includes('/app/presential/') || location.pathname.includes('/app/courses') || location.pathname.includes('/app/eventos-ao-vivo/sala/') || location.pathname.includes('/app/dashboard') || location.pathname.includes('/app/calendar') || location.pathname.includes('/app/edict') || location.pathname.includes('/app/edital')
             ? "w-full p-0 relative z-10"
             : "max-w-[1600px] mx-auto p-6 md:p-8 relative z-10"
         }>

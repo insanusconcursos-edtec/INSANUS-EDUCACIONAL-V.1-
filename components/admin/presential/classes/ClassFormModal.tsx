@@ -34,7 +34,8 @@ const INITIAL_DATA: Partial<Class> = {
   status: 'SALES_OPEN',
   category: '',
   subcategory: '',
-  organization: ''
+  organization: '',
+  linkedSimulatedId: null
 };
 
 const STEPS = [
