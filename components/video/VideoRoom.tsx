@@ -19,6 +19,7 @@ const servers = {
 
 export const VideoRoom: React.FC = () => {
   const { callId } = useParams<{ callId: string }>();
+  const navigate = useNavigate();
   const { currentUser, userRole } = useAuth();
   
   const [call, setCall] = useState<ScheduledCall | null>(null);
