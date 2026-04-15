@@ -281,11 +281,11 @@ export const VideoRoom: React.FC = () => {
   }
 
   return (
-    <div className="fixed inset-0 bg-zinc-950 flex flex-col z-[9999] overflow-hidden">
+    <div className="flex flex-col w-full h-[100dvh] bg-[#09090b] overflow-hidden z-[9999] fixed inset-0">
       {/* Main Video Area */}
-      <div className="flex-1 relative grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
+      <div className="flex-1 min-h-0 w-full p-2 md:p-4 grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-4">
         {/* Remote Video */}
-        <div className="relative bg-zinc-900 rounded-3xl overflow-hidden border border-zinc-800 flex items-center justify-center">
+        <div className="relative w-full h-full rounded-xl md:rounded-2xl overflow-hidden bg-black/50 flex items-center justify-center border border-zinc-800">
           {!remoteStream && (
             <div className="flex flex-col items-center gap-4">
               <div className="w-24 h-24 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-600">
@@ -355,7 +355,7 @@ export const VideoRoom: React.FC = () => {
         </div>
 
         {/* Local Video */}
-        <div className="relative bg-zinc-900 rounded-3xl overflow-hidden border border-zinc-800 flex items-center justify-center">
+        <div className="relative w-full h-full rounded-xl md:rounded-2xl overflow-hidden bg-black/50 flex items-center justify-center border border-zinc-800">
           <video 
             ref={localVideoRef} 
             autoPlay 
@@ -377,7 +377,7 @@ export const VideoRoom: React.FC = () => {
       </div>
 
       {/* Bottom Controls Bar */}
-      <div className="h-24 bg-zinc-900/80 backdrop-blur-xl border-t border-zinc-800 flex items-center justify-center gap-4 px-6">
+      <div className="shrink-0 w-full p-4 md:p-6 flex items-center justify-center gap-4 bg-zinc-900/80 backdrop-blur-xl border-t border-zinc-800 z-10 safe-area-pb">
         <button 
           onClick={toggleMic}
           className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all ${
