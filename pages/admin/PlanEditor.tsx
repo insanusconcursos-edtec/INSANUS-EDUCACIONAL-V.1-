@@ -27,13 +27,15 @@ import CycleManager from '../../components/admin/cycles/CycleManager';
 import MetaManager from '../../components/admin/metas/MetaManager';
 import VerticalEdictManager from '../../components/admin/edict/VerticalEdictManager';
 import { PlanMentorshipTab } from '../../components/admin/plan/mentorship/PlanMentorshipTab';
+import { PlanVideoCallTab } from '../../components/admin/plan/video/PlanVideoCallTab';
 import MentorChatWorkspace from '../admin/MentorChatWorkspace';
 import ConfirmationModal from '../../components/ui/ConfirmationModal';
 import Loading from '../../components/ui/Loading';
 import SyncControlPanel from '../../components/admin/sync/SyncControlPanel';
 import { usePlanSync } from '../../hooks/usePlanSync';
+import { Video } from 'lucide-react';
 
-type TabView = 'STRUCTURE' | 'CYCLES' | 'EDICT' | 'MENTORSHIP' | 'VISUAL' | 'CHAT';
+type TabView = 'STRUCTURE' | 'CYCLES' | 'EDICT' | 'MENTORSHIP' | 'VISUAL' | 'CHAT' | 'CALL';
 
 const PlanEditor: React.FC = () => {
   const { planId } = useParams<{ planId: string }>();
@@ -380,6 +382,12 @@ const PlanEditor: React.FC = () => {
             >
                 <MessageSquare size={14} /> Chat
             </button>
+            <button 
+                onClick={() => setActiveTab('CALL')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'CALL' ? 'bg-zinc-800 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
+            >
+                <Video size={14} /> Call
+            </button>
         </div>
       </div>
 
@@ -484,6 +492,12 @@ const PlanEditor: React.FC = () => {
       {activeTab === 'CHAT' && planId && (
           <div className="flex-1 overflow-hidden">
              <MentorChatWorkspace planId={planId} />
+          </div>
+      )}
+
+      {activeTab === 'CALL' && planId && (
+          <div className="flex-1 overflow-hidden">
+             <PlanVideoCallTab planId={planId} />
           </div>
       )}
 

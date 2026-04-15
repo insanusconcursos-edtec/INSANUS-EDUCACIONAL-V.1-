@@ -9,7 +9,8 @@ import {
   orderBy,
   serverTimestamp,
   onSnapshot,
-  increment
+  increment,
+  deleteDoc
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { Call, Message } from '../types/chat';
@@ -57,24 +58,44 @@ export const sendMessage = async (
   callId: string, 
   senderId: string, 
   senderRole: 'student' | 'mentor', 
-  text: string
+  text: string,
+  replyToId?: string,
+  replyToText?: string
 ) => {
   const messagesRef = collection(db, 'calls', callId, 'messages');
   
-  await addDoc(messagesRef, {
+  const messageData: any = {
     senderId,
     senderRole,
     text,
     timestamp: serverTimestamp()
-  });
+  };
+
+  if (replyToId) messageData.replyToId = replyToId;
+  if (replyToText) messageData.replyToText = replyToText;
+  
+  await addDoc(messagesRef, messageData);
   
   // Update call metadata
   const callRef = doc(db, 'calls', callId);
   await updateDoc(callRef, {
     lastMessage: text,
     lastMessageTime: serverTimestamp(),
-    unreadCount: senderRole === 'student' ? increment(1) : 0 // If student sends, increment for mentor. If mentor sends, reset (assuming mentor read it)
+    unreadCount: senderRole === 'student' ? increment(1) : 0
   });
+};
+
+export const editMessage = async (callId: string, messageId: string, newText: string) => {
+  const messageRef = doc(db, 'calls', callId, 'messages', messageId);
+  await updateDoc(messageRef, {
+    text: newText,
+    isEdited: true
+  });
+};
+
+export const deleteMessage = async (callId: string, messageId: string) => {
+  const messageRef = doc(db, 'calls', callId, 'messages', messageId);
+  await deleteDoc(messageRef);
 };
 
 export const subscribeToMessages = (callId: string, callback: (messages: Message[]) => void) => {

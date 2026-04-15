@@ -15,6 +15,9 @@ export interface Message {
   senderRole: SenderRole;
   text: string;
   timestamp: Timestamp | any;
+  isEdited?: boolean;
+  replyToId?: string;
+  replyToText?: string;
 }
 
 export interface Call {

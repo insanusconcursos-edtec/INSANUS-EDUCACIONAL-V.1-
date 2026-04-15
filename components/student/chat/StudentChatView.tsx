@@ -1,13 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  Send, User, MessageSquare, Loader2, CheckCheck, Headphones, ArrowLeft, Smile, Paperclip
+  Send, User, MessageSquare, Loader2, CheckCheck, Headphones, ArrowLeft, Smile, Paperclip, Reply, Edit2, X, MoreVertical, Trash2, Video, Calendar, ExternalLink
 } from 'lucide-react';
-import { getOrCreateCall, subscribeToMessages, sendMessage } from '../../../services/chatService';
+import { getOrCreateCall, subscribeToMessages, sendMessage, editMessage, deleteMessage } from '../../../services/chatService';
+import { subscribeToScheduledCalls } from '../../../services/videoCallService';
+import { ScheduledCall } from '../../../types/videoCall';
 import { getMentorById } from '../../../services/mentorService';
 import { Mentor, Message } from '../../../types/chat';
 import { useAuth } from '../../../contexts/AuthContext';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../../../services/firebase';
+import { toast } from 'react-hot-toast';
+import EmojiPicker, { Theme } from 'emoji-picker-react';
 
 interface StudentChatViewProps {
   planId: string;
@@ -15,7 +21,7 @@ interface StudentChatViewProps {
 }
 
 const StudentChatView: React.FC<StudentChatViewProps> = ({ planId, linkedMentorIds }) => {
-  const { currentUser } = useAuth();
+  const { currentUser, userData } = useAuth();
   const [mentors, setMentors] = useState<Mentor[]>([]);
   const [selectedMentor, setSelectedMentor] = useState<Mentor | null>(null);
   const [callId, setCallId] = useState<string | null>(null);
@@ -23,7 +29,33 @@ const StudentChatView: React.FC<StudentChatViewProps> = ({ planId, linkedMentorI
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [activeVideoCalls, setActiveVideoCalls] = useState<ScheduledCall[]>([]);
+  
+  // Advanced Chat States
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [editingMessage, setEditingMessage] = useState<Message | null>(null);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [messageToDelete, setMessageToDelete] = useState<Message | null>(null);
+  const [isDeletingMessage, setIsDeletingMessage] = useState(false);
+  const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const emojiPickerRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close emoji picker and menus on click outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target as Node)) {
+        setShowEmojiPicker(false);
+      }
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setActiveMenuId(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Fetch linked mentors
   useEffect(() => {
@@ -47,18 +79,44 @@ const StudentChatView: React.FC<StudentChatViewProps> = ({ planId, linkedMentorI
     }
   }, [linkedMentorIds]);
 
+  // Subscribe to Video Calls
+  useEffect(() => {
+    if (!currentUser) return;
+    
+    const unsubscribe = subscribeToScheduledCalls({ studentId: currentUser.uid }, (calls) => {
+      // Filter only scheduled or active calls
+      const relevant = calls.filter(c => c.status === 'scheduled' || c.status === 'active');
+      setActiveVideoCalls(relevant);
+    });
+
+    return () => unsubscribe();
+  }, [currentUser]);
+
   // Handle mentor selection and call creation
   const handleSelectMentor = async (mentor: Mentor) => {
     if (!currentUser) return;
     setLoading(true);
     try {
+      let studentName = userData?.name || currentUser.displayName || 'Aluno';
+      let studentPhoto = userData?.photoURL || currentUser.photoURL || '';
+
+      // Fallback: if name is still 'Aluno' or empty, try fetching directly from Firestore
+      if (studentName === 'Aluno' || !studentName) {
+        const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+        if (userDoc.exists()) {
+          const data = userDoc.data();
+          studentName = data.name || studentName;
+          studentPhoto = data.photoURL || studentPhoto;
+        }
+      }
+
       const id = await getOrCreateCall(
         planId,
         currentUser.uid,
-        currentUser.name || 'Aluno',
+        studentName,
         mentor.id,
         mentor.name,
-        currentUser.photoUrl,
+        studentPhoto,
         mentor.photoUrl
       );
       setCallId(id);
@@ -92,13 +150,51 @@ const StudentChatView: React.FC<StudentChatViewProps> = ({ planId, linkedMentorI
 
     setSending(true);
     try {
-      await sendMessage(callId, currentUser.uid, 'student', newMessage.trim());
+      if (editingMessage) {
+        await editMessage(callId, editingMessage.id, newMessage.trim());
+        setEditingMessage(null);
+      } else {
+        await sendMessage(
+          callId, 
+          currentUser.uid, 
+          'student', 
+          newMessage.trim(),
+          replyingTo?.id,
+          replyToPreviewText(replyingTo)
+        );
+        setReplyingTo(null);
+      }
       setNewMessage('');
     } catch (error) {
       console.error(error);
-      alert("Erro ao enviar mensagem.");
+      toast.error("Erro ao processar mensagem.");
     } finally {
       setSending(false);
+    }
+  };
+
+  const replyToPreviewText = (msg: Message | null) => {
+    if (!msg) return undefined;
+    const text = msg.text.length > 50 ? msg.text.substring(0, 50) + '...' : msg.text;
+    return text;
+  };
+
+  const onEmojiClick = (emojiData: any) => {
+    setNewMessage(prev => prev + emojiData.emoji);
+  };
+
+  const handleDeleteMessage = async () => {
+    if (!callId || !messageToDelete) return;
+    setIsDeletingMessage(true);
+    try {
+      await deleteMessage(callId, messageToDelete.id);
+      setMessageToDelete(null);
+      toast.success("Mensagem excluída.");
+    } catch (error) {
+      console.error(error);
+      toast.error("Erro ao excluir mensagem.");
+    } finally {
+      setIsDeletingMessage(false);
     }
   };
 
@@ -119,7 +215,7 @@ const StudentChatView: React.FC<StudentChatViewProps> = ({ planId, linkedMentorI
 
   if (!selectedMentor) {
     return (
-      <div className="max-w-4xl mx-auto py-10 px-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="w-full h-full overflow-y-auto py-10 px-4 animate-in fade-in slide-in-from-bottom-4 duration-500 custom-scrollbar">
         <div className="text-center mb-10">
           <div className="w-16 h-16 bg-blue-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-blue-500/20">
             <Headphones size={32} className="text-blue-500" />
@@ -161,9 +257,58 @@ const StudentChatView: React.FC<StudentChatViewProps> = ({ planId, linkedMentorI
   }
 
   return (
-    <div className="max-w-4xl mx-auto h-[calc(100vh-250px)] flex flex-col bg-zinc-950 border border-zinc-800 rounded-3xl overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-500">
+    <div className="flex flex-col w-full h-full overflow-hidden rounded-md relative bg-zinc-950 border border-zinc-800 shadow-2xl animate-in fade-in zoom-in-95 duration-500">
+      
+      {/* Video Call Banner */}
+      {activeVideoCalls.length > 0 && (
+        <div className="bg-zinc-900 border-b border-zinc-800 p-3 space-y-2">
+          {activeVideoCalls.map(call => {
+            const isActive = call.status === 'active';
+            return (
+              <div 
+                key={call.id}
+                className={`flex items-center justify-between p-3 rounded-xl border animate-in slide-in-from-top-2 duration-500 ${
+                  isActive ? 'bg-emerald-500/10 border-emerald-500/30 shadow-lg shadow-emerald-900/10' : 'bg-zinc-950 border-zinc-800'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isActive ? 'bg-emerald-500 text-white animate-pulse' : 'bg-zinc-800 text-zinc-500'}`}>
+                    <Video size={20} />
+                  </div>
+                  <div>
+                    <h4 className="text-[10px] font-black text-white uppercase tracking-widest">
+                      {isActive ? 'Mentoria Iniciada!' : 'Mentoria Agendada'}
+                    </h4>
+                    <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-tighter">
+                      {isActive 
+                        ? 'O mentor já está na sala aguardando você.' 
+                        : `Agendada para ${format(call.scheduledAt.toDate(), "dd/MM 'às' HH:mm", { locale: ptBR })}`}
+                    </p>
+                  </div>
+                </div>
+
+                {isActive ? (
+                  <button 
+                    onClick={() => window.open(`/video-room/${call.id}`, '_blank')}
+                    className="bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-lg flex items-center gap-2 animate-bounce shadow-lg shadow-emerald-900/40"
+                  >
+                    <ExternalLink size={14} />
+                    Entrar Agora
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-1 text-[10px] font-black text-zinc-600 uppercase tracking-widest">
+                    <Calendar size={14} />
+                    Em breve
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {/* Chat Header */}
-      <div className="p-4 border-b border-zinc-800 bg-zinc-900/50 flex items-center justify-between">
+      <div className="p-4 border-b border-zinc-800 bg-zinc-900/50 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
           <button 
             onClick={() => setSelectedMentor(null)}
@@ -185,23 +330,81 @@ const StudentChatView: React.FC<StudentChatViewProps> = ({ planId, linkedMentorI
       </div>
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-fixed">
+      <div className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-fixed">
         {messages.map((msg, idx) => {
           const isMe = msg.senderRole === 'student';
+          const isMenuOpen = activeMenuId === msg.id;
+
           return (
             <div 
               key={msg.id || idx}
-              className={`flex ${isMe ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-1 duration-300`}
+              className={`flex ${isMe ? 'justify-end' : 'justify-start'} group relative animate-in fade-in slide-in-from-bottom-1 duration-300`}
             >
-              <div className={`max-w-[80%] rounded-2xl p-3 shadow-lg ${
-                isMe 
-                  ? 'bg-brand-red text-white rounded-tr-none' 
-                  : 'bg-zinc-800 text-zinc-100 rounded-tl-none border border-zinc-700'
-              }`}>
-                <p className="text-xs font-medium leading-relaxed">{msg.text}</p>
-                <div className={`flex items-center justify-end gap-1 mt-1 opacity-60`}>
-                  <span className="text-[9px] font-mono">{formatTime(msg.timestamp)}</span>
-                  {isMe && <CheckCheck size={12} />}
+              <div className={`max-w-[80%] relative flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                
+                {/* Reply Context */}
+                {msg.replyToText && (
+                  <div className={`mb-[-8px] px-3 py-2 pb-4 rounded-t-2xl text-[10px] opacity-50 border-x border-t ${
+                    isMe ? 'bg-red-900/20 border-red-800/30' : 'bg-zinc-800/50 border-zinc-700/50'
+                  }`}>
+                    <div className="flex items-center gap-1 mb-1 font-bold uppercase tracking-wider">
+                      <Reply size={10} /> Resposta
+                    </div>
+                    <p className="italic line-clamp-1">{msg.replyToText}</p>
+                  </div>
+                )}
+
+                <div className={`rounded-2xl p-3 shadow-lg group-hover:shadow-xl transition-all relative ${
+                  isMe 
+                    ? 'bg-brand-red text-white rounded-tr-none' 
+                    : 'bg-zinc-800 text-zinc-100 rounded-tl-none border border-zinc-700'
+                }`}>
+                  <p className="text-xs font-medium leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+                  
+                  <div className="flex items-center justify-end gap-1 mt-1 opacity-60">
+                    {msg.isEdited && <span className="text-[8px] font-bold uppercase tracking-tighter">(editado)</span>}
+                    <span className="text-[9px] font-mono">{formatTime(msg.timestamp)}</span>
+                    {isMe && <CheckCheck size={12} />}
+                  </div>
+
+                  {/* Action Trigger */}
+                  <button 
+                    onClick={() => setActiveMenuId(isMenuOpen ? null : msg.id)}
+                    className={`absolute top-2 ${isMe ? '-left-8' : '-right-8'} p-1 rounded-full bg-zinc-900/50 text-zinc-500 opacity-0 group-hover:opacity-100 transition-opacity hover:text-white`}
+                  >
+                    <MoreVertical size={14} />
+                  </button>
+
+                  {/* Dropdown Menu */}
+                  {isMenuOpen && (
+                    <div 
+                      ref={menuRef}
+                      className={`absolute z-10 top-8 ${isMe ? 'left-0' : 'right-0'} bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl py-1 min-w-[120px] animate-in fade-in zoom-in-95 duration-200`}
+                    >
+                      <button 
+                        onClick={() => { setReplyingTo(msg); setActiveMenuId(null); }}
+                        className="w-full text-left px-4 py-2 text-[10px] font-bold uppercase text-zinc-400 hover:bg-zinc-800 hover:text-white flex items-center gap-2"
+                      >
+                        <Reply size={12} /> Responder
+                      </button>
+                      {isMe && (
+                        <>
+                          <button 
+                            onClick={() => { setEditingMessage(msg); setNewMessage(msg.text); setActiveMenuId(null); }}
+                            className="w-full text-left px-4 py-2 text-[10px] font-bold uppercase text-zinc-400 hover:bg-zinc-800 hover:text-white flex items-center gap-2"
+                          >
+                            <Edit2 size={12} /> Editar
+                          </button>
+                          <button 
+                            onClick={() => { setMessageToDelete(msg); setActiveMenuId(null); }}
+                            className="w-full text-left px-4 py-2 text-[10px] font-bold uppercase text-red-500 hover:bg-red-500/10 flex items-center gap-2"
+                          >
+                            <Trash2 size={12} /> Excluir
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -211,27 +414,115 @@ const StudentChatView: React.FC<StudentChatViewProps> = ({ planId, linkedMentorI
       </div>
 
       {/* Input Area */}
-      <div className="p-4 bg-zinc-900/50 border-t border-zinc-800">
+      <div className="p-4 bg-zinc-900/50 border-t border-zinc-800 shrink-0 relative">
+        
+        {/* Reply Preview */}
+        {replyingTo && (
+          <div className="absolute bottom-full left-0 right-0 bg-zinc-900 border-t border-zinc-800 p-3 flex items-center justify-between animate-in slide-in-from-bottom-2">
+            <div className="flex items-center gap-3 border-l-4 border-brand-red pl-3">
+              <Reply size={14} className="text-brand-red" />
+              <div>
+                <p className="text-[10px] font-black text-white uppercase tracking-tighter">Respondendo a {replyingTo.senderRole === 'student' ? 'Você' : selectedMentor.name}</p>
+                <p className="text-[10px] text-zinc-500 truncate max-w-md italic">{replyingTo.text}</p>
+              </div>
+            </div>
+            <button onClick={() => setReplyingTo(null)} className="p-1 hover:bg-zinc-800 rounded-full text-zinc-500 hover:text-white">
+              <X size={16} />
+            </button>
+          </div>
+        )}
+
+        {/* Edit Preview */}
+        {editingMessage && (
+          <div className="absolute bottom-full left-0 right-0 bg-zinc-900 border-t border-zinc-800 p-3 flex items-center justify-between animate-in slide-in-from-bottom-2">
+            <div className="flex items-center gap-3 border-l-4 border-amber-500 pl-3">
+              <Edit2 size={14} className="text-amber-500" />
+              <div>
+                <p className="text-[10px] font-black text-white uppercase tracking-tighter">Editando Mensagem</p>
+                <p className="text-[10px] text-zinc-500 truncate max-w-md italic">{editingMessage.text}</p>
+              </div>
+            </div>
+            <button onClick={() => { setEditingMessage(null); setNewMessage(''); }} className="p-1 hover:bg-zinc-800 rounded-full text-zinc-500 hover:text-white">
+              <X size={16} />
+            </button>
+          </div>
+        )}
+
         <form onSubmit={handleSendMessage} className="flex items-center gap-3">
-          <button type="button" className="text-zinc-500 hover:text-white transition-colors"><Smile size={20} /></button>
+          <div className="relative">
+            <button 
+              type="button" 
+              onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+              className={`text-zinc-500 hover:text-white transition-colors ${showEmojiPicker ? 'text-brand-red' : ''}`}
+            >
+              <Smile size={20} />
+            </button>
+            {showEmojiPicker && (
+              <div ref={emojiPickerRef} className="absolute bottom-full left-0 mb-4 z-50 shadow-2xl">
+                <EmojiPicker 
+                  onEmojiClick={onEmojiClick}
+                  theme={Theme.DARK}
+                  width={300}
+                  height={400}
+                />
+              </div>
+            )}
+          </div>
           <button type="button" className="text-zinc-500 hover:text-white transition-colors"><Paperclip size={20} /></button>
           <div className="flex-1 relative">
             <input 
               value={newMessage}
               onChange={e => setNewMessage(e.target.value)}
-              placeholder="Descreva sua dúvida aqui..."
+              placeholder={editingMessage ? "Edite sua mensagem..." : "Descreva sua dúvida aqui..."}
               className="w-full bg-zinc-950 border border-zinc-800 rounded-xl py-3 px-4 text-xs text-white placeholder-zinc-700 focus:border-brand-red focus:outline-none"
             />
           </div>
           <button 
             type="submit"
             disabled={!newMessage.trim() || sending}
-            className="w-12 h-12 bg-brand-red hover:bg-red-600 text-white rounded-xl flex items-center justify-center shadow-lg shadow-red-900/20 transition-all disabled:opacity-50 disabled:scale-95"
+            className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-lg transition-all disabled:opacity-50 disabled:scale-95 ${
+              editingMessage ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-900/20' : 'bg-brand-red hover:bg-red-600 shadow-red-900/20'
+            }`}
           >
-            {sending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+            {sending ? <Loader2 size={18} className="animate-spin" /> : editingMessage ? <CheckCheck size={18} /> : <Send size={18} />}
           </button>
         </form>
       </div>
+
+      {/* Delete Message Modal */}
+      {messageToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 max-w-sm w-full mx-4 shadow-2xl animate-in zoom-in-95 duration-300">
+            <div className="w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center mb-4 mx-auto">
+              <Trash2 size={24} className="text-red-500" />
+            </div>
+            <h3 className="text-lg font-black text-white uppercase tracking-tighter text-center mb-2">Apagar Mensagem?</h3>
+            <p className="text-zinc-400 text-xs text-center leading-relaxed mb-6">
+              Deseja apagar esta mensagem para todos? Esta ação não pode ser desfeita.
+            </p>
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setMessageToDelete(null)}
+                disabled={isDeletingMessage}
+                className="flex-1 py-3 px-4 bg-zinc-800 hover:bg-zinc-700 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={handleDeleteMessage}
+                disabled={isDeletingMessage}
+                className="flex-1 py-3 px-4 bg-red-600 hover:bg-red-700 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-red-900/20 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isDeletingMessage ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  "Apagar para todos"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

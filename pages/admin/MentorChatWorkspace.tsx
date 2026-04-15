@@ -1,11 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  Search, Send, User, MessageSquare, Loader2, CheckCheck, Clock, Phone, Video, MoreVertical, Paperclip, Smile
+  Search, Send, User, MessageSquare, Loader2, CheckCheck, Clock, Phone, Video, MoreVertical, Paperclip, Smile, Trash2, Reply, Edit2, X
 } from 'lucide-react';
-import { subscribeToCalls, subscribeToMessages, sendMessage, markAsRead } from '../../services/chatService';
+import { subscribeToCalls, subscribeToMessages, sendMessage, markAsRead, editMessage, deleteMessage } from '../../services/chatService';
 import { Call, Message } from '../../types/chat';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { collection, getDocs, writeBatch, doc, deleteDoc } from 'firebase/firestore';
+import { db } from '../../services/firebase';
+import { toast } from 'react-hot-toast';
+import EmojiPicker, { Theme } from 'emoji-picker-react';
 
 interface MentorChatWorkspaceProps {
   planId?: string;
@@ -18,7 +22,34 @@ const MentorChatWorkspace: React.FC<MentorChatWorkspaceProps> = ({ planId }) => 
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  
+  // Advanced Chat States
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [editingMessage, setEditingMessage] = useState<Message | null>(null);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [messageToDelete, setMessageToDelete] = useState<Message | null>(null);
+  const [isDeletingMessage, setIsDeletingMessage] = useState(false);
+  const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const emojiPickerRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close emoji picker and menus on click outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target as Node)) {
+        setShowEmojiPicker(false);
+      }
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setActiveMenuId(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Subscribe to all calls (for admin/mentor workspace)
   useEffect(() => {
@@ -54,13 +85,51 @@ const MentorChatWorkspace: React.FC<MentorChatWorkspaceProps> = ({ planId }) => 
 
     setSending(true);
     try {
-      await sendMessage(selectedCall.id, selectedCall.mentorId, 'mentor', newMessage.trim());
+      if (editingMessage) {
+        await editMessage(selectedCall.id, editingMessage.id, newMessage.trim());
+        setEditingMessage(null);
+      } else {
+        await sendMessage(
+          selectedCall.id, 
+          selectedCall.mentorId, 
+          'mentor', 
+          newMessage.trim(),
+          replyingTo?.id,
+          replyToPreviewText(replyingTo)
+        );
+        setReplyingTo(null);
+      }
       setNewMessage('');
     } catch (error) {
       console.error(error);
-      alert("Erro ao enviar mensagem.");
+      toast.error("Erro ao processar mensagem.");
     } finally {
       setSending(false);
+    }
+  };
+
+  const replyToPreviewText = (msg: Message | null) => {
+    if (!msg) return undefined;
+    const text = msg.text.length > 50 ? msg.text.substring(0, 50) + '...' : msg.text;
+    return text;
+  };
+
+  const onEmojiClick = (emojiData: any) => {
+    setNewMessage(prev => prev + emojiData.emoji);
+  };
+
+  const handleDeleteMessage = async () => {
+    if (!selectedCall || !messageToDelete) return;
+    setIsDeletingMessage(true);
+    try {
+      await deleteMessage(selectedCall.id, messageToDelete.id);
+      setMessageToDelete(null);
+      toast.success("Mensagem excluída.");
+    } catch (error) {
+      console.error(error);
+      toast.error("Erro ao excluir mensagem.");
+    } finally {
+      setIsDeletingMessage(false);
     }
   };
 
@@ -68,6 +137,43 @@ const MentorChatWorkspace: React.FC<MentorChatWorkspaceProps> = ({ planId }) => 
     if (!timestamp) return '';
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
     return format(date, 'HH:mm', { locale: ptBR });
+  };
+
+  const handleDeleteChat = () => {
+    if (!selectedCall) return;
+    setIsDeleteModalOpen(true);
+  };
+
+  const confirmDeleteChat = async () => {
+    if (!selectedCall || isDeleting) return;
+    
+    setIsDeleting(true);
+    try {
+      // 1. Pegar referência da subcoleção de mensagens
+      const messagesRef = collection(db, 'calls', selectedCall.id, 'messages');
+      const messagesSnap = await getDocs(messagesRef);
+      
+      // 2. Apagar todas as mensagens (usando Batch para eficiência)
+      const batch = writeBatch(db);
+      messagesSnap.forEach((doc) => {
+          batch.delete(doc.ref);
+      });
+      await batch.commit();
+
+      // 3. Apagar o documento principal da Call
+      const callRef = doc(db, 'calls', selectedCall.id);
+      await deleteDoc(callRef);
+
+      // 4. Limpeza de Estado
+      setIsDeleteModalOpen(false);
+      setSelectedCall(null);
+      toast.success("Conversa excluída com sucesso.");
+    } catch (error) {
+      console.error("Erro ao excluir conversa:", error);
+      toast.error("Erro ao excluir conversa.");
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   return (
@@ -111,7 +217,7 @@ const MentorChatWorkspace: React.FC<MentorChatWorkspaceProps> = ({ planId }) => 
                       <img src={call.studentPhotoUrl} alt={call.studentName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-zinc-500 font-black">
-                        {call.studentName.substring(0, 2).toUpperCase()}
+                        {call.studentName ? call.studentName.substring(0, 2).toUpperCase() : 'AL'}
                       </div>
                     )}
                   </div>
@@ -123,7 +229,7 @@ const MentorChatWorkspace: React.FC<MentorChatWorkspaceProps> = ({ planId }) => 
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-start mb-1">
-                    <h3 className="text-xs font-black text-white uppercase truncate">{call.studentName}</h3>
+                    <h3 className="text-xs font-black text-white uppercase truncate">{call.studentName || 'Aluno Sem Nome'}</h3>
                     <span className="text-[9px] text-zinc-600 font-mono">{formatTime(call.lastMessageTime)}</span>
                   </div>
                   <p className="text-[10px] text-zinc-500 truncate font-medium">
@@ -148,12 +254,12 @@ const MentorChatWorkspace: React.FC<MentorChatWorkspaceProps> = ({ planId }) => 
                     <img src={selectedCall.studentPhotoUrl} alt={selectedCall.studentName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-zinc-500 font-black text-xs">
-                      {selectedCall.studentName.substring(0, 2).toUpperCase()}
+                      {selectedCall.studentName ? selectedCall.studentName.substring(0, 2).toUpperCase() : 'AL'}
                     </div>
                   )}
                 </div>
                 <div>
-                  <h3 className="text-sm font-black text-white uppercase tracking-tight">{selectedCall.studentName}</h3>
+                  <h3 className="text-sm font-black text-white uppercase tracking-tight">{selectedCall.studentName || 'Aluno Sem Nome'}</h3>
                   <div className="flex items-center gap-1.5">
                     <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                     <span className="text-[9px] text-emerald-500 font-bold uppercase tracking-widest">Online</span>
@@ -161,6 +267,13 @@ const MentorChatWorkspace: React.FC<MentorChatWorkspaceProps> = ({ planId }) => 
                 </div>
               </div>
               <div className="flex items-center gap-4 text-zinc-500">
+                <button 
+                  onClick={handleDeleteChat}
+                  className="p-2 text-zinc-500 hover:text-red-500 hover:bg-red-500/10 rounded-xl transition-all"
+                  title="Excluir Conversa"
+                >
+                  <Trash2 size={18} />
+                </button>
                 <button className="hover:text-white transition-colors"><Phone size={18} /></button>
                 <button className="hover:text-white transition-colors"><Video size={18} /></button>
                 <button className="hover:text-white transition-colors"><Search size={18} /></button>
@@ -169,23 +282,81 @@ const MentorChatWorkspace: React.FC<MentorChatWorkspaceProps> = ({ planId }) => 
             </div>
 
             {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-fixed">
+            <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-fixed">
               {messages.map((msg, idx) => {
                 const isMentor = msg.senderRole === 'mentor';
+                const isMenuOpen = activeMenuId === msg.id;
+
                 return (
                   <div 
                     key={msg.id || idx}
-                    className={`flex ${isMentor ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-1 duration-300`}
+                    className={`flex ${isMentor ? 'justify-end' : 'justify-start'} group relative animate-in fade-in slide-in-from-bottom-1 duration-300`}
                   >
-                    <div className={`max-w-[70%] rounded-2xl p-3 shadow-lg ${
-                      isMentor 
-                        ? 'bg-brand-red text-white rounded-tr-none' 
-                        : 'bg-zinc-800 text-zinc-100 rounded-tl-none border border-zinc-700'
-                    }`}>
-                      <p className="text-xs font-medium leading-relaxed">{msg.text}</p>
-                      <div className={`flex items-center justify-end gap-1 mt-1 opacity-60`}>
-                        <span className="text-[9px] font-mono">{formatTime(msg.timestamp)}</span>
-                        {isMentor && <CheckCheck size={12} />}
+                    <div className={`max-w-[70%] relative flex flex-col ${isMentor ? 'items-end' : 'items-start'}`}>
+                      
+                      {/* Reply Context */}
+                      {msg.replyToText && (
+                        <div className={`mb-[-8px] px-3 py-2 pb-4 rounded-t-2xl text-[10px] opacity-50 border-x border-t ${
+                          isMentor ? 'bg-red-900/20 border-red-800/30' : 'bg-zinc-800/50 border-zinc-700/50'
+                        }`}>
+                          <div className="flex items-center gap-1 mb-1 font-bold uppercase tracking-wider">
+                            <Reply size={10} /> Resposta
+                          </div>
+                          <p className="italic line-clamp-1">{msg.replyToText}</p>
+                        </div>
+                      )}
+
+                      <div className={`rounded-2xl p-3 shadow-lg group-hover:shadow-xl transition-all relative ${
+                        isMentor 
+                          ? 'bg-brand-red text-white rounded-tr-none' 
+                          : 'bg-zinc-800 text-zinc-100 rounded-tl-none border border-zinc-700'
+                      }`}>
+                        <p className="text-xs font-medium leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+                        
+                        <div className="flex items-center justify-end gap-1 mt-1 opacity-60">
+                          {msg.isEdited && <span className="text-[8px] font-bold uppercase tracking-tighter">(editado)</span>}
+                          <span className="text-[9px] font-mono">{formatTime(msg.timestamp)}</span>
+                          {isMentor && <CheckCheck size={12} />}
+                        </div>
+
+                        {/* Action Trigger */}
+                        <button 
+                          onClick={() => setActiveMenuId(isMenuOpen ? null : msg.id)}
+                          className={`absolute top-2 ${isMentor ? '-left-8' : '-right-8'} p-1 rounded-full bg-zinc-900/50 text-zinc-500 opacity-0 group-hover:opacity-100 transition-opacity hover:text-white`}
+                        >
+                          <MoreVertical size={14} />
+                        </button>
+
+                        {/* Dropdown Menu */}
+                        {isMenuOpen && (
+                          <div 
+                            ref={menuRef}
+                            className={`absolute z-10 top-8 ${isMentor ? 'left-0' : 'right-0'} bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl py-1 min-w-[120px] animate-in fade-in zoom-in-95 duration-200`}
+                          >
+                            <button 
+                              onClick={() => { setReplyingTo(msg); setActiveMenuId(null); }}
+                              className="w-full text-left px-4 py-2 text-[10px] font-bold uppercase text-zinc-400 hover:bg-zinc-800 hover:text-white flex items-center gap-2"
+                            >
+                              <Reply size={12} /> Responder
+                            </button>
+                            {isMentor && (
+                              <>
+                                <button 
+                                  onClick={() => { setEditingMessage(msg); setNewMessage(msg.text); setActiveMenuId(null); }}
+                                  className="w-full text-left px-4 py-2 text-[10px] font-bold uppercase text-zinc-400 hover:bg-zinc-800 hover:text-white flex items-center gap-2"
+                                >
+                                  <Edit2 size={12} /> Editar
+                                </button>
+                                <button 
+                                  onClick={() => { setMessageToDelete(msg); setActiveMenuId(null); }}
+                                  className="w-full text-left px-4 py-2 text-[10px] font-bold uppercase text-red-500 hover:bg-red-500/10 flex items-center gap-2"
+                                >
+                                  <Trash2 size={12} /> Excluir
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -195,24 +366,77 @@ const MentorChatWorkspace: React.FC<MentorChatWorkspaceProps> = ({ planId }) => 
             </div>
 
             {/* Input Area */}
-            <div className="p-4 bg-zinc-900/50 border-t border-zinc-800">
+            <div className="p-4 bg-zinc-900/50 border-t border-zinc-800 relative">
+              
+              {/* Reply Preview */}
+              {replyingTo && (
+                <div className="absolute bottom-full left-0 right-0 bg-zinc-900 border-t border-zinc-800 p-3 flex items-center justify-between animate-in slide-in-from-bottom-2">
+                  <div className="flex items-center gap-3 border-l-4 border-brand-red pl-3">
+                    <Reply size={14} className="text-brand-red" />
+                    <div>
+                      <p className="text-[10px] font-black text-white uppercase tracking-tighter">Respondendo a {replyingTo.senderRole === 'mentor' ? 'Você' : selectedCall.studentName}</p>
+                      <p className="text-[10px] text-zinc-500 truncate max-w-md italic">{replyingTo.text}</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setReplyingTo(null)} className="p-1 hover:bg-zinc-800 rounded-full text-zinc-500 hover:text-white">
+                    <X size={16} />
+                  </button>
+                </div>
+              )}
+
+              {/* Edit Preview */}
+              {editingMessage && (
+                <div className="absolute bottom-full left-0 right-0 bg-zinc-900 border-t border-zinc-800 p-3 flex items-center justify-between animate-in slide-in-from-bottom-2">
+                  <div className="flex items-center gap-3 border-l-4 border-amber-500 pl-3">
+                    <Edit2 size={14} className="text-amber-500" />
+                    <div>
+                      <p className="text-[10px] font-black text-white uppercase tracking-tighter">Editando Mensagem</p>
+                      <p className="text-[10px] text-zinc-500 truncate max-w-md italic">{editingMessage.text}</p>
+                    </div>
+                  </div>
+                  <button onClick={() => { setEditingMessage(null); setNewMessage(''); }} className="p-1 hover:bg-zinc-800 rounded-full text-zinc-500 hover:text-white">
+                    <X size={16} />
+                  </button>
+                </div>
+              )}
+
               <form onSubmit={handleSendMessage} className="flex items-center gap-3">
-                <button type="button" className="text-zinc-500 hover:text-white transition-colors"><Smile size={20} /></button>
+                <div className="relative">
+                  <button 
+                    type="button" 
+                    onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                    className={`text-zinc-500 hover:text-white transition-colors ${showEmojiPicker ? 'text-brand-red' : ''}`}
+                  >
+                    <Smile size={20} />
+                  </button>
+                  {showEmojiPicker && (
+                    <div ref={emojiPickerRef} className="absolute bottom-full left-0 mb-4 z-50 shadow-2xl">
+                      <EmojiPicker 
+                        onEmojiClick={onEmojiClick}
+                        theme={Theme.DARK}
+                        width={300}
+                        height={400}
+                      />
+                    </div>
+                  )}
+                </div>
                 <button type="button" className="text-zinc-500 hover:text-white transition-colors"><Paperclip size={20} /></button>
                 <div className="flex-1 relative">
                   <input 
                     value={newMessage}
                     onChange={e => setNewMessage(e.target.value)}
-                    placeholder="Digite sua resposta..."
+                    placeholder={editingMessage ? "Edite sua mensagem..." : "Digite sua resposta..."}
                     className="w-full bg-zinc-950 border border-zinc-800 rounded-xl py-3 px-4 text-xs text-white placeholder-zinc-700 focus:border-brand-red focus:outline-none"
                   />
                 </div>
                 <button 
                   type="submit"
                   disabled={!newMessage.trim() || sending}
-                  className="w-12 h-12 bg-brand-red hover:bg-red-600 text-white rounded-xl flex items-center justify-center shadow-lg shadow-red-900/20 transition-all disabled:opacity-50 disabled:scale-95"
+                  className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-lg transition-all disabled:opacity-50 disabled:scale-95 ${
+                    editingMessage ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-900/20' : 'bg-brand-red hover:bg-red-600 shadow-red-900/20'
+                  }`}
                 >
-                  {sending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                  {sending ? <Loader2 size={18} className="animate-spin" /> : editingMessage ? <CheckCheck size={18} /> : <Send size={18} />}
                 </button>
               </form>
             </div>
@@ -229,6 +453,76 @@ const MentorChatWorkspace: React.FC<MentorChatWorkspaceProps> = ({ planId }) => 
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {isDeleteModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 max-w-sm w-full mx-4 shadow-2xl animate-in zoom-in-95 duration-300">
+            <div className="w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center mb-4 mx-auto">
+              <Trash2 size={24} className="text-red-500" />
+            </div>
+            <h3 className="text-lg font-black text-white uppercase tracking-tighter text-center mb-2">Excluir Conversa</h3>
+            <p className="text-zinc-400 text-xs text-center leading-relaxed mb-6">
+              Tem certeza que deseja apagar permanentemente esta conversa? Todas as mensagens serão deletadas do banco de dados. Esta ação é irreversível.
+            </p>
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setIsDeleteModalOpen(false)}
+                disabled={isDeleting}
+                className="flex-1 py-3 px-4 bg-zinc-800 hover:bg-zinc-700 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={confirmDeleteChat}
+                disabled={isDeleting}
+                className="flex-1 py-3 px-4 bg-red-600 hover:bg-red-700 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-red-900/20 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isDeleting ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  "Sim, Excluir"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Message Modal */}
+      {messageToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 max-w-sm w-full mx-4 shadow-2xl animate-in zoom-in-95 duration-300">
+            <div className="w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center mb-4 mx-auto">
+              <Trash2 size={24} className="text-red-500" />
+            </div>
+            <h3 className="text-lg font-black text-white uppercase tracking-tighter text-center mb-2">Apagar Mensagem?</h3>
+            <p className="text-zinc-400 text-xs text-center leading-relaxed mb-6">
+              Deseja apagar esta mensagem para todos? Esta ação não pode ser desfeita.
+            </p>
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setMessageToDelete(null)}
+                disabled={isDeletingMessage}
+                className="flex-1 py-3 px-4 bg-zinc-800 hover:bg-zinc-700 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={handleDeleteMessage}
+                disabled={isDeletingMessage}
+                className="flex-1 py-3 px-4 bg-red-600 hover:bg-red-700 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-red-900/20 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isDeletingMessage ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  "Apagar para todos"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

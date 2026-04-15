@@ -21,6 +21,7 @@ import { StudentPresentialTab } from './components/student/presential/StudentPre
 import { StudentPresentialDetails } from './pages/student/presential/StudentPresentialDetails'; // Nova Importação Detalhes Presencial
 import { StudentLiveEvents } from './pages/student/liveEvents/StudentLiveEvents';
 import { StudentLiveEventRoom } from './pages/student/liveEvents/StudentLiveEventRoom';
+import { VideoRoom } from './components/video/VideoRoom';
 import AdminLayout from './components/Layout/AdminLayout';
 import StudentLayout from './components/Layout/StudentLayout';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -57,6 +58,13 @@ const App: React.FC = () => {
         <Routes>
           <Route path="/migracao/:token" element={<MigrationEnrollment />} />
           <Route path="/login" element={<LoginPage />} />
+          
+          {/* Video Room (Full Screen) */}
+          <Route path="/video-room/:callId" element={
+              <PrivateRoute>
+                  <VideoRoom />
+              </PrivateRoute>
+          } />
           
           {/* Admin Routes */}
           <Route path="/admin/eventos-ao-vivo/sala/:id" element={

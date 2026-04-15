@@ -793,11 +793,13 @@ const StudentDashboard: React.FC = () => {
   // --- RENDERIZAÇÃO DA ABA DE CALL (CHAT) ---
   if (currentTab === 'call') {
       return (
-          <div className="relative w-full min-h-screen bg-zinc-950 flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-700">
+          <div className="relative w-full h-[calc(100vh-140px)] bg-zinc-950 flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-700">
             {fullPlanData && (
-              <PlanHeroBanner currentTab="call" planData={fullPlanData} />
+              <div className="shrink-0">
+                <PlanHeroBanner currentTab="call" planData={fullPlanData} />
+              </div>
             )}
-            <div className="relative z-10 w-full max-w-[1600px] mx-auto px-4 md:px-8 pt-8 md:pt-12 flex-1 flex flex-col mb-10 -mt-10 md:-mt-20">
+            <div className="relative z-10 w-full max-w-[1600px] mx-auto px-4 md:px-8 flex-1 flex flex-col overflow-hidden py-4">
               <StudentChatView 
                 planId={currentPlanId} 
                 linkedMentorIds={fullPlanData?.linkedMentors || []} 

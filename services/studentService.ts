@@ -758,3 +758,30 @@ export const getStudentsByClass = async (classId: string) => {
 
   return enrolledStudents;
 };
+
+/**
+ * Busca todos os alunos matriculados em um plano específico.
+ */
+export const getStudentsByPlan = async (planId: string) => {
+  const usersRef = collection(db, 'users');
+  const snapshot = await getDocs(query(usersRef));
+  
+  const enrolledStudents: any[] = [];
+
+  snapshot.forEach(doc => {
+    const userData = { id: doc.id, ...doc.data() };
+    const accesses = (userData as any).access || [];
+    
+    // Procura se o aluno tem um acesso válido para este plano
+    const planAccess = accesses.find((a: any) => a.targetId === planId && a.type === 'plan' && a.isActive !== false);
+    
+    if (planAccess) {
+      enrolledStudents.push({
+        ...userData,
+        planAccess
+      });
+    }
+  });
+
+  return enrolledStudents;
+};
