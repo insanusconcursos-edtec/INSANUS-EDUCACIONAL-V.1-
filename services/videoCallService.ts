@@ -10,7 +10,8 @@ import {
   serverTimestamp,
   Timestamp,
   getDocs,
-  deleteDoc
+  deleteDoc,
+  writeBatch
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { ScheduledCall } from '../types/videoCall';
@@ -87,5 +88,3 @@ export const clearSignals = async (callId: string) => {
   snapshot.docs.forEach(doc => batch.delete(doc.ref));
   await batch.commit();
 };
-
-import { writeBatch } from 'firebase/firestore';

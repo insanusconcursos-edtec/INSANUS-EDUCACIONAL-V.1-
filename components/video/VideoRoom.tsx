@@ -4,7 +4,7 @@ import {
   Mic, MicOff, Video, VideoOff, PhoneOff, Loader2, User, Shield, VolumeX, EyeOff
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { subscribeToCall, addSignal, subscribeToSignals, updateCallStatus, updateHostControls } from '../../services/videoCallService';
+import { subscribeToCall, addSignal, subscribeToSignals, updateCallStatus, updateHostControls, clearSignals } from '../../services/videoCallService';
 import { ScheduledCall } from '../../types/videoCall';
 import { toast } from 'react-hot-toast';
 
@@ -33,48 +33,68 @@ export const VideoRoom: React.FC = () => {
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const iceCandidatesQueue = useRef<RTCIceCandidateInit[]>([]);
+  const processedSignals = useRef<Set<string>>(new Set());
 
   const isAdmin = userRole === 'ADMIN' || userRole === 'COLLABORATOR';
 
   // Binding local stream to video element
   useEffect(() => {
-    if (localVideoRef.current && localStream) {
+    if (!loading && localVideoRef.current && localStream) {
+      console.log("Binding local stream to video element");
       localVideoRef.current.srcObject = localStream;
     }
-  }, [localStream]);
+  }, [localStream, loading]);
 
   // Binding remote stream to video element
   useEffect(() => {
-    if (remoteVideoRef.current && remoteStream) {
+    if (!loading && remoteVideoRef.current && remoteStream) {
+      console.log("Binding remote stream to video element");
       remoteVideoRef.current.srcObject = remoteStream;
     }
-  }, [remoteStream]);
+  }, [remoteStream, loading]);
 
   useEffect(() => {
     if (!callId || !currentUser) return;
 
+    let unsubscribeSignals: (() => void) | null = null;
+
     const unsubscribeCall = subscribeToCall(callId, (data) => {
-      setCall(data);
-      
-      // Handle remote controls for students
-      if (!isAdmin && localStream) {
-        if (data.forceMute) {
-          localStream.getAudioTracks().forEach(track => track.enabled = false);
-          setIsMicOn(false);
-          toast.error("O mentor desativou seu microfone.");
+      if (data) {
+        setCall(data);
+        
+        // Handle remote controls for students
+        if (!isAdmin && localStreamRef.current) {
+          if (data.forceMute) {
+            localStreamRef.current.getAudioTracks().forEach(track => track.enabled = false);
+            setIsMicOn(false);
+            toast.error("O mentor desativou seu microfone.");
+          }
+          if (data.forceHideCamera) {
+            localStreamRef.current.getVideoTracks().forEach(track => track.enabled = false);
+            setIsCamOn(false);
+            toast.error("O mentor desativou sua câmera.");
+          }
         }
-        if (data.forceHideCamera) {
-          localStream.getVideoTracks().forEach(track => track.enabled = false);
-          setIsCamOn(false);
-          toast.error("O mentor desativou sua câmera.");
+
+        if (data.status === 'completed') {
+          toast.success("Chamada encerrada.");
+          navigate('/dashboard');
         }
       }
     });
 
     const startWebRTC = async () => {
       try {
+        console.log("Starting WebRTC session...");
+        
+        if (isAdmin) {
+          console.log("Admin clearing old signals...");
+          await clearSignals(callId);
+        }
+
         // Initialize PeerConnection
         pc.current = new RTCPeerConnection(servers);
+        console.log("RTCPeerConnection initialized");
 
         const stream = await navigator.mediaDevices.getUserMedia({ 
           video: {
@@ -94,29 +114,27 @@ export const VideoRoom: React.FC = () => {
 
         pc.current.ontrack = (event) => {
           if (event.streams && event.streams[0]) {
+            console.log("Remote stream received:", event.streams[0].id);
             setRemoteStream(event.streams[0]);
           }
         };
 
         pc.current.onicecandidate = (event) => {
           if (event.candidate) {
+            console.log("Local ICE candidate generated");
             addSignal(callId, 'candidate', event.candidate.toJSON(), currentUser.uid);
           }
         };
 
-        // Signaling logic
-        if (isAdmin) {
-          // Admin creates offer
-          const offerDescription = await pc.current.createOffer();
-          await pc.current.setLocalDescription(offerDescription);
-          await addSignal(callId, 'offer', offerDescription, currentUser.uid);
-        }
-
-        const unsubscribeSignals = subscribeToSignals(callId, async (signals) => {
+        unsubscribeSignals = subscribeToSignals(callId, async (signals) => {
           if (!pc.current) return;
 
           for (const signal of signals) {
             if (signal.senderId === currentUser.uid) continue;
+            if (processedSignals.current.has(signal.id)) continue;
+            
+            processedSignals.current.add(signal.id);
+            console.log(`Processing signal: ${signal.type}`);
 
             if (signal.type === 'offer' && !isAdmin) {
               await pc.current.setRemoteDescription(new RTCSessionDescription(signal.data));
@@ -154,12 +172,16 @@ export const VideoRoom: React.FC = () => {
           }
         });
 
+        if (isAdmin) {
+          // Admin creates offer
+          const offerDescription = await pc.current.createOffer();
+          await pc.current.setLocalDescription(offerDescription);
+          await addSignal(callId, 'offer', offerDescription, currentUser.uid);
+        }
+
         setLoading(false);
-        return () => {
-          unsubscribeSignals();
-        };
       } catch (error) {
-        console.error(error);
+        console.error("WebRTC Error:", error);
         toast.error("Erro ao acessar câmera/microfone.");
         setLoading(false);
       }
@@ -169,6 +191,7 @@ export const VideoRoom: React.FC = () => {
 
     return () => {
       unsubscribeCall();
+      if (unsubscribeSignals) unsubscribeSignals();
       if (localStreamRef.current) {
         localStreamRef.current.getTracks().forEach(t => t.stop());
       }
@@ -176,7 +199,7 @@ export const VideoRoom: React.FC = () => {
         pc.current.close();
       }
     };
-  }, [callId, currentUser]);
+  }, [callId, currentUser, isAdmin, navigate]);
 
   const toggleMic = () => {
     if (localStream) {
