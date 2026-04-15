@@ -10,9 +10,17 @@ import { toast } from 'react-hot-toast';
 
 const servers = {
   iceServers: [
+    { urls: ['stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'] },
     {
-      urls: ['stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'],
+      urls: 'turn:openrelay.metered.ca:80',
+      username: 'openrelayproject',
+      credential: 'openrelayproject'
     },
+    {
+      urls: 'turn:openrelay.metered.ca:443',
+      username: 'openrelayproject',
+      credential: 'openrelayproject'
+    }
   ],
   iceCandidatePoolSize: 10,
 };
@@ -28,6 +36,8 @@ export const VideoRoom: React.FC = () => {
   const [isMicOn, setIsMicOn] = useState(true);
   const [isCamOn, setIsCamOn] = useState(true);
   const [loading, setLoading] = useState(true);
+  const [needsPlayInteraction, setNeedsPlayInteraction] = useState(false);
+  const [iceState, setIceState] = useState<RTCIceConnectionState>('new');
   
   const pc = useRef<RTCPeerConnection | null>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
@@ -51,6 +61,12 @@ export const VideoRoom: React.FC = () => {
     if (!loading && remoteVideoRef.current && remoteStream) {
       console.log("Binding remote stream to video element");
       remoteVideoRef.current.srcObject = remoteStream;
+      
+      // Handle mobile autoplay policy
+      remoteVideoRef.current.play().catch(error => {
+        console.warn("Autoplay blocked by browser. Showing interaction button.", error);
+        setNeedsPlayInteraction(true);
+      });
     }
   }, [remoteStream, loading]);
 
@@ -124,6 +140,18 @@ export const VideoRoom: React.FC = () => {
           if (event.candidate) {
             console.log("Local ICE candidate generated");
             addSignal(callId, 'candidate', event.candidate.toJSON(), currentUser.uid);
+          }
+        };
+
+        pc.current.oniceconnectionstatechange = () => {
+          if (pc.current) {
+            const state = pc.current.iceConnectionState;
+            console.log("ICE Connection State:", state);
+            setIceState(state);
+            
+            if (state === 'failed') {
+              toast.error("Falha na conexão de rede. Tente atualizar a página.");
+            }
           }
         };
 
@@ -233,6 +261,16 @@ export const VideoRoom: React.FC = () => {
     if (callId) await updateHostControls(callId, { forceHideCamera: true });
   };
 
+  const handleForcePlay = () => {
+    if (remoteVideoRef.current) {
+      remoteVideoRef.current.play().then(() => {
+        setNeedsPlayInteraction(false);
+      }).catch(err => {
+        console.error("Force play failed:", err);
+      });
+    }
+  };
+
   if (loading) {
     return (
       <div className="fixed inset-0 bg-zinc-950 flex flex-col items-center justify-center gap-4 z-[9999]">
@@ -264,6 +302,28 @@ export const VideoRoom: React.FC = () => {
             playsInline 
             className="w-full h-full object-cover"
           />
+
+          {/* Autoplay Fallback Overlay */}
+          {needsPlayInteraction && remoteStream && (
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center gap-4 z-10">
+              <button 
+                onClick={handleForcePlay}
+                className="px-6 py-3 bg-brand-red text-white text-xs font-black uppercase tracking-widest rounded-xl shadow-lg shadow-red-900/40 flex items-center gap-2 animate-bounce"
+              >
+                <Mic size={16} />
+                Conectar Áudio e Vídeo
+              </button>
+              <p className="text-white/60 text-[10px] font-bold uppercase tracking-widest">Clique para habilitar a mídia</p>
+            </div>
+          )}
+
+          {/* ICE Failure Warning */}
+          {(iceState === 'failed' || iceState === 'disconnected') && (
+            <div className="absolute top-6 left-1/2 -translate-x-1/2 bg-red-600 text-white px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest shadow-xl z-20 flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-white animate-ping" />
+              Instabilidade na Rede
+            </div>
+          )}
           
           {/* Remote Info Overlay */}
           <div className="absolute bottom-6 left-6 bg-black/50 backdrop-blur-md px-4 py-2 rounded-xl border border-white/10 flex items-center gap-2">
