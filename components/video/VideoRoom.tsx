@@ -28,11 +28,27 @@ export const VideoRoom: React.FC = () => {
   const [isCamOn, setIsCamOn] = useState(true);
   const [loading, setLoading] = useState(true);
   
-  const pc = useRef<RTCPeerConnection>(new RTCPeerConnection(servers));
+  const pc = useRef<RTCPeerConnection | null>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const localStreamRef = useRef<MediaStream | null>(null);
+  const iceCandidatesQueue = useRef<RTCIceCandidateInit[]>([]);
 
   const isAdmin = userRole === 'ADMIN' || userRole === 'COLLABORATOR';
+
+  // Binding local stream to video element
+  useEffect(() => {
+    if (localVideoRef.current && localStream) {
+      localVideoRef.current.srcObject = localStream;
+    }
+  }, [localStream]);
+
+  // Binding remote stream to video element
+  useEffect(() => {
+    if (remoteVideoRef.current && remoteStream) {
+      remoteVideoRef.current.srcObject = remoteStream;
+    }
+  }, [remoteStream]);
 
   useEffect(() => {
     if (!callId || !currentUser) return;
@@ -57,17 +73,29 @@ export const VideoRoom: React.FC = () => {
 
     const startWebRTC = async () => {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        // Initialize PeerConnection
+        pc.current = new RTCPeerConnection(servers);
+
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          video: {
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            facingMode: "user"
+          }, 
+          audio: true 
+        });
+        
         setLocalStream(stream);
-        if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+        localStreamRef.current = stream;
 
         stream.getTracks().forEach((track) => {
-          pc.current.addTrack(track, stream);
+          pc.current?.addTrack(track, stream);
         });
 
         pc.current.ontrack = (event) => {
-          setRemoteStream(event.streams[0]);
-          if (remoteVideoRef.current) remoteVideoRef.current.srcObject = event.streams[0];
+          if (event.streams && event.streams[0]) {
+            setRemoteStream(event.streams[0]);
+          }
         };
 
         pc.current.onicecandidate = (event) => {
@@ -85,6 +113,8 @@ export const VideoRoom: React.FC = () => {
         }
 
         const unsubscribeSignals = subscribeToSignals(callId, async (signals) => {
+          if (!pc.current) return;
+
           for (const signal of signals) {
             if (signal.senderId === currentUser.uid) continue;
 
@@ -93,15 +123,32 @@ export const VideoRoom: React.FC = () => {
               const answerDescription = await pc.current.createAnswer();
               await pc.current.setLocalDescription(answerDescription);
               await addSignal(callId, 'answer', answerDescription, currentUser.uid);
+              
+              // Process queued candidates
+              while (iceCandidatesQueue.current.length > 0) {
+                const candidate = iceCandidatesQueue.current.shift();
+                if (candidate) await pc.current.addIceCandidate(new RTCIceCandidate(candidate));
+              }
             } else if (signal.type === 'answer' && isAdmin) {
               if (!pc.current.currentRemoteDescription) {
                 await pc.current.setRemoteDescription(new RTCSessionDescription(signal.data));
+                
+                // Process queued candidates
+                while (iceCandidatesQueue.current.length > 0) {
+                  const candidate = iceCandidatesQueue.current.shift();
+                  if (candidate) await pc.current.addIceCandidate(new RTCIceCandidate(candidate));
+                }
               }
             } else if (signal.type === 'candidate') {
-              try {
-                await pc.current.addIceCandidate(new RTCIceCandidate(signal.data));
-              } catch (e) {
-                console.error("Error adding ice candidate", e);
+              const candidate = signal.data;
+              if (pc.current.remoteDescription) {
+                try {
+                  await pc.current.addIceCandidate(new RTCIceCandidate(candidate));
+                } catch (e) {
+                  console.error("Error adding ice candidate", e);
+                }
+              } else {
+                iceCandidatesQueue.current.push(candidate);
               }
             }
           }
@@ -122,8 +169,12 @@ export const VideoRoom: React.FC = () => {
 
     return () => {
       unsubscribeCall();
-      localStream?.getTracks().forEach(t => t.stop());
-      pc.current.close();
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach(t => t.stop());
+      }
+      if (pc.current) {
+        pc.current.close();
+      }
     };
   }, [callId, currentUser]);
 
