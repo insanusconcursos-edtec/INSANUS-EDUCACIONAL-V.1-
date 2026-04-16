@@ -8,8 +8,10 @@ export interface ScheduledCall {
   studentName: string;
   studentPhotoUrl: string;
   scheduledAt: Timestamp;
-  status: 'scheduled' | 'active' | 'completed';
+  status: 'scheduled' | 'active' | 'accepted' | 'completed';
   roomId: string;
+  requestEntry?: boolean;
+  studentStatus?: 'waiting' | 'rejected' | 'accepted';
   forceMute?: boolean;
   forceHideCamera?: boolean;
   createdAt: Timestamp;

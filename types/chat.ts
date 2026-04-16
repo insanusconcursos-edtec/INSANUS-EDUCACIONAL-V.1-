@@ -16,6 +16,8 @@ export interface Message {
   text: string;
   timestamp: Timestamp | any;
   isEdited?: boolean;
+  isDeleted?: boolean;
+  imageUrl?: string;
   replyToId?: string;
   replyToText?: string;
 }

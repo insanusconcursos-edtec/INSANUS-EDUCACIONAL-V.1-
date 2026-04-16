@@ -1,10 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
-  Mic, MicOff, Video, VideoOff, PhoneOff, Loader2, User, Shield, VolumeX, EyeOff
+  Mic, MicOff, Video, VideoOff, PhoneOff, Loader2, User, Shield, VolumeX, EyeOff, LogIn, Check, X, Clock
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { subscribeToCall, addSignal, subscribeToSignals, updateCallStatus, updateHostControls, clearSignals } from '../../services/videoCallService';
+import { 
+  subscribeToCall, addSignal, subscribeToSignals, updateCallStatus, 
+  updateHostControls, clearSignals, requestEntry, approveEntry, rejectEntry 
+} from '../../services/videoCallService';
 import { ScheduledCall } from '../../types/videoCall';
 import { toast } from 'react-hot-toast';
 
@@ -36,6 +39,7 @@ export const VideoRoom: React.FC = () => {
   const [isMicOn, setIsMicOn] = useState(true);
   const [isCamOn, setIsCamOn] = useState(true);
   const [loading, setLoading] = useState(true);
+  const [accessStatus, setAccessStatus] = useState<'lobby' | 'requesting' | 'accepted'>('lobby');
   const [needsPlayInteraction, setNeedsPlayInteraction] = useState(false);
   const [iceState, setIceState] = useState<RTCIceConnectionState>('new');
   
@@ -79,6 +83,13 @@ export const VideoRoom: React.FC = () => {
       if (data) {
         setCall(data);
         
+        // Update access status based on call status
+        if (data.status === 'accepted' || isAdmin) {
+          setAccessStatus('accepted');
+        } else if (data.studentStatus === 'waiting') {
+          setAccessStatus('requesting');
+        }
+
         // Handle remote controls for students
         if (!isAdmin && localStreamRef.current) {
           if (data.forceMute) {
@@ -101,6 +112,27 @@ export const VideoRoom: React.FC = () => {
     });
 
     const startWebRTC = async () => {
+      // Only start WebRTC if call is accepted or user is admin
+      if (!isAdmin && accessStatus !== 'accepted') {
+        console.log("Waiting for mentor to accept entry...");
+        
+        // Still need local stream for lobby preview
+        if (!localStreamRef.current) {
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+              video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" }, 
+              audio: true 
+            });
+            setLocalStream(stream);
+            localStreamRef.current = stream;
+          } catch (err) {
+            console.error("Lobby media error:", err);
+          }
+        }
+        setLoading(false);
+        return;
+      }
+
       try {
         console.log("Starting WebRTC session...");
         
@@ -246,6 +278,40 @@ export const VideoRoom: React.FC = () => {
     }
   };
 
+  const handleRequestEntry = async () => {
+    if (callId) {
+      try {
+        await requestEntry(callId);
+        setAccessStatus('requesting');
+        toast.success("Solicitação enviada!");
+      } catch (error) {
+        toast.error("Erro ao enviar solicitação.");
+      }
+    }
+  };
+
+  const handleApproveEntry = async () => {
+    if (callId) {
+      try {
+        await approveEntry(callId);
+        toast.success("Aluno autorizado!");
+      } catch (error) {
+        toast.error("Erro ao autorizar aluno.");
+      }
+    }
+  };
+
+  const handleRejectEntry = async () => {
+    if (callId) {
+      try {
+        await rejectEntry(callId);
+        toast.success("Solicitação recusada.");
+      } catch (error) {
+        toast.error("Erro ao recusar solicitação.");
+      }
+    }
+  };
+
   const endCall = async () => {
     if (isAdmin && callId) {
       await updateCallStatus(callId, 'completed');
@@ -282,75 +348,138 @@ export const VideoRoom: React.FC = () => {
 
   return (
     <div className="flex flex-col w-full h-[100dvh] bg-[#09090b] overflow-hidden z-[9999] fixed inset-0">
+      {/* Mentor Approval Banner */}
+      {isAdmin && call?.requestEntry && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 w-[90%] max-w-md bg-zinc-900 border border-brand-red/30 rounded-2xl p-4 shadow-2xl z-[100] flex items-center justify-between animate-in fade-in slide-in-from-top-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-brand-red/10 flex items-center justify-center">
+              <User className="text-brand-red" size={20} />
+            </div>
+            <div>
+              <p className="text-white text-xs font-black uppercase tracking-widest">{call.studentName}</p>
+              <p className="text-zinc-500 text-[10px] font-bold">Solicitando entrada...</p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button 
+              onClick={handleRejectEntry}
+              className="w-10 h-10 rounded-xl bg-zinc-800 text-zinc-400 hover:bg-zinc-700 flex items-center justify-center transition-all"
+            >
+              <X size={20} />
+            </button>
+            <button 
+              onClick={handleApproveEntry}
+              className="px-4 h-10 rounded-xl bg-brand-red text-white text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-red-600 transition-all"
+            >
+              <Check size={16} />
+              Aceitar
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Main Video Area */}
       <div className="flex-1 min-h-0 w-full p-2 md:p-4 grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-4">
-        {/* Remote Video */}
+        {/* Remote Video / Lobby Placeholder */}
         <div className="relative w-full h-full rounded-xl md:rounded-2xl overflow-hidden bg-black/50 flex items-center justify-center border border-zinc-800">
-          {!remoteStream && (
-            <div className="flex flex-col items-center gap-4">
-              <div className="w-24 h-24 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-600">
+          {(!remoteStream || (!isAdmin && accessStatus !== 'accepted')) ? (
+            <div className="flex flex-col items-center gap-6 p-8 text-center">
+              <div className="w-24 h-24 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-600 relative">
                 <User size={48} />
+                {!isAdmin && accessStatus === 'requesting' && (
+                  <div className="absolute inset-0 border-2 border-brand-red border-t-transparent rounded-full animate-spin" />
+                )}
               </div>
-              <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest animate-pulse">
-                Aguardando participante...
-              </p>
-            </div>
-          )}
-          <video 
-            ref={remoteVideoRef} 
-            autoPlay 
-            playsInline 
-            className="w-full h-full object-cover"
-          />
+              
+              <div className="space-y-2">
+                <p className="text-white text-xs font-black uppercase tracking-widest">
+                  {!isAdmin && accessStatus === 'lobby' ? 'Sala de Espera' : 
+                   !isAdmin && accessStatus === 'requesting' ? 'Aguardando Autorização' : 
+                   'Aguardando participante...'}
+                </p>
+                <p className="text-zinc-500 text-[10px] font-bold max-w-[200px] leading-relaxed">
+                  {!isAdmin && accessStatus === 'lobby' ? 'Prepare-se para a mentoria. Teste sua câmera e microfone antes de entrar.' : 
+                   !isAdmin && accessStatus === 'requesting' ? 'O mentor foi notificado. Por favor, aguarde um momento.' : 
+                   'O link está ativo. O outro participante entrará em breve.'}
+                </p>
+              </div>
 
-          {/* Autoplay Fallback Overlay */}
-          {needsPlayInteraction && remoteStream && (
-            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center gap-4 z-10">
-              <button 
-                onClick={handleForcePlay}
-                className="px-6 py-3 bg-brand-red text-white text-xs font-black uppercase tracking-widest rounded-xl shadow-lg shadow-red-900/40 flex items-center gap-2 animate-bounce"
-              >
-                <Mic size={16} />
-                Conectar Áudio e Vídeo
-              </button>
-              <p className="text-white/60 text-[10px] font-bold uppercase tracking-widest">Clique para habilitar a mídia</p>
-            </div>
-          )}
+              {!isAdmin && accessStatus === 'lobby' && (
+                <button 
+                  onClick={handleRequestEntry}
+                  className="px-8 py-4 bg-brand-red text-white text-xs font-black uppercase tracking-widest rounded-2xl shadow-xl shadow-red-900/20 hover:scale-105 transition-all flex items-center gap-3"
+                >
+                  <LogIn size={18} />
+                  Pedir para Entrar
+                </button>
+              )}
 
-          {/* ICE Failure Warning */}
-          {(iceState === 'failed' || iceState === 'disconnected') && (
-            <div className="absolute top-6 left-1/2 -translate-x-1/2 bg-red-600 text-white px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest shadow-xl z-20 flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-white animate-ping" />
-              Instabilidade na Rede
+              {!isAdmin && accessStatus === 'requesting' && (
+                <div className="flex items-center gap-2 text-brand-red text-[10px] font-black uppercase tracking-widest">
+                  <Clock size={14} className="animate-pulse" />
+                  Solicitação Pendente
+                </div>
+              )}
             </div>
-          )}
-          
-          {/* Remote Info Overlay */}
-          <div className="absolute bottom-6 left-6 bg-black/50 backdrop-blur-md px-4 py-2 rounded-xl border border-white/10 flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-white text-xs font-bold uppercase tracking-tight">
-              {isAdmin ? call?.studentName : 'Mentor'}
-            </span>
-          </div>
+          ) : (
+            <>
+              <video 
+                ref={remoteVideoRef} 
+                autoPlay 
+                playsInline 
+                className="w-full h-full object-cover"
+              />
 
-          {/* Admin Controls over Remote Video */}
-          {isAdmin && remoteStream && (
-            <div className="absolute top-6 right-6 flex gap-2">
-              <button 
-                onClick={handleForceMute}
-                className="w-10 h-10 rounded-xl bg-black/50 backdrop-blur-md border border-white/10 flex items-center justify-center text-white hover:bg-brand-red transition-all"
-                title="Mutar Aluno"
-              >
-                <VolumeX size={18} />
-              </button>
-              <button 
-                onClick={handleForceHideCamera}
-                className="w-10 h-10 rounded-xl bg-black/50 backdrop-blur-md border border-white/10 flex items-center justify-center text-white hover:bg-brand-red transition-all"
-                title="Ocultar Câmera do Aluno"
-              >
-                <EyeOff size={18} />
-              </button>
-            </div>
+              {/* Autoplay Fallback Overlay */}
+              {needsPlayInteraction && remoteStream && (
+                <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center gap-4 z-10">
+                  <button 
+                    onClick={handleForcePlay}
+                    className="px-6 py-3 bg-brand-red text-white text-xs font-black uppercase tracking-widest rounded-xl shadow-lg shadow-red-900/40 flex items-center gap-2 animate-bounce"
+                  >
+                    <Mic size={16} />
+                    Conectar Áudio e Vídeo
+                  </button>
+                  <p className="text-white/60 text-[10px] font-bold uppercase tracking-widest">Clique para habilitar a mídia</p>
+                </div>
+              )}
+
+              {/* ICE Failure Warning */}
+              {(iceState === 'failed' || iceState === 'disconnected') && (
+                <div className="absolute top-6 left-1/2 -translate-x-1/2 bg-red-600 text-white px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest shadow-xl z-20 flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-white animate-ping" />
+                  Instabilidade na Rede
+                </div>
+              )}
+              
+              {/* Remote Info Overlay */}
+              <div className="absolute bottom-6 left-6 bg-black/50 backdrop-blur-md px-4 py-2 rounded-xl border border-white/10 flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-white text-xs font-bold uppercase tracking-tight">
+                  {isAdmin ? call?.studentName : 'Mentor'}
+                </span>
+              </div>
+
+              {/* Admin Controls over Remote Video */}
+              {isAdmin && remoteStream && (
+                <div className="absolute top-6 right-6 flex gap-2">
+                  <button 
+                    onClick={handleForceMute}
+                    className="w-10 h-10 rounded-xl bg-black/50 backdrop-blur-md border border-white/10 flex items-center justify-center text-white hover:bg-brand-red transition-all"
+                    title="Mutar Aluno"
+                  >
+                    <VolumeX size={18} />
+                  </button>
+                  <button 
+                    onClick={handleForceHideCamera}
+                    className="w-10 h-10 rounded-xl bg-black/50 backdrop-blur-md border border-white/10 flex items-center justify-center text-white hover:bg-brand-red transition-all"
+                    title="Ocultar Câmera do Aluno"
+                  >
+                    <EyeOff size={18} />
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
 

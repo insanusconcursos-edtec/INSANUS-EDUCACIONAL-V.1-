@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
-import { Clock, Timer } from 'lucide-react';
+import { Clock, Timer, Target, CalendarDays, FileText, GraduationCap, Video, Settings, ChevronDown } from 'lucide-react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../../services/firebase';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -14,6 +14,17 @@ const StudentNavbar: React.FC = () => {
   
   const [lifetimeMinutes, setLifetimeMinutes] = useState(0);
   const [planMinutes, setPlanMinutes] = useState(0);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (isDropdownOpen && !(event.target as Element).closest('.dropdown-container')) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isDropdownOpen]);
 
   // Detect Context
   const isSimulatedContext = location.pathname.includes('/app/simulated');
@@ -52,27 +63,30 @@ const StudentNavbar: React.FC = () => {
 
   // Level 2 Nav Items (Plan Context Only)
   const planNavItems = [
-    { label: 'METAS DE HOJE', path: '/app/dashboard', icon: null },
-    { label: 'CALENDÁRIO', path: '/app/calendar', icon: null },
-    { label: 'EDITAL', path: '/app/edict', icon: null },
+    { label: 'METAS DE HOJE', path: '/app/dashboard', icon: <Target className="w-4 h-4" /> },
+    { label: 'CALENDÁRIO', path: '/app/calendar', icon: <CalendarDays className="w-4 h-4" /> },
+    { label: 'EDITAL', path: '/app/edict', icon: <FileText className="w-4 h-4" /> },
     { 
       label: 'MENTORIA', 
       path: '/app/dashboard?tab=mentorship', 
-      icon: (
-        <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3L1 9l11 6 9-4.91V17h2V9M5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82z" /></svg>
-      ),
+      icon: <GraduationCap className="w-4 h-4" />,
       isSpecial: true 
     },
     { 
       label: 'CALL', 
       path: '/app/dashboard?tab=call', 
-      icon: (
-        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
-      ),
+      icon: <Video className="w-4 h-4" />,
       isSpecial: true 
     },
-    { label: 'CONFIGURAÇÃO', path: '/app/config', icon: null },
+    { label: 'CONFIGURAÇÃO', path: '/app/config', icon: <Settings className="w-4 h-4" /> },
   ];
+
+  const currentItem = planNavItems.find(item => {
+    if (item.path.includes('?tab=')) {
+      return activeTab === item.path.split('=')[1];
+    }
+    return location.pathname === item.path && !activeTab;
+  }) || planNavItems[0];
 
   // Regra PRD: A barra secundária não deve aparecer na tela HOME
   if (location.pathname === '/app/home' || location.pathname.includes('/home')) {
@@ -82,32 +96,79 @@ const StudentNavbar: React.FC = () => {
   return (
     <div className="h-14 px-6 bg-zinc-950/80 backdrop-blur-sm border-b border-zinc-900 flex items-center justify-between sticky top-0 z-40">
       
-      {/* LEVEL 2 NAVIGATION LINKS (Only visible if NOT in Simulated AND NOT in Courses Context) */}
-      <nav className="flex items-center gap-1 sm:gap-2 h-full overflow-x-auto scrollbar-hide">
-        {!isSimulatedContext && !isCoursesContext && planNavItems.map((item) => {
-          // Lógica de Ativação:
-          // Se o item tem query param (mentoria), verifica se a tab está ativa
-          // Se não tem query param, verifica pathname exato e garante que não há tab ativa
-          const isActive = item.path.includes('?tab=')
-            ? activeTab === item.path.split('=')[1]
-            : location.pathname === item.path && !activeTab;
+      {/* LEVEL 2 NAVIGATION LINKS */}
+      <div className="flex-1 md:flex-none relative dropdown-container h-full flex items-center">
+        {!isSimulatedContext && !isCoursesContext && (
+          <>
+            {/* MOBILE DROPDOWN */}
+            <div className="md:hidden w-full">
+              <button 
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                className="flex items-center justify-between w-full bg-[#121214] border border-white/10 rounded-md px-4 py-3 text-white font-medium transition-all active:scale-[0.98]"
+              >
+                <div className="flex items-center gap-3">
+                  <div className={currentItem?.isSpecial ? "text-brand-red" : "text-zinc-400"}>
+                    {currentItem?.icon}
+                  </div>
+                  <span className="text-[10px] font-bold tracking-widest uppercase">{currentItem?.label}</span>
+                </div>
+                <ChevronDown className={`w-4 h-4 text-zinc-500 transition-transform duration-300 ${isDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
 
-          return (
-            <Link
-              key={item.label}
-              to={item.path}
-              className={`
-                relative h-8 sm:h-10 px-3 sm:px-4 flex items-center justify-center rounded-md text-[10px] font-bold tracking-widest uppercase transition-all duration-300
-                ${isActive 
-                  ? (item.isSpecial ? 'bg-red-600 text-white shadow-lg shadow-red-900/40' : 'text-white bg-zinc-800') 
-                  : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900'}
-              `}
-            >
-              {item.icon}
-              {item.label}
-            </Link>
-          );
-        })}
+              {isDropdownOpen && (
+                <div className="absolute top-full left-0 mt-2 w-full bg-[#18181b] border border-white/10 rounded-md shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                  {planNavItems.map((item) => {
+                    const isActive = item.path.includes('?tab=')
+                      ? activeTab === item.path.split('=')[1]
+                      : location.pathname === item.path && !activeTab;
+
+                    return (
+                      <Link
+                        key={item.label}
+                        to={item.path}
+                        onClick={() => setIsDropdownOpen(false)}
+                        className={`
+                          flex items-center gap-3 w-full px-4 py-3 text-left transition-colors border-b border-white/5 last:border-0
+                          ${isActive ? 'bg-white/5 text-white' : 'text-zinc-400 hover:bg-white/5 hover:text-white'}
+                        `}
+                      >
+                        <div className={item.isSpecial ? "text-brand-red" : ""}>
+                          {item.icon}
+                        </div>
+                        <span className="text-[10px] font-bold tracking-widest uppercase">{item.label}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* DESKTOP HORIZONTAL NAV */}
+            <nav className="hidden md:flex items-center gap-1 sm:gap-2 h-full">
+              {planNavItems.map((item) => {
+                const isActive = item.path.includes('?tab=')
+                  ? activeTab === item.path.split('=')[1]
+                  : location.pathname === item.path && !activeTab;
+
+                return (
+                  <Link
+                    key={item.label}
+                    to={item.path}
+                    className={`
+                      relative h-10 px-4 flex items-center justify-center rounded-md text-[10px] font-bold tracking-widest uppercase transition-all duration-300 gap-2
+                      ${isActive 
+                        ? (item.isSpecial ? 'bg-red-600 text-white shadow-lg shadow-red-900/40' : 'text-white bg-zinc-800') 
+                        : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900'}
+                    `}
+                  >
+                    {item.icon}
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </nav>
+          </>
+        )}
         
         {/* Placeholder title for Simulated Context */}
         {isSimulatedContext && (
@@ -124,7 +185,7 @@ const StudentNavbar: React.FC = () => {
                <span className="text-[10px] font-black text-blue-500 uppercase tracking-widest">Área de Cursos</span>
             </div>
         )}
-      </nav>
+      </div>
 
       {/* TIMERS (Always Visible) */}
       <div className="flex items-center gap-6 hidden md:flex">

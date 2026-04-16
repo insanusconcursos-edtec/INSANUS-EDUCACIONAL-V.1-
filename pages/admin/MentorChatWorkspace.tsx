@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  Search, Send, User, MessageSquare, Loader2, CheckCheck, Clock, Phone, Video, MoreVertical, Paperclip, Smile, Trash2, Reply, Edit2, X
+  Search, Send, User, MessageSquare, Loader2, CheckCheck, Clock, Phone, Video, MoreVertical, Paperclip, Smile, Trash2, Reply, Edit2, X, Ban, Image as ImageIcon
 } from 'lucide-react';
 import { subscribeToCalls, subscribeToMessages, sendMessage, markAsRead, editMessage, deleteMessage } from '../../services/chatService';
 import { Call, Message } from '../../types/chat';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { collection, getDocs, writeBatch, doc, deleteDoc } from 'firebase/firestore';
-import { db } from '../../services/firebase';
+import { db, storage } from '../../services/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { toast } from 'react-hot-toast';
 import EmojiPicker, { Theme } from 'emoji-picker-react';
 
@@ -32,8 +33,11 @@ const MentorChatWorkspace: React.FC<MentorChatWorkspaceProps> = ({ planId }) => 
   const [messageToDelete, setMessageToDelete] = useState<Message | null>(null);
   const [isDeletingMessage, setIsDeletingMessage] = useState(false);
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -116,6 +120,53 @@ const MentorChatWorkspace: React.FC<MentorChatWorkspaceProps> = ({ planId }) => 
 
   const onEmojiClick = (emojiData: any) => {
     setNewMessage(prev => prev + emojiData.emoji);
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedCall) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast.error("Por favor, selecione uma imagem.");
+      return;
+    }
+
+    setIsUploadingImage(true);
+    try {
+      const storageRef = ref(storage, `chat_images/${selectedCall.id}/${Date.now()}_${file.name}`);
+      await uploadBytes(storageRef, file);
+      const imageUrl = await getDownloadURL(storageRef);
+
+      await sendMessage(
+        selectedCall.id,
+        selectedCall.mentorId,
+        'mentor',
+        '',
+        undefined,
+        undefined,
+        imageUrl
+      );
+      toast.success("Imagem enviada!");
+    } catch (error) {
+      console.error(error);
+      toast.error("Erro ao enviar imagem.");
+    } finally {
+      setIsUploadingImage(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const scrollToMessage = (messageId: string) => {
+    const el = document.getElementById(`message-${messageId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('ring-2', 'ring-brand-red', 'ring-offset-2', 'ring-offset-zinc-950', 'transition-all', 'duration-500');
+      setTimeout(() => {
+        el.classList.remove('ring-2', 'ring-brand-red', 'ring-offset-2', 'ring-offset-zinc-950');
+      }, 2000);
+    } else {
+      toast.error("Mensagem original não encontrada.");
+    }
   };
 
   const handleDeleteMessage = async () => {
@@ -290,15 +341,19 @@ const MentorChatWorkspace: React.FC<MentorChatWorkspaceProps> = ({ planId }) => 
                 return (
                   <div 
                     key={msg.id || idx}
+                    id={`message-${msg.id}`}
                     className={`flex ${isMentor ? 'justify-end' : 'justify-start'} group relative animate-in fade-in slide-in-from-bottom-1 duration-300`}
                   >
                     <div className={`max-w-[70%] relative flex flex-col ${isMentor ? 'items-end' : 'items-start'}`}>
                       
                       {/* Reply Context */}
                       {msg.replyToText && (
-                        <div className={`mb-[-8px] px-3 py-2 pb-4 rounded-t-2xl text-[10px] opacity-50 border-x border-t ${
-                          isMentor ? 'bg-red-900/20 border-red-800/30' : 'bg-zinc-800/50 border-zinc-700/50'
-                        }`}>
+                        <div 
+                          onClick={() => msg.replyToId && scrollToMessage(msg.replyToId)}
+                          className={`mb-[-8px] px-3 py-2 pb-4 rounded-t-2xl text-[10px] opacity-50 border-x border-t cursor-pointer hover:opacity-100 transition-opacity ${
+                            isMentor ? 'bg-red-900/20 border-red-800/30' : 'bg-zinc-800/50 border-zinc-700/50'
+                          }`}
+                        >
                           <div className="flex items-center gap-1 mb-1 font-bold uppercase tracking-wider">
                             <Reply size={10} /> Resposta
                           </div>
@@ -307,55 +362,74 @@ const MentorChatWorkspace: React.FC<MentorChatWorkspaceProps> = ({ planId }) => 
                       )}
 
                       <div className={`rounded-2xl p-3 shadow-lg group-hover:shadow-xl transition-all relative ${
-                        isMentor 
-                          ? 'bg-brand-red text-white rounded-tr-none' 
-                          : 'bg-zinc-800 text-zinc-100 rounded-tl-none border border-zinc-700'
+                        msg.isDeleted
+                          ? 'bg-zinc-900/50 border border-zinc-800 text-zinc-500 italic flex items-center gap-2'
+                          : isMentor 
+                            ? 'bg-brand-red text-white rounded-tr-none' 
+                            : 'bg-zinc-800 text-zinc-100 rounded-tl-none border border-zinc-700'
                       }`}>
-                        <p className="text-xs font-medium leading-relaxed whitespace-pre-wrap">{msg.text}</p>
-                        
-                        <div className="flex items-center justify-end gap-1 mt-1 opacity-60">
-                          {msg.isEdited && <span className="text-[8px] font-bold uppercase tracking-tighter">(editado)</span>}
-                          <span className="text-[9px] font-mono">{formatTime(msg.timestamp)}</span>
-                          {isMentor && <CheckCheck size={12} />}
-                        </div>
+                        {msg.isDeleted ? (
+                          <>
+                            <Ban size={12} />
+                            <span className="text-[10px] font-bold uppercase tracking-widest">Mensagem apagada</span>
+                          </>
+                        ) : (
+                          <>
+                            {msg.imageUrl && (
+                              <img 
+                                src={msg.imageUrl} 
+                                alt="Imagem enviada" 
+                                className="max-w-full rounded-lg mb-2 cursor-pointer hover:opacity-90 transition-opacity"
+                                onClick={() => setSelectedImage(msg.imageUrl!)}
+                              />
+                            )}
+                            {msg.text && <p className="text-xs font-medium leading-relaxed whitespace-pre-wrap">{msg.text}</p>}
+                            
+                            <div className="flex items-center justify-end gap-1 mt-1 opacity-60">
+                              {msg.isEdited && <span className="text-[8px] font-bold uppercase tracking-tighter">(editado)</span>}
+                              <span className="text-[9px] font-mono">{formatTime(msg.timestamp)}</span>
+                              {isMentor && <CheckCheck size={12} />}
+                            </div>
 
-                        {/* Action Trigger */}
-                        <button 
-                          onClick={() => setActiveMenuId(isMenuOpen ? null : msg.id)}
-                          className={`absolute top-2 ${isMentor ? '-left-8' : '-right-8'} p-1 rounded-full bg-zinc-900/50 text-zinc-500 opacity-0 group-hover:opacity-100 transition-opacity hover:text-white`}
-                        >
-                          <MoreVertical size={14} />
-                        </button>
-
-                        {/* Dropdown Menu */}
-                        {isMenuOpen && (
-                          <div 
-                            ref={menuRef}
-                            className={`absolute z-10 top-8 ${isMentor ? 'left-0' : 'right-0'} bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl py-1 min-w-[120px] animate-in fade-in zoom-in-95 duration-200`}
-                          >
+                            {/* Action Trigger */}
                             <button 
-                              onClick={() => { setReplyingTo(msg); setActiveMenuId(null); }}
-                              className="w-full text-left px-4 py-2 text-[10px] font-bold uppercase text-zinc-400 hover:bg-zinc-800 hover:text-white flex items-center gap-2"
+                              onClick={() => setActiveMenuId(isMenuOpen ? null : msg.id)}
+                              className={`absolute top-2 ${isMentor ? '-left-8' : '-right-8'} p-1 rounded-full bg-zinc-900/50 text-zinc-500 opacity-0 group-hover:opacity-100 transition-opacity hover:text-white`}
                             >
-                              <Reply size={12} /> Responder
+                              <MoreVertical size={14} />
                             </button>
-                            {isMentor && (
-                              <>
+
+                            {/* Dropdown Menu */}
+                            {isMenuOpen && (
+                              <div 
+                                ref={menuRef}
+                                className={`absolute z-10 top-8 ${isMentor ? 'left-0' : 'right-0'} bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl py-1 min-w-[120px] animate-in fade-in zoom-in-95 duration-200`}
+                              >
                                 <button 
-                                  onClick={() => { setEditingMessage(msg); setNewMessage(msg.text); setActiveMenuId(null); }}
+                                  onClick={() => { setReplyingTo(msg); setActiveMenuId(null); }}
                                   className="w-full text-left px-4 py-2 text-[10px] font-bold uppercase text-zinc-400 hover:bg-zinc-800 hover:text-white flex items-center gap-2"
                                 >
-                                  <Edit2 size={12} /> Editar
+                                  <Reply size={12} /> Responder
                                 </button>
-                                <button 
-                                  onClick={() => { setMessageToDelete(msg); setActiveMenuId(null); }}
-                                  className="w-full text-left px-4 py-2 text-[10px] font-bold uppercase text-red-500 hover:bg-red-500/10 flex items-center gap-2"
-                                >
-                                  <Trash2 size={12} /> Excluir
-                                </button>
-                              </>
+                                {isMentor && (
+                                  <>
+                                    <button 
+                                      onClick={() => { setEditingMessage(msg); setNewMessage(msg.text); setActiveMenuId(null); }}
+                                      className="w-full text-left px-4 py-2 text-[10px] font-bold uppercase text-zinc-400 hover:bg-zinc-800 hover:text-white flex items-center gap-2"
+                                    >
+                                      <Edit2 size={12} /> Editar
+                                    </button>
+                                    <button 
+                                      onClick={() => { setMessageToDelete(msg); setActiveMenuId(null); }}
+                                      className="w-full text-left px-4 py-2 text-[10px] font-bold uppercase text-red-500 hover:bg-red-500/10 flex items-center gap-2"
+                                    >
+                                      <Trash2 size={12} /> Excluir
+                                    </button>
+                                  </>
+                                )}
+                              </div>
                             )}
-                          </div>
+                          </>
                         )}
                       </div>
                     </div>
@@ -420,7 +494,23 @@ const MentorChatWorkspace: React.FC<MentorChatWorkspaceProps> = ({ planId }) => 
                     </div>
                   )}
                 </div>
-                <button type="button" className="text-zinc-500 hover:text-white transition-colors"><Paperclip size={20} /></button>
+                <div className="relative">
+                  <input 
+                    type="file" 
+                    ref={fileInputRef}
+                    onChange={handleImageUpload}
+                    accept="image/*"
+                    className="hidden"
+                  />
+                  <button 
+                    type="button" 
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploadingImage}
+                    className="text-zinc-500 hover:text-white transition-colors disabled:opacity-50"
+                  >
+                    {isUploadingImage ? <Loader2 size={20} className="animate-spin" /> : <Paperclip size={20} />}
+                  </button>
+                </div>
                 <div className="flex-1 relative">
                   <input 
                     value={newMessage}
@@ -521,6 +611,24 @@ const MentorChatWorkspace: React.FC<MentorChatWorkspaceProps> = ({ planId }) => 
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Lightbox */}
+      {selectedImage && (
+        <div 
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-300"
+          onClick={() => setSelectedImage(null)}
+        >
+          <button className="absolute top-6 right-6 text-white/50 hover:text-white transition-colors">
+            <X size={32} />
+          </button>
+          <img 
+            src={selectedImage} 
+            alt="Visualização" 
+            className="max-w-full max-h-full rounded-lg shadow-2xl animate-in zoom-in-95 duration-300"
+            onClick={(e) => e.stopPropagation()}
+          />
         </div>
       )}
     </div>

@@ -60,7 +60,8 @@ export const sendMessage = async (
   senderRole: 'student' | 'mentor', 
   text: string,
   replyToId?: string,
-  replyToText?: string
+  replyToText?: string,
+  imageUrl?: string
 ) => {
   const messagesRef = collection(db, 'calls', callId, 'messages');
   
@@ -73,13 +74,14 @@ export const sendMessage = async (
 
   if (replyToId) messageData.replyToId = replyToId;
   if (replyToText) messageData.replyToText = replyToText;
+  if (imageUrl) messageData.imageUrl = imageUrl;
   
   await addDoc(messagesRef, messageData);
   
   // Update call metadata
   const callRef = doc(db, 'calls', callId);
   await updateDoc(callRef, {
-    lastMessage: text,
+    lastMessage: imageUrl ? '📷 Imagem' : text,
     lastMessageTime: serverTimestamp(),
     unreadCount: senderRole === 'student' ? increment(1) : 0
   });
@@ -95,7 +97,11 @@ export const editMessage = async (callId: string, messageId: string, newText: st
 
 export const deleteMessage = async (callId: string, messageId: string) => {
   const messageRef = doc(db, 'calls', callId, 'messages', messageId);
-  await deleteDoc(messageRef);
+  await updateDoc(messageRef, {
+    isDeleted: true,
+    text: '',
+    imageUrl: null
+  });
 };
 
 export const subscribeToMessages = (callId: string, callback: (messages: Message[]) => void) => {

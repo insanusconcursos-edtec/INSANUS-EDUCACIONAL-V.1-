@@ -32,6 +32,27 @@ export const updateCallStatus = async (callId: string, status: ScheduledCall['st
   return updateDoc(doc(db, CALLS_COLLECTION, callId), { status });
 };
 
+export const requestEntry = async (callId: string) => {
+  return updateDoc(doc(db, CALLS_COLLECTION, callId), { 
+    requestEntry: true, 
+    studentStatus: 'waiting' 
+  });
+};
+
+export const approveEntry = async (callId: string) => {
+  return updateDoc(doc(db, CALLS_COLLECTION, callId), { 
+    requestEntry: false, 
+    status: 'accepted' 
+  });
+};
+
+export const rejectEntry = async (callId: string) => {
+  return updateDoc(doc(db, CALLS_COLLECTION, callId), { 
+    requestEntry: false, 
+    studentStatus: 'rejected' 
+  });
+};
+
 export const updateHostControls = async (callId: string, controls: { forceMute?: boolean, forceHideCamera?: boolean }) => {
   return updateDoc(doc(db, CALLS_COLLECTION, callId), controls);
 };

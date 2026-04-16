@@ -549,19 +549,19 @@ const StudentCalendar: React.FC = () => {
       <div className="flex-1 min-h-[600px] lg:min-h-[800px] border border-zinc-800 rounded-2xl overflow-hidden bg-zinc-950 flex flex-col shadow-xl">
         
         {viewMode === 'week' && (
-            <>
-                {/* Header Row */}
-                <div className="grid grid-cols-7 border-b border-zinc-800 bg-zinc-950 flex-none">
-                    {weekDays.map((day, index) => {
-                        const active = isToday(day);
-                        return (
-                            <div 
-                                key={index} 
-                                className={`
-                                    py-4 flex flex-col items-center justify-center border-r border-zinc-900 last:border-r-0 relative
-                                    ${active ? 'bg-gradient-to-b from-brand-red/10 to-transparent' : 'bg-zinc-900/30'}
-                                `}
-                            >
+            <div className="grid grid-flow-col auto-cols-[85vw] sm:auto-cols-[45vw] lg:auto-cols-fr landscape:auto-cols-[40vw] md:landscape:auto-cols-fr overflow-x-auto snap-x snap-mandatory pb-4 hide-scrollbar flex-1 min-h-0">
+                {weekDays.map((day, index) => {
+                    const active = isToday(day);
+                    const dateKey = getISODate(day);
+                    const dayEvents = scheduleData[dateKey] || [];
+
+                    return (
+                        <div 
+                            key={index} 
+                            className="flex flex-col border-r border-zinc-800/50 last:border-r-0 snap-center lg:snap-none min-w-[280px] lg:min-w-0 h-full"
+                        >
+                            {/* Header Part */}
+                            <div className={`py-4 flex flex-col items-center justify-center border-b border-zinc-800 flex-none relative ${active ? 'bg-gradient-to-b from-brand-red/10 to-transparent' : 'bg-zinc-900/30'}`}>
                                 {active && <div className="absolute top-0 left-0 right-0 h-0.5 bg-brand-red shadow-[0_0_10px_red]"></div>}
                                 <span className={`text-[9px] font-black uppercase tracking-widest mb-1 ${active ? 'text-brand-red' : 'text-zinc-500'}`}>
                                     {getDayName(day)}
@@ -570,93 +570,73 @@ const StudentCalendar: React.FC = () => {
                                     {getDayNumber(day)}
                                 </span>
                             </div>
-                        );
-                    })}
-                </div>
 
-                {/* Content Row with Independent Scrolling */}
-                <div className="grid grid-cols-7 flex-1 min-h-0 overflow-hidden">
-                    {weekDays.map((day, index) => {
-                        const dateKey = getISODate(day);
-                        const dayEvents = scheduleData[dateKey] || [];
-                        const active = isToday(day);
+                            {/* Content Part */}
+                            <div className={`flex-1 overflow-y-auto overflow-x-hidden p-2 space-y-2 scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent ${active ? 'bg-zinc-900/10' : 'hover:bg-zinc-900/20'}`}>
+                                {dayEvents.length > 0 ? (
+                                    dayEvents.map((event) => {
+                                        const isNewCycle = event.isNewCycle;
+                                        const isNewTopic = event.isNewTopic;
 
-                        return (
-                            <div 
-                                key={index}
-                                className={`
-                                    border-r border-zinc-800/50 last:border-r-0 relative group transition-colors flex flex-col h-full min-h-0
-                                    ${active ? 'bg-zinc-900/10' : 'hover:bg-zinc-900/20'}
-                                `}
-                            >
-                                <div className="flex-1 overflow-y-auto overflow-x-hidden p-2 space-y-2 scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent">
-                                    {dayEvents.length > 0 ? (
-                                        dayEvents.map((event) => {
-                                            const isNewCycle = event.isNewCycle;
-                                            const isNewTopic = event.isNewTopic;
-
-                                            return (
-                                                <React.Fragment key={event.id}>
-                                                    {isNewCycle && (
-                                                        <div className="w-full flex flex-col items-center my-4 opacity-90 px-1" title="Mudança de Ciclo">
-                                                            <div className="w-full h-px border-t border-solid border-white/40 mb-1"></div>
-                                                            <span className="text-[10px] text-white/80 font-bold text-center uppercase tracking-widest">
-                                                                {event.cycleName ? `INÍCIO: ${event.cycleName}` : "NOVO CICLO"}
-                                                            </span>
-                                                            <div className="w-full h-px border-t border-solid border-white/40 mt-1"></div>
-                                                        </div>
-                                                    )}
-                                                    {isNewTopic && event.topicName && (
-                                                        <div className="w-full flex flex-col items-center gap-1 my-4 px-1">
-                                                            <div className="flex items-center w-full gap-2">
-                                                                <div className="h-px border-t border-dashed border-red-500/30 flex-1"></div>
-                                                                <span className="text-[7px] font-black text-red-500 uppercase tracking-[0.2em]">Novo Tópico</span>
-                                                                <div className="h-px border-t border-dashed border-red-500/30 flex-1"></div>
-                                                            </div>
-                                                            <div className="flex flex-col items-center text-center">
-                                                                <span className="text-[8px] font-bold text-zinc-500 uppercase tracking-wider leading-tight">
-                                                                    {event.disciplineName || event.discipline || 'Geral'}
-                                                                </span>
-                                                                <span className="text-[9px] font-black text-zinc-200 uppercase tracking-tight leading-tight mt-0.5 break-words max-w-full">
-                                                                    {event.topicName}
-                                                                </span>
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                    <div className="flex-shrink-0">
-                                                        <CalendarEventCard event={event} />
+                                        return (
+                                            <React.Fragment key={event.id}>
+                                                {isNewCycle && (
+                                                    <div className="w-full flex flex-col items-center my-4 opacity-90 px-1" title="Mudança de Ciclo">
+                                                        <div className="w-full h-px border-t border-solid border-white/40 mb-1"></div>
+                                                        <span className="text-[10px] text-white/80 font-bold text-center uppercase tracking-widest">
+                                                            {event.cycleName ? `INÍCIO: ${event.cycleName}` : "NOVO CICLO"}
+                                                        </span>
+                                                        <div className="w-full h-px border-t border-solid border-white/40 mt-1"></div>
                                                     </div>
-                                                </React.Fragment>
-                                            );
-                                        })
-                                    ) : (
-                                        <div className="h-full flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity min-h-[100px]">
-                                            <span className="text-[9px] font-bold text-zinc-800 uppercase">Livre</span>
-                                        </div>
-                                    )}
+                                                )}
+                                                {isNewTopic && event.topicName && (
+                                                    <div className="w-full flex flex-col items-center gap-1 my-4 px-1">
+                                                        <div className="flex items-center w-full gap-2">
+                                                            <div className="h-px border-t border-dashed border-red-500/30 flex-1"></div>
+                                                            <span className="text-[7px] font-black text-red-500 uppercase tracking-[0.2em]">Novo Tópico</span>
+                                                            <div className="h-px border-t border-dashed border-red-500/30 flex-1"></div>
+                                                        </div>
+                                                        <div className="flex flex-col items-center text-center">
+                                                            <span className="text-[8px] font-bold text-zinc-500 uppercase tracking-wider leading-tight">
+                                                                {event.disciplineName || event.discipline || 'Geral'}
+                                                            </span>
+                                                            <span className="text-[9px] font-black text-zinc-200 uppercase tracking-tight leading-tight mt-0.5 break-words max-w-full">
+                                                                {event.topicName}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                <div className="flex-shrink-0">
+                                                    <CalendarEventCard event={event} />
+                                                </div>
+                                            </React.Fragment>
+                                        );
+                                    })
+                                ) : (
+                                    <div className="h-full flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity min-h-[100px]">
+                                        <span className="text-[9px] font-bold text-zinc-800 uppercase">Livre</span>
+                                    </div>
+                                )}
 
-                                    {/* END OF PHASE MARKER */}
-                                    {dateKey === lastScheduledDate && (
-                                        <div className="mt-6 flex flex-col items-center w-full px-2 opacity-90 animate-in fade-in zoom-in-95 duration-500">
-                                            <div className="w-full h-px border-t border-dashed border-brand-red mb-3"></div>
-                                            <span className="text-[10px] text-brand-red font-orbitron font-bold text-center uppercase tracking-widest">
-                                                FIM DA FASE ATUAL
-                                            </span>
-                                            <span className="text-[9px] text-zinc-500 text-center mt-1 uppercase">
-                                                Conclua as metas para liberar a próxima fase
-                                            </span>
-                                            <div className="w-full h-px border-t border-dashed border-brand-red mt-3"></div>
-                                        </div>
-                                    )}
+                                {dateKey === lastScheduledDate && (
+                                    <div className="mt-6 flex flex-col items-center w-full px-2 opacity-90 animate-in fade-in zoom-in-95 duration-500">
+                                        <div className="w-full h-px border-t border-dashed border-brand-red mb-3"></div>
+                                        <span className="text-[10px] text-brand-red font-orbitron font-bold text-center uppercase tracking-widest">
+                                            FIM DA FASE ATUAL
+                                        </span>
+                                        <span className="text-[9px] text-zinc-500 text-center mt-1 uppercase">
+                                            Conclua as metas para liberar a próxima fase
+                                        </span>
+                                        <div className="w-full h-px border-t border-dashed border-brand-red mt-3"></div>
+                                    </div>
+                                )}
 
-                                    {/* Spacer to prevent cut-off at bottom */}
-                                    <div className="h-12 w-full flex-none" />
-                                </div>
+                                <div className="h-12 w-full flex-none" />
                             </div>
-                        );
-                    })}
-                </div>
-            </>
+                        </div>
+                    );
+                })}
+            </div>
         )}
 
         {viewMode === 'month' && (
