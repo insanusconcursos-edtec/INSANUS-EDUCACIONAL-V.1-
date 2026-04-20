@@ -63,7 +63,7 @@ const StudentHeader: React.FC = () => {
           className={`
             relative flex items-center gap-2 px-6 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all duration-300
             ${isPlanContext 
-              ? 'bg-brand-red text-white shadow-[0_0_20px_rgba(220,38,38,0.3)]' 
+              ? 'bg-[var(--plan-theme)] text-white shadow-[0_0_20px_rgba(var(--plan-theme-rgb),0.3)]' 
               : 'text-zinc-500 hover:text-white hover:bg-zinc-800'}
           `}
         >
@@ -136,15 +136,15 @@ const StudentHeader: React.FC = () => {
       <div className="flex lg:hidden flex-1 mx-3 max-w-[240px] relative">
         <button
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          className="w-full flex items-center justify-between bg-zinc-900 border border-zinc-800 text-white text-[10px] font-bold uppercase rounded-lg py-2.5 px-4 focus:border-brand-red outline-none transition-all"
+          className="w-full flex items-center justify-between bg-zinc-900 border border-zinc-800 text-white text-[10px] font-bold uppercase rounded-lg py-2.5 px-4 focus:border-[var(--plan-theme)] outline-none transition-all"
         >
           <div className="flex items-center gap-2 truncate">
-            {isHomeContext && <Home className="w-3.5 h-3.5 text-brand-red" />}
-            {isPlanContext && <Map className="w-3.5 h-3.5 text-brand-red" />}
-            {isSimulatedContext && <ClipboardList className="w-3.5 h-3.5 text-brand-red" />}
-            {isCoursesContext && <MonitorPlay className="w-3.5 h-3.5 text-brand-red" />}
-            {isPresentialContext && <Users className="w-3.5 h-3.5 text-brand-red" />}
-            {isLiveEventsContext && <Radio className="w-3.5 h-3.5 text-brand-red" />}
+            {isHomeContext && <Home className="w-3.5 h-3.5 text-[var(--plan-theme)]" />}
+            {isPlanContext && <Map className="w-3.5 h-3.5 text-[var(--plan-theme)]" />}
+            {isSimulatedContext && <ClipboardList className="w-3.5 h-3.5 text-[var(--plan-theme)]" />}
+            {isCoursesContext && <MonitorPlay className="w-3.5 h-3.5 text-[var(--plan-theme)]" />}
+            {isPresentialContext && <Users className="w-3.5 h-3.5 text-[var(--plan-theme)]" />}
+            {isLiveEventsContext && <Radio className="w-3.5 h-3.5 text-[var(--plan-theme)]" />}
             
             <span>
               {isHomeContext ? 'Home' : 
@@ -184,11 +184,11 @@ const StudentHeader: React.FC = () => {
                     className={`
                       flex items-center gap-3 px-4 py-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all
                       ${item.active 
-                        ? 'bg-red-500/10 text-red-500' 
-                        : 'text-zinc-500 hover:bg-red-500/5 hover:text-red-500'}
+                        ? 'bg-[var(--plan-theme)]/10 text-[var(--plan-theme)]' 
+                        : 'text-zinc-500 hover:bg-[var(--plan-theme)]/5 hover:text-[var(--plan-theme)]'}
                     `}
                   >
-                    <item.icon className={`w-4 h-4 ${item.active ? 'text-red-500' : ''}`} />
+                    <item.icon className={`w-4 h-4 ${item.active ? 'text-[var(--plan-theme)]' : ''}`} />
                     <span>{item.label}</span>
                   </button>
                 ))}
@@ -204,7 +204,7 @@ const StudentHeader: React.FC = () => {
           onClick={toggleFullScreen}
           className="flex items-center gap-2 text-[10px] font-bold text-zinc-500 hover:text-white transition-colors uppercase tracking-widest group"
         >
-          <Maximize2 className="w-4 h-4 text-zinc-600 group-hover:text-brand-red transition-colors" />
+          <Maximize2 className="w-4 h-4 text-zinc-600 group-hover:text-[var(--plan-theme)] transition-colors" />
           <span className="hidden lg:inline">Tela Cheia</span>
         </button>
         
@@ -214,7 +214,7 @@ const StudentHeader: React.FC = () => {
           onClick={logout}
           className="flex items-center gap-2 text-[10px] font-bold text-zinc-500 hover:text-white transition-colors uppercase tracking-widest group"
         >
-          <LogOut className="w-4 h-4 text-zinc-600 group-hover:text-brand-red transition-colors" />
+          <LogOut className="w-4 h-4 text-zinc-600 group-hover:text-[var(--plan-theme)] transition-colors" />
           <span className="hidden lg:inline">Sair</span>
         </button>
       </div>

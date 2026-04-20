@@ -38,6 +38,7 @@ export interface ScheduledEvent {
   intervalDays?: number;
   parentColor?: string;
   recordedMinutes?: number;
+  isFreeStudy?: boolean;
   subject?: string;
   discipline?: string;
   cycleName?: string;
@@ -329,6 +330,19 @@ export const generateSchedule = async (
   ignoredTaskIds?: string[],
   priorityTasks?: any[]
 ): Promise<ScheduledEvent[]> => {
+  const userRef = doc(db, 'users', userId);
+  const userSnap = await getDoc(userRef);
+  const userData = userSnap.data() || {};
+  const savedRoutines = userData.savedRoutines || [];
+  const activeRoutineId = userData.activeRoutineId;
+  const activeEvents = savedRoutines.find((r: any) => r.id === activeRoutineId)?.events || [];
+  const freeStudyEvents = activeEvents.filter((e: any) => e.isFreeStudy);
+
+  const timeToMinutes = (time: string) => {
+    const [hours, minutes] = (time || '00:00').split(':').map(Number);
+    return hours * 60 + (minutes || 0);
+  };
+
   const profileLevel = studyProfile?.level || 'beginner';
   const readingSpeed = profileLevel === 'advanced' ? 1 : profileLevel === 'intermediate' ? 3 : 5;
   const semiActiveMaterial = studyProfile?.semiActiveMaterial ? 2 : 1;
@@ -514,6 +528,51 @@ export const generateSchedule = async (
   }
 
   const dailySchedules = new Map<string, any[]>();
+  
+  // FASE 2.5: Pré-injeção de Blocos de Estudo Livre
+  if (freeStudyEvents.length > 0) {
+      const tempDate = new Date(currentDate);
+      tempDate.setHours(12, 0, 0, 0); // Evita problemas de fuso no loop
+      
+      while (tempDate <= limitDate) {
+          const dayOfWeek = tempDate.getDay();
+          const dayStr = getLocalDataString(tempDate);
+          const dayFreeEvents = freeStudyEvents.filter((e: any) => e.days.includes(dayOfWeek));
+          
+          if (dayFreeEvents.length > 0) {
+              if (!dailySchedules.has(dayStr)) dailySchedules.set(dayStr, []);
+              
+              dayFreeEvents.forEach((ev: any) => {
+                  const startMin = timeToMinutes(ev.startTime);
+                  const endMin = timeToMinutes(ev.endTime);
+                  const duration = endMin - startMin;
+
+                  dailySchedules.get(dayStr)!.push({
+                      id: `free-${dayStr}-${ev.id}`,
+                      metaId: `free-${ev.id}`,
+                      userId: userId,
+                      planId: planId,
+                      date: dayStr,
+                      title: 'ESTUDO LIVRE',
+                      type: 'lesson',
+                      disciplineId: 'free_study',
+                      disciplineName: 'ESTUDO LIVRE',
+                      duration: duration,
+                      startTime: ev.startTime,
+                      endTime: ev.endTime,
+                      status: 'pending',
+                      isFreeStudy: true,
+                      recordedMinutes: 0,
+                      completed: false,
+                      color: '#10b981', // Emerald for free study
+                      order: -1 // Garante que apareça no topo ou em ordem cronológica
+                  });
+              });
+          }
+          tempDate.setDate(tempDate.getDate() + 1);
+      }
+  }
+
   let currentDayCapacity = getMinutesForDate(currentDate, true);
   let currentDayOfWeek = currentDate.getDay();
   const safeRoutine = routine;

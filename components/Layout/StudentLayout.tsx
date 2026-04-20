@@ -1,17 +1,46 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import StudentHeader from './Student/StudentHeader';
 import StudentNavbar from './Student/StudentNavbar';
 import PlanUpdateManager from '../student/PlanUpdateManager';
+import { useAuth } from '../../contexts/AuthContext';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '../../services/firebase';
 
 const StudentLayout: React.FC = () => {
+  const { userData } = useAuth();
+  const [themeColor, setThemeColor] = useState('#EF4444');
   const location = useLocation();
   const isCourseArea = location.pathname.includes('/app/courses') || location.pathname.includes('/app/presential') || location.pathname.includes('/app/eventos-ao-vivo');
 
   const isLiveRoom = location.pathname.includes('/app/eventos-ao-vivo/sala/');
 
+  useEffect(() => {
+    if (!userData?.currentPlanId) return;
+
+    const unsub = onSnapshot(doc(db, 'plans', userData.currentPlanId), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setThemeColor(data.themeColor || '#EF4444');
+      }
+    });
+
+    return () => unsub();
+  }, [userData?.currentPlanId]);
+
+  const hexToRgb = (hex: string) => {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}` : '239, 68, 68';
+  };
+
   return (
-    <div className="flex flex-col h-screen bg-brand-black text-white font-sans overflow-hidden selection:bg-brand-red selection:text-white">
+    <div 
+        className="flex flex-col h-screen bg-brand-black text-white font-sans overflow-hidden selection:bg-[var(--plan-theme)] selection:text-white"
+        style={{ 
+          '--plan-theme': themeColor,
+          '--plan-theme-rgb': hexToRgb(themeColor)
+        } as React.CSSProperties}
+    >
       {/* Update Listener (Global) */}
       <PlanUpdateManager />
 

@@ -41,7 +41,7 @@ export const PlanHeroBanner: React.FC<PlanHeroBannerProps> = ({ currentTab, plan
         <img 
           src={banner.mobile || banner.tablet || banner.desktop} 
           alt={`Banner ${currentTab}`} 
-          className="w-full h-48 md:h-[400px] object-cover border-b border-red-600/30 shadow-lg"
+          className="w-full h-48 md:h-[400px] object-cover border-b border-[var(--plan-theme)]/30 shadow-lg"
         />
       </picture>
       

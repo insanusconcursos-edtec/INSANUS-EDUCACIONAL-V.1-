@@ -78,7 +78,7 @@ export const SimuladoFocusMode = ({ simulado, onClose, onComplete }: SimuladoFoc
             {/* HEADER COM BOTÃO DO PDF VISÍVEL */}
             <div className="absolute top-0 left-0 right-0 p-4 md:p-6 flex flex-col md:flex-row justify-between items-center gap-4 bg-black/80 backdrop-blur-md border-b border-gray-800">
                 <div className="flex items-center gap-4">
-                    <div className="w-3 h-3 bg-red-600 rounded-full animate-pulse shadow-[0_0_10px_#dc2626]"></div>
+                    <div className="w-3 h-3 bg-[var(--plan-theme)] rounded-full animate-pulse shadow-[0_0_10px_var(--plan-theme)]"></div>
                     <h2 className="text-white font-bold text-sm md:text-lg uppercase tracking-wider">MODO PROVA - SEM PAUSA</h2>
                 </div>
                 

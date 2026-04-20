@@ -107,7 +107,7 @@ const StudentNavbar: React.FC = () => {
                 className="flex items-center justify-between w-full bg-[#121214] border border-white/10 rounded-md px-4 py-3 text-white font-medium transition-all active:scale-[0.98]"
               >
                 <div className="flex items-center gap-3">
-                  <div className={currentItem?.isSpecial ? "text-brand-red" : "text-zinc-400"}>
+                  <div className={currentItem?.isSpecial ? "text-[var(--plan-theme)]" : "text-zinc-400"}>
                     {currentItem?.icon}
                   </div>
                   <span className="text-[10px] font-bold tracking-widest uppercase">{currentItem?.label}</span>
@@ -132,7 +132,7 @@ const StudentNavbar: React.FC = () => {
                           ${isActive ? 'bg-white/5 text-white' : 'text-zinc-400 hover:bg-white/5 hover:text-white'}
                         `}
                       >
-                        <div className={item.isSpecial ? "text-brand-red" : ""}>
+                        <div className={item.isSpecial ? "text-[var(--plan-theme)]" : ""}>
                           {item.icon}
                         </div>
                         <span className="text-[10px] font-bold tracking-widest uppercase">{item.label}</span>
@@ -157,7 +157,7 @@ const StudentNavbar: React.FC = () => {
                     className={`
                       relative h-10 px-4 flex items-center justify-center rounded-md text-[10px] font-bold tracking-widest uppercase transition-all duration-300 gap-2
                       ${isActive 
-                        ? (item.isSpecial ? 'bg-red-600 text-white shadow-lg shadow-red-900/40' : 'text-white bg-zinc-800') 
+                        ? (item.isSpecial ? 'bg-[var(--plan-theme)] text-white shadow-lg shadow-[var(--plan-theme)]/40' : 'text-white bg-zinc-800') 
                         : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900'}
                     `}
                   >
@@ -205,9 +205,9 @@ const StudentNavbar: React.FC = () => {
         {/* Tempo Total */}
         <div className="flex flex-col items-end leading-none">
           <span className="text-[8px] font-bold text-zinc-600 uppercase tracking-widest mb-1">Tempo Total</span>
-          <div className="flex items-center gap-2 text-brand-red">
+          <div className="flex items-center gap-2 text-[var(--plan-theme)]">
             <Timer size={12} />
-            <span className="text-xs font-mono font-bold tracking-wider drop-shadow-[0_0_5px_rgba(220,38,38,0.5)] tabular-nums">
+            <span className="text-xs font-mono font-bold tracking-wider drop-shadow-[0_0_5px_var(--plan-theme)] tabular-nums">
                 {formatMinutes(lifetimeMinutes)}
             </span>
           </div>

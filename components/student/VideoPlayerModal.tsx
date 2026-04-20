@@ -70,7 +70,7 @@ const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
       {/* Header (Flex None para não encolher/esticar) */}
       <div className="flex-none flex items-center justify-between px-6 py-4 bg-zinc-950/50 border-b border-zinc-900">
         <div className="flex items-center gap-3">
-            <div className={`w-2 h-2 rounded-full ${isTimerRunning ? 'bg-red-600 animate-pulse shadow-[0_0_8px_red]' : 'bg-yellow-500'}`}></div>
+            <div className={`w-2 h-2 rounded-full ${isTimerRunning ? 'bg-[var(--plan-theme)] animate-pulse shadow-[0_0_8px_var(--plan-theme)]' : 'bg-yellow-500'}`}></div>
             <span className="text-xs font-black text-zinc-400 uppercase tracking-widest">
                 {isTimerRunning ? 'Modo Foco' : 'Pausado'}
             </span>
@@ -132,7 +132,7 @@ const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
                 <div className="w-px h-8 bg-zinc-800 mx-2"></div>
 
                 <div className="flex items-center gap-3">
-                    <Clock size={20} className={isTimerRunning ? "text-brand-red" : "text-zinc-600"} />
+                    <Clock size={20} className={isTimerRunning ? "text-[var(--plan-theme)]" : "text-zinc-600"} />
                     <span className={`text-3xl font-mono font-black tracking-widest tabular-nums ${isTimerRunning ? 'text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.2)]' : 'text-zinc-500'}`}>
                         {timerFormatted}
                     </span>
@@ -151,7 +151,7 @@ const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
 
                 <button
                     onClick={onComplete}
-                    className="flex-1 md:flex-none py-3 px-8 rounded-xl bg-red-600 hover:bg-red-700 text-white font-black uppercase text-xs tracking-widest shadow-[0_0_20px_rgba(220,38,38,0.3)] hover:shadow-[0_0_30px_rgba(220,38,38,0.5)] transition-all flex items-center justify-center gap-2 transform hover:scale-105"
+                    className="flex-1 md:flex-none py-3 px-8 rounded-xl bg-[var(--plan-theme)] hover:brightness-110 text-white font-black uppercase text-xs tracking-widest shadow-[0_0_20px_rgba(var(--plan-theme-rgb),0.3)] hover:shadow-[0_0_30px_rgba(var(--plan-theme-rgb),0.5)] transition-all flex items-center justify-center gap-2 transform hover:scale-105"
                 >
                     <CheckCircle size={18} />
                     Concluir Aula

@@ -43,7 +43,7 @@ export const MentorshipCard: React.FC<MentorshipCardProps> = ({ module, onClick 
       className={`relative flex-none flex-shrink-0 w-40 md:w-60 aspect-[474/1000] rounded-lg overflow-hidden transition-all duration-300 transform group bg-[#1a1d24] border border-transparent snap-start
         ${isLocked 
             ? 'cursor-not-allowed opacity-80' // Estilo Bloqueado
-            : 'cursor-pointer hover:scale-105 hover:z-10 hover:border-red-600/50' // Estilo Liberado
+            : 'cursor-pointer hover:scale-105 hover:z-10 hover:border-[var(--plan-theme)]/50' // Estilo Liberado
         }
       `}
     >
@@ -83,7 +83,7 @@ export const MentorshipCard: React.FC<MentorshipCardProps> = ({ module, onClick 
             
             {/* Botão de Ação */}
             <div className="flex items-center gap-2">
-            <button className="bg-red-600 text-white rounded-full p-2 shadow-lg hover:bg-red-500 transition-colors flex items-center justify-center">
+            <button className="bg-[var(--plan-theme)] text-white rounded-full p-2 shadow-lg hover:brightness-110 transition-colors flex items-center justify-center">
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
             </button>
             <span className="text-[10px] text-gray-300 font-bold uppercase tracking-wider">Acessar</span>

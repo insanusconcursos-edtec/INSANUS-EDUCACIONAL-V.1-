@@ -185,7 +185,7 @@ export function CourseDetails({ course, onBack }: CourseDetailsProps) {
              <img 
                 src={course.bannerUrlMobile || course.coverUrl} 
                 alt={`Banner do curso ${course.title}`} 
-                className="w-full h-48 md:h-[400px] object-cover border-b border-red-600/30 shadow-lg" 
+                className="w-full h-48 md:h-[400px] object-cover border-b border-[var(--plan-theme)]/30 shadow-lg" 
              />
          </picture>
 
@@ -211,7 +211,7 @@ export function CourseDetails({ course, onBack }: CourseDetailsProps) {
                         onClick={() => setIsWelcomeModalOpen(true)}
                         className="flex items-center justify-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-white px-8 py-3 rounded-lg font-black text-sm uppercase transition-transform hover:scale-105 border border-zinc-700 shrink-0"
                       >
-                          <PlaySquare size={20} className="text-red-500" />
+                          <PlaySquare size={20} className="text-[var(--plan-theme)]" />
                           {course.welcomeButtonTitle || 'BOAS VINDAS'}
                       </button>
                    )}
@@ -234,7 +234,7 @@ export function CourseDetails({ course, onBack }: CourseDetailsProps) {
                       <div className="flex-1 min-w-[200px] max-w-md flex items-center gap-4 bg-zinc-900 border border-zinc-800 rounded-lg p-3 px-4">
                           <span className="text-[10px] font-bold text-gray-400 uppercase hidden sm:block">Progresso</span>
                           <div className="flex-1 bg-black rounded-full h-1.5 overflow-hidden">
-                              <div className="bg-red-600 h-full rounded-full transition-all duration-1000 ease-out" style={{ width: `${progress}%` }}></div>
+                              <div className="bg-[var(--plan-theme)] h-full rounded-full transition-all duration-1000 ease-out" style={{ width: `${progress}%` }}></div>
                           </div>
                           <span className="text-sm font-black text-white">{progress}%</span>
                       </div>
@@ -252,7 +252,7 @@ export function CourseDetails({ course, onBack }: CourseDetailsProps) {
             <button 
                 onClick={() => setActiveTab('MODULES')}
                 className={`flex items-center gap-2 pb-4 px-1 border-b-2 font-bold text-xs uppercase tracking-widest transition-all
-                    ${activeTab === 'MODULES' ? 'border-red-600 text-white' : 'border-transparent text-gray-500 hover:text-gray-300'}
+                    ${activeTab === 'MODULES' ? 'border-[var(--plan-theme)] text-white' : 'border-transparent text-gray-500 hover:text-gray-300'}
                 `}
             >
                 <LayoutList size={18} />
@@ -261,7 +261,7 @@ export function CourseDetails({ course, onBack }: CourseDetailsProps) {
             <button 
                 onClick={() => setActiveTab('EDITAL')}
                 className={`flex items-center gap-2 pb-4 px-1 border-b-2 font-bold text-xs uppercase tracking-widest transition-all
-                    ${activeTab === 'EDITAL' ? 'border-red-600 text-white' : 'border-transparent text-gray-500 hover:text-gray-300'}
+                    ${activeTab === 'EDITAL' ? 'border-[var(--plan-theme)] text-white' : 'border-transparent text-gray-500 hover:text-gray-300'}
                 `}
             >
                 <ListTree size={18} />
@@ -272,10 +272,10 @@ export function CourseDetails({ course, onBack }: CourseDetailsProps) {
                 <button 
                     onClick={() => setActiveTab('LIVE')}
                     className={`flex items-center gap-2 pb-4 px-1 border-b-2 font-bold text-xs uppercase tracking-widest transition-all
-                        ${activeTab === 'LIVE' ? 'border-red-600 text-white' : 'border-transparent text-gray-500 hover:text-gray-300'}
+                        ${activeTab === 'LIVE' ? 'border-[var(--plan-theme)] text-white' : 'border-transparent text-gray-500 hover:text-gray-300'}
                     `}
                 >
-                    <Radio size={18} className={activeTab === 'LIVE' ? 'text-red-600' : ''} />
+                    <Radio size={18} className={activeTab === 'LIVE' ? 'text-[var(--plan-theme)]' : ''} />
                     🔴 Eventos ao Vivo
                 </button>
             )}
@@ -292,7 +292,7 @@ export function CourseDetails({ course, onBack }: CourseDetailsProps) {
                   ) : modules.length === 0 ? (
                       <div className="text-zinc-500 italic px-1 text-sm border-l-2 border-zinc-800 pl-4 py-2">Nenhum módulo disponível neste curso.</div>
                   ) : (
-                      <div className="flex gap-6 overflow-x-auto pb-8 scrollbar-thin scrollbar-thumb-red-900 scrollbar-track-transparent px-1">
+                      <div className="flex gap-6 overflow-x-auto pb-8 scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent px-1">
                           {modules.map(module => (
                               <StudentModuleCard 
                                   key={module.id} 
@@ -315,7 +315,7 @@ export function CourseDetails({ course, onBack }: CourseDetailsProps) {
                       {courseLiveEvents.map((event) => (
                           <div 
                               key={event.id}
-                              className="group bg-zinc-900/50 border border-zinc-800 rounded-2xl overflow-hidden hover:border-red-600/50 transition-all duration-300 flex flex-col"
+                              className="group bg-zinc-900/50 border border-zinc-800 rounded-2xl overflow-hidden hover:border-[var(--plan-theme)]/50 transition-all duration-300 flex flex-col"
                           >
                               {/* Thumbnail */}
                               <div className="relative aspect-video overflow-hidden bg-zinc-800">
@@ -336,7 +336,7 @@ export function CourseDetails({ course, onBack }: CourseDetailsProps) {
                                   {/* Status Badge */}
                                   <div className="absolute top-4 left-4">
                                       {event.status === 'live' ? (
-                                          <div className="flex items-center gap-2 bg-red-600 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest animate-pulse shadow-[0_0_15px_rgba(220,38,38,0.5)]">
+                                          <div className="flex items-center gap-2 bg-[var(--plan-theme)] text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest animate-pulse shadow-[0_0_15px_rgba(var(--plan-theme-rgb),0.5)]">
                                               <div className="w-1.5 h-1.5 bg-white rounded-full" />
                                               Ao Vivo Agora
                                           </div>
@@ -352,12 +352,12 @@ export function CourseDetails({ course, onBack }: CourseDetailsProps) {
                               {/* Info */}
                               <div className="p-5 flex-1 flex flex-col gap-4">
                                   <div className="space-y-2">
-                                      <h3 className="text-white font-black text-lg uppercase tracking-tight line-clamp-2 group-hover:text-red-500 transition-colors">
+                                      <h3 className="text-white font-black text-lg uppercase tracking-tight line-clamp-2 group-hover:text-[var(--plan-theme)] transition-colors">
                                           {event.title}
                                       </h3>
                                       <div className="flex items-center gap-4 text-zinc-500 font-bold text-[10px] uppercase tracking-widest">
                                           <div className="flex items-center gap-1.5">
-                                              <Calendar size={12} className="text-red-600" />
+                                              <Calendar size={12} className="text-[var(--plan-theme)]" />
                                               {event.eventDate.split('-').reverse().join('/')}
                                           </div>
                                           <div className="flex items-center gap-1.5">
@@ -371,7 +371,7 @@ export function CourseDetails({ course, onBack }: CourseDetailsProps) {
                                       onClick={() => navigate(`/app/eventos-ao-vivo/sala/${event.id}`)}
                                       className={`w-full mt-auto flex items-center justify-center gap-2 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all duration-300 group/btn ${
                                           event.status === 'live' 
-                                              ? 'bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-900/20' 
+                                              ? 'bg-[var(--plan-theme)] hover:brightness-110 text-white shadow-lg shadow-[var(--plan-theme)]/20' 
                                               : 'bg-zinc-800 hover:bg-zinc-700 text-white'
                                       }`}
                                   >

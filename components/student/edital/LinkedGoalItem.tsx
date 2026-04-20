@@ -322,7 +322,7 @@ const LinkedGoalItem: React.FC<LinkedGoalItemProps> = ({
       id={`goal-${goal.id}`}
       className={`
         border-l-2 ml-5 pl-4 mb-2 relative group transition-all duration-1000
-        ${isHighlighted ? 'ring-2 ring-red-500 bg-red-500/10 animate-pulse shadow-[0_0_20px_rgba(220,38,38,0.3)] rounded-r-xl' : ''}
+        ${isHighlighted ? 'ring-2 ring-[var(--plan-theme)] bg-[var(--plan-theme)]/10 animate-pulse shadow-[0_0_20px_rgba(var(--plan-theme-rgb),0.3)] rounded-r-xl' : ''}
       `}
       style={{ borderColor: metaColor }}
     >
@@ -423,7 +423,7 @@ const LinkedGoalItem: React.FC<LinkedGoalItemProps> = ({
                 <div className="flex items-start gap-3 w-full">
                     <button 
                         onClick={() => isPandaVideo(video.link) && onPlayVideo ? onPlayVideo(video.link) : window.open(video.link, '_blank')}
-                        className="w-8 h-8 rounded-full bg-red-600/20 text-red-500 flex items-center justify-center group-hover/video:bg-red-600 group-hover/video:text-white transition-all shrink-0 mt-0.5"
+                        className="w-8 h-8 rounded-full bg-[var(--plan-theme)]/20 text-[var(--plan-theme)] flex items-center justify-center group-hover/video:bg-[var(--plan-theme)] group-hover/video:text-white transition-all shrink-0 mt-0.5"
                     >
                         <Play size={12} className="ml-0.5" fill="currentColor" />
                     </button>
@@ -532,7 +532,7 @@ const LinkedGoalItem: React.FC<LinkedGoalItemProps> = ({
                      <uiConfig.icon size={12} />
                      {uiConfig.label}
                   </span>
-                  <span className={`text-[9px] font-mono ${userItems.length >= 5 ? 'text-red-500' : 'text-zinc-600'}`}>
+                  <span className={`text-[9px] font-mono ${userItems.length >= 5 ? 'text-[var(--plan-theme)]' : 'text-zinc-600'}`}>
                      {userItems.length}/5 Criados
                   </span>
                </div>
@@ -631,13 +631,13 @@ const LinkedGoalItem: React.FC<LinkedGoalItemProps> = ({
                             onChange={e => setNewItemTitle(e.target.value)}
                             placeholder={`Ex: Meu ${uiConfig?.itemLabel} 01`}
                             autoFocus
-                            className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-sm text-white placeholder-zinc-700 focus:outline-none focus:border-brand-red font-bold uppercase"
+                            className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-sm text-white placeholder-zinc-700 focus:outline-none focus:border-[var(--plan-theme)] font-bold uppercase"
                         />
                     </div>
                     <button 
                         type="submit" 
                         disabled={isCreating || !newItemTitle.trim()}
-                        className="w-full py-3 bg-brand-red hover:bg-red-600 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-50"
+                        className="w-full py-3 bg-[var(--plan-theme)] hover:brightness-110 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-50"
                     >
                         {isCreating ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
                         Criar Material

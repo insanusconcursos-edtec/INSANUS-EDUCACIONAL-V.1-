@@ -1,7 +1,7 @@
 
 import React, { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Trash2, Clock, BookOpen, Check, ChevronLeft, Pencil, Plus, Save } from 'lucide-react';
+import { X, Trash2, Clock, BookOpen, Check, ChevronLeft, Pencil, Plus, Save, Trophy } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import toast, { Toaster } from 'react-hot-toast';
 import { doc, updateDoc } from 'firebase/firestore';
@@ -14,6 +14,7 @@ interface PlannerEvent {
   startTime: string;
   endTime: string;
   isStudy: boolean;
+  isFreeStudy?: boolean;
   days: number[];
 }
 
@@ -106,6 +107,7 @@ const WeeklyPlannerModal: React.FC<WeeklyPlannerModalProps> = ({
   const [formStart, setFormStart] = useState('08:00');
   const [formEnd, setFormEnd] = useState('09:00');
   const [formIsStudy, setFormIsStudy] = useState(false);
+  const [formIsFreeStudy, setFormIsFreeStudy] = useState(false);
   const [formDays, setFormDays] = useState<number[]>([]);
 
   const handleAddRoutine = (e: React.MouseEvent) => {
@@ -241,7 +243,8 @@ const WeeklyPlannerModal: React.FC<WeeklyPlannerModalProps> = ({
     DAYS.forEach(day => routineMinutes[day.id] = 0);
     
     events.forEach(event => {
-      if (event.isStudy) {
+      // Somente contabiliza como capacidade regular se for estudo e NÃO for livre
+      if (event.isStudy && !event.isFreeStudy) {
         const start = timeToMinutes(event.startTime);
         const end = timeToMinutes(event.endTime);
         const duration = end - start;
@@ -268,6 +271,7 @@ const WeeklyPlannerModal: React.FC<WeeklyPlannerModalProps> = ({
     setFormStart(`${hour.toString().padStart(2, '0')}:00`);
     setFormEnd(`${(hour + 1).toString().padStart(2, '0')}:00`);
     setFormIsStudy(false);
+    setFormIsFreeStudy(false);
     setFormDays([dayId]);
     setShowForm(true);
   };
@@ -280,6 +284,7 @@ const WeeklyPlannerModal: React.FC<WeeklyPlannerModalProps> = ({
     setFormStart(event.startTime);
     setFormEnd(event.endTime);
     setFormIsStudy(event.isStudy);
+    setFormIsFreeStudy(!!event.isFreeStudy);
     setFormDays(event.days);
     setShowForm(true);
   };
@@ -291,11 +296,12 @@ const WeeklyPlannerModal: React.FC<WeeklyPlannerModalProps> = ({
   const handleSaveEvent = () => {
     const newEvent: PlannerEvent = {
       id: editingEvent ? editingEvent.id : Math.random().toString(36).substr(2, 9),
-      title: formIsStudy ? 'ESTUDOS' : formTitle,
-      color: formIsStudy ? '#ef4444' : formColor,
+      title: formIsStudy ? (formIsFreeStudy ? 'ESTUDO LIVRE' : 'ESTUDOS') : formTitle,
+      color: formIsStudy ? (formIsFreeStudy ? '#10b981' : '#ef4444') : formColor,
       startTime: formStart,
       endTime: formEnd,
       isStudy: formIsStudy,
+      isFreeStudy: formIsFreeStudy,
       days: formDays
     };
 
@@ -498,7 +504,7 @@ const WeeklyPlannerModal: React.FC<WeeklyPlannerModalProps> = ({
                       <div
                         key={`${event.id}-${day.id}`}
                         onClick={(e) => handleEditClick(event, e)}
-                        className="absolute inset-x-1 rounded-lg border-l-4 p-2 shadow-xl cursor-pointer hover:brightness-125 transition-all overflow-hidden z-10"
+                        className={`absolute inset-x-1 rounded-lg border-l-4 p-2 shadow-xl cursor-pointer hover:brightness-125 transition-all overflow-hidden z-10 ${event.isFreeStudy ? 'animate-pulse ring-1 ring-emerald-500/50' : ''}`}
                         style={{ 
                           top: top + 2, 
                           height: height - 4,
@@ -510,7 +516,9 @@ const WeeklyPlannerModal: React.FC<WeeklyPlannerModalProps> = ({
                           <span className="text-[9px] font-black uppercase tracking-tighter truncate" style={{ color: event.color }}>
                             {event.startTime} - {event.endTime}
                           </span>
-                          {event.isStudy && <BookOpen size={10} className="text-brand-red shrink-0" />}
+                          {event.isStudy && (
+                            event.isFreeStudy ? <Trophy size={10} className="text-emerald-500 shrink-0" /> : <BookOpen size={10} className="text-brand-red shrink-0" />
+                          )}
                         </div>
                         <h4 className="text-[10px] font-black text-white leading-tight break-words uppercase tracking-tighter">
                           {event.title}
@@ -555,37 +563,66 @@ const WeeklyPlannerModal: React.FC<WeeklyPlannerModalProps> = ({
 
                 <div className="space-y-6 overflow-y-auto custom-scrollbar pr-2">
                   {/* Study Toggle */}
-                  <button 
-                    onClick={() => setFormIsStudy(!formIsStudy)}
-                    className={`
-                      w-full p-5 rounded-2xl border flex items-center justify-between transition-all
-                      ${formIsStudy ? 'bg-brand-red/10 border-brand-red' : 'bg-zinc-950 border-zinc-800'}
-                    `}
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className={`p-3 rounded-xl ${formIsStudy ? 'bg-brand-red text-white' : 'bg-zinc-800 text-zinc-500'}`}>
-                        <BookOpen size={20} />
+                  <div className="space-y-4">
+                    <button 
+                      onClick={() => {
+                        const nextValue = !formIsStudy;
+                        setFormIsStudy(nextValue);
+                        if (!nextValue) setFormIsFreeStudy(false);
+                      }}
+                      className={`
+                        w-full p-5 rounded-2xl border flex items-center justify-between transition-all
+                        ${formIsStudy ? 'bg-brand-red/10 border-brand-red' : 'bg-zinc-950 border-zinc-800'}
+                      `}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className={`p-3 rounded-xl ${formIsStudy ? 'bg-brand-red text-white' : 'bg-zinc-800 text-zinc-500'}`}>
+                          <BookOpen size={20} />
+                        </div>
+                        <div className="text-left">
+                          <span className={`text-xs font-black uppercase block tracking-widest ${formIsStudy ? 'text-brand-red' : 'text-zinc-400'}`}>É ESTUDO?</span>
+                          <span className="text-[10px] text-zinc-500 font-medium">Contabiliza na disponibilidade</span>
+                        </div>
                       </div>
-                      <div className="text-left">
-                        <span className={`text-xs font-black uppercase block tracking-widest ${formIsStudy ? 'text-brand-red' : 'text-zinc-400'}`}>É ESTUDO?</span>
-                        <span className="text-[10px] text-zinc-500 font-medium">Contabiliza na disponibilidade</span>
+                      <div className={`w-12 h-6 rounded-full relative transition-colors ${formIsStudy ? 'bg-brand-red' : 'bg-zinc-800'}`}>
+                        <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${formIsStudy ? 'translate-x-6' : 'translate-x-0'}`} />
                       </div>
-                    </div>
-                    <div className={`w-12 h-6 rounded-full relative transition-colors ${formIsStudy ? 'bg-brand-red' : 'bg-zinc-800'}`}>
-                      <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${formIsStudy ? 'translate-x-6' : 'translate-x-0'}`} />
-                    </div>
-                  </button>
+                    </button>
+
+                    {formIsStudy && (
+                      <button 
+                        onClick={() => setFormIsFreeStudy(!formIsFreeStudy)}
+                        className={`
+                          w-full p-5 rounded-2xl border flex items-center justify-between transition-all animate-in slide-in-from-top-2
+                          ${formIsFreeStudy ? 'bg-emerald-500/10 border-emerald-500' : 'bg-zinc-950 border-zinc-800'}
+                        `}
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className={`p-3 rounded-xl ${formIsFreeStudy ? 'bg-emerald-500 text-white' : 'bg-zinc-800 text-zinc-500'}`}>
+                            <Trophy size={20} />
+                          </div>
+                          <div className="text-left">
+                            <span className={`text-xs font-black uppercase block tracking-widest ${formIsFreeStudy ? 'text-emerald-500' : 'text-zinc-400'}`}>ESTUDO LIVRE?</span>
+                            <span className="text-[10px] text-zinc-500 font-medium">Não avança o ciclo de metas</span>
+                          </div>
+                        </div>
+                        <div className={`w-12 h-6 rounded-full relative transition-colors ${formIsFreeStudy ? 'bg-emerald-500' : 'bg-zinc-800'}`}>
+                          <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${formIsFreeStudy ? 'translate-x-6' : 'translate-x-0'}`} />
+                        </div>
+                      </button>
+                    )}
+                  </div>
 
                   {/* Title */}
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Título da Atividade</label>
                     <input 
                       type="text"
-                      value={formIsStudy ? 'ESTUDOS' : formTitle}
+                      value={formIsStudy ? (formIsFreeStudy ? 'ESTUDO LIVRE' : 'ESTUDOS') : formTitle}
                       onChange={e => setFormTitle(e.target.value)}
                       disabled={formIsStudy}
                       placeholder="Ex: Trabalho, Academia, Sono..."
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-4 text-sm text-white focus:border-brand-red outline-none disabled:opacity-50 transition-all"
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-4 text-sm text-white focus:border-brand-red outline-none disabled:opacity-50 transition-all font-bold uppercase"
                     />
                   </div>
 

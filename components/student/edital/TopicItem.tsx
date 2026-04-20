@@ -332,7 +332,7 @@ const TopicItem: React.FC<TopicItemProps> = ({
         id={`topic-${item.id}`} 
         className={`
             flex flex-col transition-all duration-500
-            ${isTopicHighlighted ? 'ring-2 ring-brand-red bg-brand-red/10 animate-pulse shadow-[0_0_20px_rgba(220,38,38,0.3)] rounded-lg' : ''}
+            ${isTopicHighlighted ? 'ring-2 ring-[var(--plan-theme)] bg-[var(--plan-theme)]/10 animate-pulse shadow-[0_0_20px_rgba(var(--plan-theme-rgb),0.3)] rounded-lg' : ''}
         `}
     >
       {/* HEADER ROW */}
@@ -340,7 +340,7 @@ const TopicItem: React.FC<TopicItemProps> = ({
         className={`
           flex items-center gap-3 p-3 border-b border-zinc-800/50 transition-colors cursor-pointer select-none
           ${isExpanded ? 'bg-zinc-900/50' : 'hover:bg-zinc-900/30'}
-          ${isTopic ? 'border-l-2 border-l-transparent hover:border-l-brand-red' : ''}
+          ${isTopic ? 'border-l-2 border-l-transparent hover:border-l-[var(--plan-theme)]' : ''}
         `}
         style={{ paddingLeft }}
         onClick={() => setIsExpanded(!isExpanded)}
@@ -385,7 +385,7 @@ const TopicItem: React.FC<TopicItemProps> = ({
                 <div className="flex items-center gap-2 mt-1.5 w-full max-w-[200px]">
                     <div className="h-1 flex-1 bg-zinc-800 rounded-full overflow-hidden">
                         <div 
-                            className={`h-full rounded-full transition-all duration-500 ${isFullyComplete ? 'bg-emerald-500' : 'bg-brand-red'}`} 
+                            className={`h-full rounded-full transition-all duration-500 ${isFullyComplete ? 'bg-emerald-500' : 'bg-[var(--plan-theme)]'}`} 
                             style={{ width: `${percentage}%` }}
                         />
                     </div>
@@ -425,7 +425,7 @@ const TopicItem: React.FC<TopicItemProps> = ({
                             message: `Deseja agendar as revisões espaçadas para o tópico [${item.name}]?`
                         });
                     }}
-                    className="mr-2 flex items-center gap-1.5 px-2 py-1 bg-brand-red/10 hover:bg-brand-red/20 border border-brand-red/30 rounded text-[10px] font-bold text-brand-red uppercase tracking-wider transition-all"
+                    className="mr-2 flex items-center gap-1.5 px-2 py-1 bg-[var(--plan-theme)]/10 hover:bg-[var(--plan-theme)]/20 border border-[var(--plan-theme)]/30 rounded text-[10px] font-bold text-[var(--plan-theme)] uppercase tracking-wider transition-all"
                 >
                     <CalendarClock size={12} />
                     Agendar Revisões
@@ -550,7 +550,7 @@ const TopicItem: React.FC<TopicItemProps> = ({
                         <button 
                             onClick={confirmCompletion}
                             disabled={isProcessing}
-                            className={`flex-1 py-3 rounded-lg text-white font-black uppercase text-xs tracking-widest transition-all shadow-lg flex items-center justify-center gap-2 ${isFullyComplete ? 'bg-red-600 hover:bg-red-500 shadow-red-900/20' : 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-900/20'}`}
+                            className={`flex-1 py-3 rounded-lg text-white font-black uppercase text-xs tracking-widest transition-all shadow-lg flex items-center justify-center gap-2 ${isFullyComplete ? 'bg-[var(--plan-theme)] hover:brightness-110 shadow-[var(--plan-theme)]/20' : 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-900/20'}`}
                         >
                             {isProcessing ? <Loader2 size={14} className="animate-spin" /> : 'Confirmar'}
                         </button>

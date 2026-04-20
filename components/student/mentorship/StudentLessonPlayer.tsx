@@ -5,7 +5,6 @@ import { useAuth } from '../../../contexts/AuthContext';
 
 // Ícones
 const PlayIcon = () => <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>;
-const CheckCircleIcon = () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
 const CheckSolidIcon = () => <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>;
 const ChevronDown = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>;
 const FileIcon = () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>;
@@ -89,7 +88,7 @@ export function StudentLessonPlayer({ module, planId, onBack }: StudentLessonPla
     return (
       <div className="flex flex-col h-full">
         {/* PLAYER */}
-        <div className="aspect-video bg-black rounded-xl overflow-hidden border border-gray-800 shadow-2xl relative mb-6">
+        <div className="w-full aspect-video bg-black shrink-0 rounded-xl overflow-hidden border border-gray-800 shadow-2xl relative mb-6">
             {videoContent ? (
                 <iframe 
                     src={videoContent.videoUrl} 
@@ -104,7 +103,7 @@ export function StudentLessonPlayer({ module, planId, onBack }: StudentLessonPla
                     <div className="text-center">
                         <FileIcon />
                         <p className="mt-2 text-gray-400">Esta aula é um material de leitura.</p>
-                        <a href={pdfContent.fileUrl} target="_blank" rel="noreferrer" className="mt-4 inline-block px-6 py-2 bg-red-600 text-white rounded hover:bg-red-500 transition-colors">
+                        <a href={pdfContent.fileUrl} target="_blank" rel="noreferrer" className="mt-4 inline-block px-6 py-2 bg-[var(--plan-theme)] text-white rounded hover:brightness-110 transition-colors">
                             Ler PDF
                         </a>
                     </div>
@@ -146,7 +145,7 @@ export function StudentLessonPlayer({ module, planId, onBack }: StudentLessonPla
         {downloads.length > 0 && (
             <div className="mb-12">
                 <h3 className="text-white font-bold text-lg mb-4 flex items-center gap-2">
-                    <svg className="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                    <svg className="w-5 h-5 text-[var(--plan-theme)]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                     Arquivos e Links
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -187,7 +186,7 @@ export function StudentLessonPlayer({ module, planId, onBack }: StudentLessonPla
             className={`
                 flex items-start gap-3 cursor-pointer transition-colors border-l-4 py-3 pr-4
                 ${isActive 
-                    ? 'border-red-600 bg-[#1a1d24]' 
+                    ? 'border-[var(--plan-theme)] bg-[#1a1d24]' 
                     : 'border-transparent hover:bg-[#1a1d24]'
                 }
                 ${isCompleted ? 'opacity-70 hover:opacity-100' : ''}
@@ -199,7 +198,7 @@ export function StudentLessonPlayer({ module, planId, onBack }: StudentLessonPla
                 {isCompleted ? (
                     <div className="text-green-500"><CheckSolidIcon /></div>
                 ) : (
-                    <div className={isActive ? 'text-red-500' : 'text-gray-600'}>
+                    <div className={isActive ? 'text-[var(--plan-theme)]' : 'text-gray-600'}>
                         <PlayIcon />
                     </div>
                 )}
@@ -215,23 +214,23 @@ export function StudentLessonPlayer({ module, planId, onBack }: StudentLessonPla
   };
 
   return (
-    <div className="fixed top-[120px] left-0 right-0 bottom-0 bg-zinc-950 z-40 flex flex-col md:flex-row overflow-hidden animate-in fade-in">
+    <div className="flex flex-col lg:flex-row w-full h-full lg:h-[calc(100vh-100px)] pt-6 gap-6 overflow-y-auto lg:overflow-hidden bg-zinc-950 animate-in fade-in">
       
       {/* --- HEADER MOBILE (SÓ APARECE EM TELAS PEQUENAS) --- */}
-      <div className="md:hidden p-4 bg-[#121418] border-b border-gray-800 flex justify-between items-center shrink-0">
+      <div className="lg:hidden p-4 bg-[#121418] border-b border-gray-800 flex justify-between items-center shrink-0">
         <button onClick={onBack} className="text-gray-400 text-sm">Voltar</button>
         <span className="font-bold text-white truncate max-w-[200px] text-sm">{module.title}</span>
         <div className="w-8"></div>
       </div>
 
       {/* --- COLUNA ESQUERDA: PLAYER (CONTEÚDO) --- */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 bg-black/50">
-        <div className="max-w-5xl mx-auto">
+      <div className="flex-1 w-full lg:w-2/3 xl:w-3/4 flex flex-col overflow-y-auto hide-scrollbar p-4 md:p-8 bg-black/50">
+        <div className="max-w-5xl mx-auto w-full">
             
             {/* Breadcrumb Desktop */}
             <button 
                 onClick={onBack}
-                className="hidden md:flex items-center gap-2 text-gray-500 hover:text-white mb-6 transition-colors text-sm uppercase font-bold tracking-widest"
+                className="hidden lg:flex items-center gap-2 text-gray-500 hover:text-white mb-6 transition-colors text-sm uppercase font-bold tracking-widest"
             >
                 &larr; Voltar para o Portal
             </button>
@@ -241,7 +240,7 @@ export function StudentLessonPlayer({ module, planId, onBack }: StudentLessonPla
       </div>
 
       {/* --- COLUNA DIREITA: SIDEBAR (LISTA DE AULAS) --- */}
-      <div className="w-full md:w-[400px] bg-[#121418] border-l border-gray-800 flex flex-col h-full shrink-0">
+      <div className="w-full lg:w-1/3 xl:w-1/4 h-auto lg:h-full shrink-0 border-t lg:border-t-0 lg:border-l border-white/10 bg-background/50 flex flex-col overflow-y-auto">
         
         {/* Cabeçalho da Sidebar */}
         <div className="p-6 border-b border-gray-800">

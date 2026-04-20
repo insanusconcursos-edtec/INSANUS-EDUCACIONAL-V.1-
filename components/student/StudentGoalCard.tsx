@@ -36,6 +36,7 @@ export interface StudentGoal {
   color?: string;
   planId?: string; // Needed for merge
   date?: string; // Essential for Time Tracking updates
+  isFreeStudy?: boolean;
   part?: number; // Explicit part number
   order?: number; // Explicit order number
   
@@ -554,19 +555,20 @@ export const StudentGoalCard: React.FC<StudentGoalCardProps> = ({ goal, onStart,
             {isCardCompleted ? (
               <CheckCircle2 size={24} className="text-emerald-500" weight="fill" />
             ) : (
-              <Circle size={24} className="text-zinc-600 group-hover:text-zinc-400" />
+              <Circle size={24} className="text-zinc-600 group-hover:text-[var(--plan-theme)]" />
             )}
           </button>
 
           <span 
-            className="text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded border transition-colors"
+            className="text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded border transition-colors flex items-center gap-1.5"
             style={{ 
-              color: activeColor, 
-              borderColor: `${activeColor}40`, 
-              backgroundColor: `${activeColor}15`
+              color: goal.isFreeStudy ? '#10b981' : activeColor, 
+              borderColor: goal.isFreeStudy ? '#10b98140' : `${activeColor}40`, 
+              backgroundColor: goal.isFreeStudy ? '#10b98115' : `${activeColor}15`
             }}
           >
-            {defaultConfig.label}
+            {goal.isFreeStudy ? <Trophy size={10} className="text-emerald-500" /> : null}
+            {goal.isFreeStudy ? 'ESTUDO LIVRE' : defaultConfig.label}
           </span>
 
           {goal.cycleName && (
@@ -634,11 +636,11 @@ export const StudentGoalCard: React.FC<StudentGoalCardProps> = ({ goal, onStart,
         {/* REPETITION WARNING FOR LEI SECA */}
         {goal.type === 'law' && goal.multiplier && goal.multiplier > 1 && !isCardCompleted && (
           <div 
-            className="mt-3 flex items-start gap-2 bg-brand-red/10 border border-brand-red/20 p-2 rounded-lg animate-pulse"
+            className="mt-3 flex items-start gap-2 bg-[var(--plan-theme)]/10 border border-[var(--plan-theme)]/20 p-2 rounded-lg animate-pulse"
             onClick={(e) => e.stopPropagation()}
           >
-              <AlertTriangle size={12} className="text-brand-red mt-0.5 shrink-0" />
-              <span className="text-[10px] text-brand-red font-black uppercase tracking-tight">
+              <AlertTriangle size={12} className="text-[var(--plan-theme)] mt-0.5 shrink-0" />
+              <span className="text-[10px] text-[var(--plan-theme)] font-black uppercase tracking-tight">
                   Repita a leitura do documento {goal.multiplier} vezes
               </span>
           </div>
@@ -699,7 +701,7 @@ export const StudentGoalCard: React.FC<StudentGoalCardProps> = ({ goal, onStart,
                                         className={`
                                             p-1.5 rounded-full transition-all flex-shrink-0
                                             ${isVideoDone ? 'bg-emerald-500/20 text-emerald-500' : 
-                                              isActive ? 'bg-brand-red text-white' : 
+                                              isActive ? 'bg-[var(--plan-theme)] text-white' : 
                                               'bg-zinc-900 text-zinc-400 group-hover:text-white group-hover:bg-zinc-700'}
                                         `}
                                     >
@@ -714,7 +716,7 @@ export const StudentGoalCard: React.FC<StudentGoalCardProps> = ({ goal, onStart,
                                 <div className="ml-3 flex items-center">
                                     {isMinimized ? (
                                         <div className="flex items-center gap-2 bg-zinc-950 px-2 py-1 rounded border border-zinc-800 animate-in fade-in">
-                                            <span className={`w-1.5 h-1.5 rounded-full ${timer.status === 'running' ? 'bg-red-500 animate-pulse' : 'bg-yellow-500'}`}></span>
+                                            <span className={`w-1.5 h-1.5 rounded-full ${timer.status === 'running' ? 'bg-[var(--plan-theme)] animate-pulse shadow-[0_0_8px_var(--plan-theme)]' : 'bg-yellow-500'}`}></span>
                                             <span className="text-[10px] font-mono font-bold text-white tabular-nums">
                                                 {timer.formattedTime}
                                             </span>
@@ -727,7 +729,7 @@ export const StudentGoalCard: React.FC<StudentGoalCardProps> = ({ goal, onStart,
                                             </button>
                                         </div>
                                     ) : isPlaying ? (
-                                        <span className="text-[9px] font-bold text-brand-red uppercase animate-pulse tracking-wider">
+                                        <span className="text-[9px] font-bold text-[var(--plan-theme)] uppercase animate-pulse tracking-wider">
                                             Assistindo...
                                         </span>
                                     ) : (
@@ -761,7 +763,7 @@ export const StudentGoalCard: React.FC<StudentGoalCardProps> = ({ goal, onStart,
                                     <span className="text-xs font-medium text-zinc-300 truncate">{file.name}</span>
                                 </div>
                                 {isLoading ? (
-                                    <Loader2 size={14} className="text-brand-red animate-spin" />
+                                    <Loader2 size={14} className="text-[var(--plan-theme)] animate-spin" />
                                 ) : (
                                     <Download size={14} className="text-zinc-600 group-hover/item:text-white transition-colors" />
                                 )}
@@ -887,7 +889,7 @@ export const StudentGoalCard: React.FC<StudentGoalCardProps> = ({ goal, onStart,
                                 e.stopPropagation(); 
                                 handleFinishGlobalSession(); 
                             }} 
-                            className="py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-red-900/20"
+                            className="py-3 bg-[var(--plan-theme)] hover:brightness-110 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-[var(--plan-theme)]/20"
                         >
                             <CheckCircle2 size={12} /> Concluir
                         </button>
@@ -910,7 +912,7 @@ export const StudentGoalCard: React.FC<StudentGoalCardProps> = ({ goal, onStart,
                         <button onClick={(e) => { e.stopPropagation(); timer.resume(); }} className="py-3 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg" style={{ backgroundColor: activeColor }}>
                             <Play size={12} fill="currentColor" /> Retomar
                         </button>
-                        <button onClick={(e) => { e.stopPropagation(); handleFinishGlobalSession(); }} className="py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-red-900/20">
+                        <button onClick={(e) => { e.stopPropagation(); handleFinishGlobalSession(); }} className="py-3 bg-[var(--plan-theme)] hover:brightness-110 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-[var(--plan-theme)]/20">
                             <Square size={12} fill="currentColor" /> Concluir
                         </button>
                     </div>
@@ -1007,7 +1009,7 @@ export const StudentGoalCard: React.FC<StudentGoalCardProps> = ({ goal, onStart,
                     e.stopPropagation();
                     handleConfirmCompletion();
                     }}
-                    className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold transition-colors shadow-lg shadow-blue-900/20 text-xs uppercase tracking-widest"
+                    className="flex-1 px-4 py-2 bg-[var(--plan-theme)] hover:brightness-110 text-white rounded-lg font-bold transition-colors shadow-lg shadow-[var(--plan-theme)]/20 text-xs uppercase tracking-widest"
                 >
                     SIM, CONCLUIR
                 </button>

@@ -72,6 +72,7 @@ const StudentDashboard: React.FC = () => {
   const [isGeneratingNext, setIsGeneratingNext] = useState(false);
   const [completedMetaIds, setCompletedMetaIds] = useState<Set<string>>(new Set());
   const [fullPlanData, setFullPlanData] = useState<any>(null);
+  const [isMentorshipPlayerActive, setIsMentorshipPlayerActive] = useState(false);
   const lastToggleRef = React.useRef<{ id: string, time: number } | null>(null);
   
   // NOVO: Estados locais para o Modal de Revisão (REMOVIDO EM FAVOR DO CONTEXTO)
@@ -780,11 +781,14 @@ const StudentDashboard: React.FC = () => {
   if (currentTab === 'mentorship') {
       return (
           <div className="relative w-full min-h-screen bg-zinc-950 flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-700">
-            {fullPlanData && (
+            {fullPlanData && !isMentorshipPlayerActive && (
               <PlanHeroBanner currentTab="mentorship" planData={fullPlanData} />
             )}
-            <div className="relative z-10 w-full max-w-[1600px] mx-auto px-4 md:px-8 pt-8 md:pt-12 flex-1 flex flex-col mb-10 -mt-10 md:-mt-20">
-              <StudentMentorshipViewer planId={currentPlanId} />
+            <div className={`relative z-10 w-full max-w-[1600px] mx-auto px-4 md:px-8 flex-1 flex flex-col mb-10 ${isMentorshipPlayerActive ? 'pt-0 mt-0' : 'pt-8 md:pt-12 -mt-10 md:-mt-20'}`}>
+              <StudentMentorshipViewer 
+                planId={currentPlanId} 
+                onActiveModuleChange={setIsMentorshipPlayerActive}
+              />
             </div>
           </div>
       );
@@ -812,7 +816,7 @@ const StudentDashboard: React.FC = () => {
   if (loading) {
       return (
           <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-              <Loader2 size={40} className="animate-spin text-brand-red" />
+              <Loader2 size={40} className="animate-spin text-[var(--plan-theme)]" />
               <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest">Carregando cronograma...</p>
           </div>
       );
@@ -872,7 +876,7 @@ const StudentDashboard: React.FC = () => {
             <span className="text-sm md:text-base font-black text-zinc-500 uppercase tracking-widest">
               {weekday}
             </span>
-            <span className="text-xl md:text-2xl font-black text-brand-red uppercase tracking-tighter">
+            <span className="text-xl md:text-2xl font-black text-[var(--plan-theme)] uppercase tracking-tighter">
               {dayAndMonth}
             </span>
           </div>
@@ -884,7 +888,7 @@ const StudentDashboard: React.FC = () => {
                 <div className="relative w-12 h-12">
                     <svg className="w-full h-full transform -rotate-90">
                         <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="4" fill="transparent" className="text-zinc-800" />
-                        <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="4" fill="transparent" className="text-brand-red" strokeDasharray={125.6} strokeDashoffset={125.6 - (125.6 * progress) / 100} strokeLinecap="round" />
+                        <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="4" fill="transparent" className="text-[var(--plan-theme)]" strokeDasharray={125.6} strokeDashoffset={125.6 - (125.6 * progress) / 100} strokeLinecap="round" />
                     </svg>
                     <div className="absolute inset-0 flex items-center justify-center text-[10px] font-black text-white">
                         {Math.round(progress)}%
@@ -904,9 +908,9 @@ const StudentDashboard: React.FC = () => {
 
       {/* CTA ROLLING WINDOW */}
       {lastScheduledDate && !isPlanCompleted && new Date(lastScheduledDate) < new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) && (
-        <div className="mb-8 bg-gradient-to-r from-brand-red/20 to-transparent border border-brand-red/30 rounded-2xl p-6 flex flex-col md:flex-row items-center justify-between gap-6 animate-in fade-in slide-in-from-top-4">
+        <div className="mb-8 bg-gradient-to-r from-[var(--plan-theme)]/20 to-transparent border border-[var(--plan-theme)]/30 rounded-2xl p-6 flex flex-col md:flex-row items-center justify-between gap-6 animate-in fade-in slide-in-from-top-4">
             <div className="flex items-center gap-4">
-                <div className="p-4 bg-brand-red/20 text-brand-red rounded-full">
+                <div className="p-4 bg-[var(--plan-theme)]/20 text-[var(--plan-theme)] rounded-full">
                     <Trophy size={28} />
                 </div>
                 <div>
@@ -917,7 +921,7 @@ const StudentDashboard: React.FC = () => {
             <button 
                 onClick={handleGenerateNextWeeks}
                 disabled={isGeneratingNext}
-                className="w-full md:w-auto px-8 py-4 bg-brand-red hover:bg-red-600 text-white font-black text-sm rounded-xl uppercase tracking-wider transition-all shadow-lg shadow-red-900/20 flex items-center justify-center gap-2 disabled:opacity-50"
+                className="w-full md:w-auto px-8 py-4 bg-[var(--plan-theme)] hover:brightness-110 text-white font-black text-sm rounded-xl uppercase tracking-wider transition-all shadow-lg shadow-[var(--plan-theme)]/20 flex items-center justify-center gap-2 disabled:opacity-50"
             >
                 {isGeneratingNext ? (
                     <><Loader2 className="w-5 h-5 animate-spin" /> Gerando...</>
@@ -977,13 +981,13 @@ const StudentDashboard: React.FC = () => {
                             )}
                             {isNewTopic && (
                                 <div className="col-span-full flex items-center gap-4 my-2">
-                                    <div className="h-px border-t border-dashed border-red-500/30 flex-1"></div>
+                                    <div className="h-px border-t border-dashed border-[var(--plan-theme)]/30 flex-1"></div>
                                     <div className="flex flex-col items-center text-center px-4">
-                                        <span className="text-[9px] font-black text-red-500 uppercase tracking-[0.2em]">Novo Tópico</span>
+                                        <span className="text-[9px] font-black text-[var(--plan-theme)] uppercase tracking-[0.2em]">Novo Tópico</span>
                                         <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mt-0.5">{goal.discipline}</span>
                                         <span className="text-[11px] font-black text-zinc-200 uppercase tracking-tight mt-0.5 leading-tight">{goal.topic}</span>
                                     </div>
-                                    <div className="h-px border-t border-dashed border-red-500/30 flex-1"></div>
+                                    <div className="h-px border-t border-dashed border-[var(--plan-theme)]/30 flex-1"></div>
                                 </div>
                             )}
                             <StudentGoalCard 
@@ -1061,7 +1065,7 @@ const StudentDashboard: React.FC = () => {
                         <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-2">Escolha a Data</label>
                         <input 
                             type="date" 
-                            className="w-full bg-zinc-900 border border-zinc-800 text-white rounded-xl p-3 focus:outline-none focus:border-brand-red font-mono uppercase"
+                            className="w-full bg-zinc-900 border border-zinc-800 text-white rounded-xl p-3 focus:outline-none focus:border-[var(--plan-theme)] font-mono uppercase"
                             value={simuladoDate}
                             onChange={(e) => setSimuladoDate(e.target.value)}
                             min={new Date().toISOString().split('T')[0]} // Min Today
@@ -1074,7 +1078,7 @@ const StudentDashboard: React.FC = () => {
                     <button 
                         onClick={handleScheduleSimuladoConfirm}
                         disabled={!simuladoDate}
-                        className="w-full py-3 bg-brand-red hover:bg-red-600 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-full py-3 bg-[var(--plan-theme)] hover:brightness-110 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-[var(--plan-theme)]/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         Confirmar Agendamento
                     </button>
@@ -1086,16 +1090,16 @@ const StudentDashboard: React.FC = () => {
       {/* SOLICITAÇÃO 2: POPUP DE CONFIRMAÇÃO DE INÍCIO */}
       {examToConfirm && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 p-4 backdrop-blur-md animate-in fade-in duration-200">
-            <div className="bg-[#1a1d24] p-8 rounded-2xl w-full max-w-lg border border-red-600/30 shadow-[0_0_50px_rgba(220,38,38,0.2)]">
+            <div className="bg-[#1a1d24] p-8 rounded-2xl w-full max-w-lg border border-[var(--plan-theme)]/30 shadow-[0_0_50px_rgba(var(--plan-theme-rgb),0.2)]">
                 <div className="flex flex-col items-center text-center">
-                    <div className="w-16 h-16 bg-red-600/10 rounded-full flex items-center justify-center mb-6 text-red-500 border border-red-500/20">
+                    <div className="w-16 h-16 bg-[var(--plan-theme)]/10 rounded-full flex items-center justify-center mb-6 text-[var(--plan-theme)] border border-[var(--plan-theme)]/20">
                         <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                     </div>
                     <h3 className="text-white font-black text-2xl uppercase mb-2">Atenção!</h3>
                     <p className="text-gray-300 text-sm leading-relaxed mb-6">
                         Você está prestes a iniciar o simulado <strong>{examToConfirm.title}</strong>.
                         <br/><br/>
-                        <span className="text-red-400 font-bold block bg-red-900/10 p-2 rounded">
+                        <span className="text-[var(--plan-theme)] font-bold block bg-[var(--plan-theme)]/10 p-2 rounded">
                             O cronômetro iniciará imediatamente e NÃO poderá ser pausado.
                         </span>
                     </p>
@@ -1103,7 +1107,7 @@ const StudentDashboard: React.FC = () => {
                     <div className="flex flex-col w-full gap-3">
                         <button 
                             onClick={handleConfirmStart}
-                            className="w-full py-4 bg-red-600 hover:bg-red-500 text-white font-black text-sm rounded-xl uppercase tracking-wider transition-all shadow-lg"
+                            className="w-full py-4 bg-[var(--plan-theme)] hover:brightness-110 text-white font-black text-sm rounded-xl uppercase tracking-wider transition-all shadow-lg shadow-[var(--plan-theme)]/20"
                         >
                             Estou pronto, Iniciar Agora
                         </button>

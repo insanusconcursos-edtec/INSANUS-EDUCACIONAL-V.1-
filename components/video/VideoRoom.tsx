@@ -340,7 +340,7 @@ export const VideoRoom: React.FC = () => {
   if (loading) {
     return (
       <div className="fixed inset-0 bg-zinc-950 flex flex-col items-center justify-center gap-4 z-[9999]">
-        <Loader2 className="animate-spin text-brand-red" size={48} />
+        <Loader2 className="animate-spin text-[var(--plan-theme)]" size={48} />
         <p className="text-zinc-500 text-xs font-black uppercase tracking-widest">Iniciando Sala Virtual...</p>
       </div>
     );
@@ -350,10 +350,10 @@ export const VideoRoom: React.FC = () => {
     <div className="flex flex-col w-full h-[100dvh] bg-[#09090b] overflow-hidden z-[9999] fixed inset-0">
       {/* Mentor Approval Banner */}
       {isAdmin && call?.requestEntry && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 w-[90%] max-w-md bg-zinc-900 border border-brand-red/30 rounded-2xl p-4 shadow-2xl z-[100] flex items-center justify-between animate-in fade-in slide-in-from-top-4">
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 w-[90%] max-w-md bg-zinc-900 border border-[var(--plan-theme)]/30 rounded-2xl p-4 shadow-2xl z-[100] flex items-center justify-between animate-in fade-in slide-in-from-top-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-brand-red/10 flex items-center justify-center">
-              <User className="text-brand-red" size={20} />
+            <div className="w-10 h-10 rounded-full bg-[var(--plan-theme)]/10 flex items-center justify-center">
+              <User className="text-[var(--plan-theme)]" size={20} />
             </div>
             <div>
               <p className="text-white text-xs font-black uppercase tracking-widest">{call.studentName}</p>
@@ -369,7 +369,7 @@ export const VideoRoom: React.FC = () => {
             </button>
             <button 
               onClick={handleApproveEntry}
-              className="px-4 h-10 rounded-xl bg-brand-red text-white text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-red-600 transition-all"
+              className="px-4 h-10 rounded-xl bg-[var(--plan-theme)] text-white text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:brightness-110 transition-all"
             >
               <Check size={16} />
               Aceitar
@@ -387,7 +387,7 @@ export const VideoRoom: React.FC = () => {
               <div className="w-24 h-24 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-600 relative">
                 <User size={48} />
                 {!isAdmin && accessStatus === 'requesting' && (
-                  <div className="absolute inset-0 border-2 border-brand-red border-t-transparent rounded-full animate-spin" />
+                  <div className="absolute inset-0 border-2 border-[var(--plan-theme)] border-t-transparent rounded-full animate-spin" />
                 )}
               </div>
               
@@ -407,7 +407,7 @@ export const VideoRoom: React.FC = () => {
               {!isAdmin && accessStatus === 'lobby' && (
                 <button 
                   onClick={handleRequestEntry}
-                  className="px-8 py-4 bg-brand-red text-white text-xs font-black uppercase tracking-widest rounded-2xl shadow-xl shadow-red-900/20 hover:scale-105 transition-all flex items-center gap-3"
+                  className="px-8 py-4 bg-[var(--plan-theme)] text-white text-xs font-black uppercase tracking-widest rounded-2xl shadow-xl shadow-[var(--plan-theme)]/20 hover:scale-105 transition-all flex items-center gap-3"
                 >
                   <LogIn size={18} />
                   Pedir para Entrar
@@ -415,7 +415,7 @@ export const VideoRoom: React.FC = () => {
               )}
 
               {!isAdmin && accessStatus === 'requesting' && (
-                <div className="flex items-center gap-2 text-brand-red text-[10px] font-black uppercase tracking-widest">
+                <div className="flex items-center gap-2 text-[var(--plan-theme)] text-[10px] font-black uppercase tracking-widest">
                   <Clock size={14} className="animate-pulse" />
                   Solicitação Pendente
                 </div>
@@ -435,7 +435,7 @@ export const VideoRoom: React.FC = () => {
                 <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center gap-4 z-10">
                   <button 
                     onClick={handleForcePlay}
-                    className="px-6 py-3 bg-brand-red text-white text-xs font-black uppercase tracking-widest rounded-xl shadow-lg shadow-red-900/40 flex items-center gap-2 animate-bounce"
+                    className="px-6 py-3 bg-[var(--plan-theme)] text-white text-xs font-black uppercase tracking-widest rounded-xl shadow-lg shadow-[var(--plan-theme)]/40 flex items-center gap-2 animate-bounce"
                   >
                     <Mic size={16} />
                     Conectar Áudio e Vídeo
@@ -465,14 +465,14 @@ export const VideoRoom: React.FC = () => {
                 <div className="absolute top-6 right-6 flex gap-2">
                   <button 
                     onClick={handleForceMute}
-                    className="w-10 h-10 rounded-xl bg-black/50 backdrop-blur-md border border-white/10 flex items-center justify-center text-white hover:bg-brand-red transition-all"
+                    className="w-10 h-10 rounded-xl bg-black/50 backdrop-blur-md border border-white/10 flex items-center justify-center text-white hover:bg-[var(--plan-theme)] transition-all"
                     title="Mutar Aluno"
                   >
                     <VolumeX size={18} />
                   </button>
                   <button 
                     onClick={handleForceHideCamera}
-                    className="w-10 h-10 rounded-xl bg-black/50 backdrop-blur-md border border-white/10 flex items-center justify-center text-white hover:bg-brand-red transition-all"
+                    className="w-10 h-10 rounded-xl bg-black/50 backdrop-blur-md border border-white/10 flex items-center justify-center text-white hover:bg-[var(--plan-theme)] transition-all"
                     title="Ocultar Câmera do Aluno"
                   >
                     <EyeOff size={18} />
@@ -510,7 +510,7 @@ export const VideoRoom: React.FC = () => {
         <button 
           onClick={toggleMic}
           className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all ${
-            isMicOn ? 'bg-zinc-800 text-white hover:bg-zinc-700' : 'bg-brand-red text-white'
+            isMicOn ? 'bg-zinc-800 text-white hover:bg-zinc-700' : 'bg-[var(--plan-theme)] text-white'
           }`}
         >
           {isMicOn ? <Mic size={24} /> : <MicOff size={24} />}
@@ -519,7 +519,7 @@ export const VideoRoom: React.FC = () => {
         <button 
           onClick={toggleCam}
           className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all ${
-            isCamOn ? 'bg-zinc-800 text-white hover:bg-zinc-700' : 'bg-brand-red text-white'
+            isCamOn ? 'bg-zinc-800 text-white hover:bg-zinc-700' : 'bg-[var(--plan-theme)] text-white'
           }`}
         >
           {isCamOn ? <Video size={24} /> : <VideoOff size={24} />}
@@ -529,15 +529,15 @@ export const VideoRoom: React.FC = () => {
 
         <button 
           onClick={endCall}
-          className="w-14 h-14 rounded-2xl bg-brand-red hover:bg-red-600 text-white flex items-center justify-center transition-all shadow-lg shadow-red-900/20"
+          className="w-14 h-14 rounded-2xl bg-[var(--plan-theme)] hover:brightness-110 text-white flex items-center justify-center transition-all shadow-lg shadow-[var(--plan-theme)]/20"
         >
           <PhoneOff size={24} />
         </button>
 
         {isAdmin && (
-          <div className="absolute right-8 flex items-center gap-2 bg-brand-red/10 border border-brand-red/20 px-4 py-2 rounded-xl">
-            <Shield size={14} className="text-brand-red" />
-            <span className="text-brand-red text-[10px] font-black uppercase tracking-widest">Modo Mentor</span>
+          <div className="absolute right-8 flex items-center gap-2 bg-[var(--plan-theme)]/10 border border-[var(--plan-theme)]/20 px-4 py-2 rounded-xl">
+            <Shield size={14} className="text-[var(--plan-theme)]" />
+            <span className="text-[var(--plan-theme)] text-[10px] font-black uppercase tracking-widest">Modo Mentor</span>
           </div>
         )}
       </div>

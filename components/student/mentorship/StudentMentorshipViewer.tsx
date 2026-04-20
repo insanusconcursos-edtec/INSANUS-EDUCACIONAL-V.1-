@@ -6,14 +6,21 @@ import { StudentLessonPlayer } from './StudentLessonPlayer';
 
 interface StudentMentorshipViewerProps {
   planId: string;
+  onActiveModuleChange?: (isActive: boolean) => void;
 }
 
-const StudentMentorshipViewer: React.FC<StudentMentorshipViewerProps> = ({ planId }) => {
+const StudentMentorshipViewer: React.FC<StudentMentorshipViewerProps> = ({ planId, onActiveModuleChange }) => {
   const [sections, setSections] = useState<MentorshipSection[]>([]);
   const [loading, setLoading] = useState(true);
   
   // Estado de Navegação: Quando preenchido, o Player é ativado
   const [selectedModule, setSelectedModule] = useState<MentorshipModule | null>(null);
+
+  useEffect(() => {
+    if (onActiveModuleChange) {
+      onActiveModuleChange(!!selectedModule);
+    }
+  }, [selectedModule, onActiveModuleChange]);
 
   useEffect(() => {
     if (planId) loadMentorship();
@@ -54,7 +61,7 @@ const StudentMentorshipViewer: React.FC<StudentMentorshipViewerProps> = ({ planI
       {/* Loading State */}
       {loading ? (
         <div className="flex justify-center items-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-red-600"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[var(--plan-theme)]"></div>
         </div>
       ) : sections.length === 0 ? (
         <div className="text-center py-20 px-4">

@@ -53,11 +53,11 @@ export const MentorshipRow: React.FC<MentorshipRowProps> = ({ section, onModuleC
         className="flex items-center justify-between mb-4 px-4 md:px-8 cursor-pointer group/header select-none hover:bg-white/5 py-2 rounded-lg transition-colors"
       >
         <div className="flex items-center gap-3">
-            {/* Indicador Visual (Barra Vermelha) */}
-            <div className={`w-1 h-6 bg-red-600 rounded-full transition-all ${isOpen ? 'opacity-100' : 'opacity-50'}`}></div>
+            {/* Indicador Visual (Barra Temática) */}
+            <div className={`w-1 h-6 bg-[var(--plan-theme)] rounded-full transition-all ${isOpen ? 'opacity-100' : 'opacity-50'}`}></div>
             
             {/* Título */}
-            <h3 className="text-white font-bold text-lg md:text-xl uppercase tracking-wide group-hover/header:text-red-500 transition-colors">
+            <h3 className="text-white font-bold text-lg md:text-xl uppercase tracking-wide group-hover/header:text-[var(--plan-theme)] transition-colors">
             {section.title}
             </h3>
         </div>

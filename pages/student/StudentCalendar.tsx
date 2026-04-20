@@ -109,7 +109,12 @@ const CalendarEventCard: React.FC<{ event: ScheduledEvent }> = ({ event }) => {
       }
   } else {
       containerClasses += "bg-zinc-900 border-y border-r border-zinc-800 hover:shadow-lg hover:border-zinc-700 ";
-      inlineStyles.borderLeftColor = activeColor;
+      if (event.isFreeStudy) {
+          inlineStyles.borderLeftColor = "#10b981";
+          containerClasses += "shadow-[0_0_10px_-2px_rgba(16,185,129,0.2)] ";
+      } else {
+          inlineStyles.borderLeftColor = activeColor;
+      }
   }
 
   if (event.status === 'completed') {
@@ -127,14 +132,16 @@ const CalendarEventCard: React.FC<{ event: ScheduledEvent }> = ({ event }) => {
         <div className="flex justify-between items-start">
             <div className="flex items-center gap-1 flex-wrap">
                 <span 
-                    className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded tracking-wider border ${
+                    className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded tracking-wider border flex items-center gap-1 ${
                         isSpacedReview 
                             ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30' 
-                            : 'text-white border-transparent'
+                            : event.isFreeStudy
+                                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30 ring-1 ring-emerald-500/20'
+                                : 'text-white border-transparent'
                     }`}
-                    style={!isSpacedReview ? { backgroundColor: activeColor } : {}}
+                    style={(!isSpacedReview && !event.isFreeStudy) ? { backgroundColor: activeColor } : {}}
                 >
-                    {isSpacedReview ? 'FLASHCARD ESPAÇADO' : defaultConfig.label}
+                    {isSpacedReview ? 'FLASHCARD ESPAÇADO' : event.isFreeStudy ? <><Trophy size={8} className="text-emerald-500" /> ESTUDO LIVRE</> : defaultConfig.label}
                 </span>
                 
                 {partInfo && (
@@ -435,7 +442,7 @@ const StudentCalendar: React.FC = () => {
   if (loading) {
     return (
         <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-            <Loader2 size={40} className="animate-spin text-brand-red" />
+            <Loader2 size={40} className="animate-spin text-[var(--plan-theme)]" />
             <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest">Carregando calendário...</p>
         </div>
     );
@@ -476,7 +483,7 @@ const StudentCalendar: React.FC = () => {
             Calendário
           </h1>
           <div className="flex items-center gap-2 mt-1">
-            <span className="text-sm font-bold text-brand-red uppercase tracking-widest">
+            <span className="text-sm font-bold text-[var(--plan-theme)] uppercase tracking-widest">
                 {viewMode === 'week' ? 'Visualização Semanal' : 'Visualização Mensal'}
             </span>
             <span className="text-zinc-600 text-xs font-mono uppercase border-l border-zinc-800 pl-2">
@@ -521,9 +528,9 @@ const StudentCalendar: React.FC = () => {
 
       {/* CTA ROLLING WINDOW */}
       {lastScheduledDate && !isPlanCompleted && new Date(lastScheduledDate) < new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) && (
-        <div className="mb-4 bg-gradient-to-r from-brand-red/20 to-transparent border border-brand-red/30 rounded-2xl p-4 flex flex-col md:flex-row items-center justify-between gap-4 animate-in fade-in slide-in-from-top-4">
+        <div className="mb-4 bg-gradient-to-r from-[var(--plan-theme)]/20 to-transparent border border-[var(--plan-theme)]/30 rounded-2xl p-4 flex flex-col md:flex-row items-center justify-between gap-4 animate-in fade-in slide-in-from-top-4">
             <div className="flex items-center gap-3">
-                <div className="p-2 bg-brand-red/20 text-brand-red rounded-full">
+                <div className="p-2 bg-[var(--plan-theme)]/20 text-[var(--plan-theme)] rounded-full">
                     <Trophy size={20} />
                 </div>
                 <div>
@@ -534,7 +541,7 @@ const StudentCalendar: React.FC = () => {
             <button 
                 onClick={handleGenerateNextWeeks}
                 disabled={isGeneratingNext}
-                className="w-full md:w-auto px-4 py-2 bg-brand-red hover:bg-red-600 text-white font-black text-[10px] rounded-lg uppercase tracking-wider transition-all shadow-lg shadow-red-900/20 flex items-center justify-center gap-2 disabled:opacity-50"
+                className="w-full md:w-auto px-4 py-2 bg-[var(--plan-theme)] hover:brightness-110 text-white font-black text-[10px] rounded-lg uppercase tracking-wider transition-all shadow-lg shadow-[var(--plan-theme)]/20 flex items-center justify-center gap-2 disabled:opacity-50"
             >
                 {isGeneratingNext ? (
                     <><Loader2 className="w-3 h-3 animate-spin" /> Gerando...</>
@@ -561,9 +568,9 @@ const StudentCalendar: React.FC = () => {
                             className="flex flex-col border-r border-zinc-800/50 last:border-r-0 snap-center lg:snap-none min-w-[280px] lg:min-w-0 h-full"
                         >
                             {/* Header Part */}
-                            <div className={`py-4 flex flex-col items-center justify-center border-b border-zinc-800 flex-none relative ${active ? 'bg-gradient-to-b from-brand-red/10 to-transparent' : 'bg-zinc-900/30'}`}>
-                                {active && <div className="absolute top-0 left-0 right-0 h-0.5 bg-brand-red shadow-[0_0_10px_red]"></div>}
-                                <span className={`text-[9px] font-black uppercase tracking-widest mb-1 ${active ? 'text-brand-red' : 'text-zinc-500'}`}>
+                            <div className={`py-4 flex flex-col items-center justify-center border-b border-zinc-800 flex-none relative ${active ? 'bg-gradient-to-b from-[var(--plan-theme)]/10 to-transparent' : 'bg-zinc-900/30'}`}>
+                                {active && <div className="absolute top-0 left-0 right-0 h-0.5 bg-[var(--plan-theme)] shadow-[0_0_10px_var(--plan-theme)]"></div>}
+                                <span className={`text-[9px] font-black uppercase tracking-widest mb-1 ${active ? 'text-[var(--plan-theme)]' : 'text-zinc-500'}`}>
                                     {getDayName(day)}
                                 </span>
                                 <span className={`text-2xl font-black ${active ? 'text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]' : 'text-zinc-400'}`}>
@@ -592,9 +599,9 @@ const StudentCalendar: React.FC = () => {
                                                 {isNewTopic && event.topicName && (
                                                     <div className="w-full flex flex-col items-center gap-1 my-4 px-1">
                                                         <div className="flex items-center w-full gap-2">
-                                                            <div className="h-px border-t border-dashed border-red-500/30 flex-1"></div>
-                                                            <span className="text-[7px] font-black text-red-500 uppercase tracking-[0.2em]">Novo Tópico</span>
-                                                            <div className="h-px border-t border-dashed border-red-500/30 flex-1"></div>
+                                                            <div className="h-px border-t border-dashed border-[var(--plan-theme)]/30 flex-1"></div>
+                                                            <span className="text-[7px] font-black text-[var(--plan-theme)] uppercase tracking-[0.2em]">Novo Tópico</span>
+                                                            <div className="h-px border-t border-dashed border-[var(--plan-theme)]/30 flex-1"></div>
                                                         </div>
                                                         <div className="flex flex-col items-center text-center">
                                                             <span className="text-[8px] font-bold text-zinc-500 uppercase tracking-wider leading-tight">
@@ -620,14 +627,14 @@ const StudentCalendar: React.FC = () => {
 
                                 {dateKey === lastScheduledDate && (
                                     <div className="mt-6 flex flex-col items-center w-full px-2 opacity-90 animate-in fade-in zoom-in-95 duration-500">
-                                        <div className="w-full h-px border-t border-dashed border-brand-red mb-3"></div>
-                                        <span className="text-[10px] text-brand-red font-orbitron font-bold text-center uppercase tracking-widest">
+                                        <div className="w-full h-px border-t border-dashed border-[var(--plan-theme)] mb-3"></div>
+                                        <span className="text-[10px] text-[var(--plan-theme)] font-orbitron font-bold text-center uppercase tracking-widest">
                                             FIM DA FASE ATUAL
                                         </span>
                                         <span className="text-[9px] text-zinc-500 text-center mt-1 uppercase">
                                             Conclua as metas para liberar a próxima fase
                                         </span>
-                                        <div className="w-full h-px border-t border-dashed border-brand-red mt-3"></div>
+                                        <div className="w-full h-px border-t border-dashed border-[var(--plan-theme)] mt-3"></div>
                                     </div>
                                 )}
 
@@ -665,11 +672,11 @@ const StudentCalendar: React.FC = () => {
                                 className={`
                                     border-r border-b border-zinc-800/50 relative p-2 transition-colors cursor-pointer flex flex-col gap-1
                                     ${!isCurrentMonth ? 'bg-zinc-950/80 opacity-40' : 'hover:bg-zinc-900/40'}
-                                    ${active ? 'bg-zinc-900/30 ring-1 ring-inset ring-brand-red/30' : ''}
+                                    ${active ? 'bg-zinc-900/30 ring-1 ring-inset ring-[var(--plan-theme)]/30' : ''}
                                 `}
                             >
                                 <div className="flex justify-between items-start">
-                                    <span className={`text-xs font-bold ${active ? 'text-brand-red' : (isCurrentMonth ? 'text-zinc-300' : 'text-zinc-600')}`}>
+                                    <span className={`text-xs font-bold ${active ? 'text-[var(--plan-theme)]' : (isCurrentMonth ? 'text-zinc-300' : 'text-zinc-600')}`}>
                                         {day.getDate()}
                                     </span>
                                     {totalCount > 0 && (
@@ -693,8 +700,8 @@ const StudentCalendar: React.FC = () => {
                                         
                                         if (showMonthDivider && dayEvents[0].topicName) {
                                             return (
-                                                <div className="flex flex-col mb-1 border-b border-red-500/20 pb-1">
-                                                    <span className="text-[6px] font-black text-red-500/70 uppercase tracking-tighter">Novo Tópico</span>
+                                                <div className="flex flex-col mb-1 border-b border-[var(--plan-theme)]/20 pb-1">
+                                                    <span className="text-[6px] font-black text-[var(--plan-theme)]/70 uppercase tracking-tighter">Novo Tópico</span>
                                                     <span className="text-[7px] font-bold text-zinc-500 uppercase truncate">
                                                         {dayEvents[0].disciplineName || dayEvents[0].discipline || 'Geral'}
                                                     </span>

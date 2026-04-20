@@ -47,4 +47,5 @@ export interface Plan {
   createdAt?: any;
   lastModifiedAt?: any;
   lastSyncedAt?: any;
+  themeColor?: string;
 }

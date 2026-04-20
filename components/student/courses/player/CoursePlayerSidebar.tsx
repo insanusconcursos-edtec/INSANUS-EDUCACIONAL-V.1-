@@ -145,7 +145,7 @@ const FolderItem: React.FC<FolderItemProps> = ({ folder, lessons, activeLessonId
                             {folder.title}
                         </span>
                         {isLocked && (
-                            <span className="text-[9px] text-red-500/70 font-bold uppercase tracking-tighter">
+                            <span className="text-[9px] text-[var(--plan-theme)]/70 font-bold uppercase tracking-tighter">
                                 Disponível em: {formattedDate}
                             </span>
                         )}
@@ -214,7 +214,7 @@ const LessonRow: React.FC<LessonRowProps> = ({ lesson, isActive, isCompleted, on
             onClick={onClick}
             className={`w-full flex items-center gap-3 p-3 rounded-lg text-left transition-all group
                 ${isActive 
-                    ? 'bg-red-600/10 border border-red-600/20' 
+                    ? 'bg-[var(--plan-theme)]/10 border border-[var(--plan-theme)]/20' 
                     : 'hover:bg-[#1a1d24] border border-transparent'
                 }
             `}
@@ -224,7 +224,7 @@ const LessonRow: React.FC<LessonRowProps> = ({ lesson, isActive, isCompleted, on
                 ${isCompleted 
                     ? 'bg-green-500/10 border-green-500/30' 
                     : isActive 
-                        ? 'bg-red-600 border-red-600 text-white' 
+                        ? 'bg-[var(--plan-theme)] border-[var(--plan-theme)] text-white' 
                         : 'bg-black border-gray-800 text-gray-500 group-hover:border-gray-600 group-hover:text-gray-300'
                 }
             `}>
@@ -234,7 +234,7 @@ const LessonRow: React.FC<LessonRowProps> = ({ lesson, isActive, isCompleted, on
             {/* Título */}
             <div className="flex-1 min-w-0">
                 <span className={`text-xs font-medium block truncate 
-                    ${isCompleted ? 'text-gray-500 line-through' : isActive ? 'text-red-500' : 'text-gray-400 group-hover:text-gray-200'}
+                    ${isCompleted ? 'text-gray-500 line-through' : isActive ? 'text-[var(--plan-theme)]' : 'text-gray-400 group-hover:text-gray-200'}
                 `}>
                     {lesson.title}
                 </span>
