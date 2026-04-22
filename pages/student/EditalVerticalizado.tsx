@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { 
-  FileText, Loader2, ChevronDown, ChevronUp, CheckCircle2, Layout, BookOpen, X 
+  FileText, Loader2, ChevronDown, ChevronUp, CheckCircle2, Layout, BookOpen, X, ClipboardList
 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -16,6 +16,8 @@ import { courseReviewService } from '../../services/courseReviewService';
 import { fetchFullPlanData } from '../../services/scheduleService';
 import { PlanHeroBanner } from '../../components/student/PlanHeroBanner';
 import { EditalNotebookModal } from '../../components/student/tools/EditalNotebookModal';
+import { EditalFlashcardsModal } from '../../components/student/tools/EditalFlashcardsModal';
+import { EditalMindMapsModal } from '../../components/student/tools/EditalMindMapsModal';
 import { NoteType } from '../../services/notebookService';
 
 const EditalVerticalizado: React.FC = () => {
@@ -54,6 +56,8 @@ const EditalVerticalizado: React.FC = () => {
     nodeTitle: string;
     type: NoteType;
     materials: any[];
+    editalNode?: any;
+    metaLookup?: Record<string, Meta>;
   }>({
     isOpen: false,
     nodeId: '',
@@ -62,7 +66,19 @@ const EditalVerticalizado: React.FC = () => {
     materials: []
   });
 
-  const openNotebook = (nodeId: string, nodeTitle: string, type: NoteType, linkedGoals?: any) => {
+  const [flashcardModal, setFlashcardModal] = useState({
+    isOpen: false,
+    nodeId: '',
+    nodeTitle: ''
+  });
+
+  const [mindMapModal, setMindMapModal] = useState({
+    isOpen: false,
+    nodeId: '',
+    nodeTitle: ''
+  });
+
+  const openNotebook = (nodeId: string, nodeTitle: string, type: NoteType, linkedGoals?: any, nodeData?: any) => {
     // 1. Coleta Profunda de Materiais (PDFs) em todas as categorias de metas
     const relatedMaterials: any[] = [];
     
@@ -118,7 +134,9 @@ const EditalVerticalizado: React.FC = () => {
       nodeId,
       nodeTitle,
       type,
-      materials: relatedMaterials
+      materials: relatedMaterials,
+      editalNode: nodeData,
+      metaLookup
     });
   };
 
@@ -394,8 +412,6 @@ const EditalVerticalizado: React.FC = () => {
                 }
 
                 const isEditalComplete = editalTotal > 0 && editalCompleted >= editalTotal;
-                const isPlanComplete = planTotal === 0 || planCompleted >= planTotal;
-
                 if (isEditalComplete) {
                     // Check for existing reviews of type 'topic_revision'
                     const allReviews = await courseReviewService.getReviewsByTopic(currentUser.uid, String(topic.id));
@@ -565,7 +581,19 @@ const EditalVerticalizado: React.FC = () => {
                                 </div>
                             </div>
 
-                            <div className="text-zinc-600 ml-4">
+                            <div className="text-zinc-600 ml-4 flex items-center gap-3">
+                                {/* CADERNO DE QUESTÕES (Exclusivo Nível Disciplina) */}
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        openNotebook(discipline.id, discipline.name, 'questions', null, discipline);
+                                    }}
+                                    className="p-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 rounded-lg border border-amber-500/20 transition-all group"
+                                    title="Caderno de Questões"
+                                >
+                                    <ClipboardList size={20} className="group-hover:scale-110 transition-transform" />
+                                </button>
+
                                 {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
                             </div>
                         </div>
@@ -593,8 +621,9 @@ const EditalVerticalizado: React.FC = () => {
                                                 onToggleGoal={handleToggleGoal}
                                                 onBatchToggle={handleBatchToggle}
                                                 onPlayVideo={setActiveVideo}
-                                                onOpenNotes={(id, title, goals) => openNotebook(id, title, 'note', goals)}
-                                                onOpenErrors={(id, title, goals) => openNotebook(id, title, 'error', goals)}
+                                                onOpenNotes={(id, title, goals) => openNotebook(id, title, 'note', goals, topic)}
+                                                onOpenFlashcards={(id, title) => setFlashcardModal({ isOpen: true, nodeId: id, nodeTitle: title })}
+                                                onOpenMindMap={(id, title) => setMindMapModal({ isOpen: true, nodeId: id, nodeTitle: title })}
                                                 highlightGoalId={activeHighlightGoal}
                                                 activeHighlightTopicId={activeHighlightTopic}
                                                 expandedTopics={expandedTopics}
@@ -647,6 +676,26 @@ const EditalVerticalizado: React.FC = () => {
             type={noteModal.type}
             topicTitle={noteModal.nodeTitle}
             materials={noteModal.materials}
+            editalNode={noteModal.editalNode}
+            metaLookup={noteModal.metaLookup}
+        />
+
+        {/* --- MODAL DE FLASHCARDS --- */}
+        <EditalFlashcardsModal 
+            isOpen={flashcardModal.isOpen}
+            onClose={() => setFlashcardModal(prev => ({ ...prev, isOpen: false }))}
+            planId={planId || ''}
+            editalNodeId={flashcardModal.nodeId}
+            topicTitle={flashcardModal.nodeTitle}
+        />
+
+        {/* --- MODAL DE MAPAS MENTAIS --- */}
+        <EditalMindMapsModal 
+            isOpen={mindMapModal.isOpen}
+            onClose={() => setMindMapModal(prev => ({ ...prev, isOpen: false }))}
+            planId={planId || ''}
+            editalNodeId={mindMapModal.nodeId}
+            topicTitle={mindMapModal.nodeTitle}
         />
       </div>
     </div>

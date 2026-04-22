@@ -17,7 +17,7 @@ import FlashcardPlayerModal from './FlashcardPlayerModal';
 import { mergeGoalExtension, getLocalISODate } from '../../services/scheduleService';
 import { registerStudySession, updateGoalRecordedTime, getStudentConfig } from '../../services/studentService';
 
-export type GoalType = 'lesson' | 'material' | 'questions' | 'law' | 'review' | 'summary' | 'simulado';
+export type GoalType = 'lesson' | 'material' | 'questions' | 'law' | 'review' | 'summary' | 'simulado' | 'free_study';
 
 export interface StudentGoal {
   id: string;
@@ -98,7 +98,8 @@ const TYPE_CONFIG: Record<GoalType, { label: string; color: string; icon: any }>
   law: { label: 'LEI SECA', color: '#eab308', icon: Book },
   review: { label: 'FLASHCARD', color: '#ec4899', icon: RefreshCw },
   summary: { label: 'RESUMO', color: '#a855f7', icon: FileText },
-  simulado: { label: 'SIMULADO', color: '#EAB308', icon: Trophy }, // Yellow/Gold
+  simulado: { label: 'SIMULADO', color: '#EAB308', icon: Trophy }, 
+  free_study: { label: 'ESTUDO LIVRE', color: '#10b981', icon: Trophy },
 };
 
 export const StudentGoalCard: React.FC<StudentGoalCardProps> = ({ goal, onStart, onToggleComplete, onRefresh, isDelayed }) => {
@@ -143,6 +144,7 @@ export const StudentGoalCard: React.FC<StudentGoalCardProps> = ({ goal, onStart,
   const defaultConfig = TYPE_CONFIG[goal.type] || TYPE_CONFIG.lesson;
   const activeColor = (goal.color && goal.color.startsWith('#')) ? goal.color : defaultConfig.color;
   const isLessonGoal = goal.type === 'lesson';
+  const isFreeStudyGoal = goal.type === 'free_study' || goal.isFreeStudy;
 
   // Counts & Checks
   const videoCount = goal.videos?.length || 0;
@@ -152,7 +154,9 @@ export const StudentGoalCard: React.FC<StudentGoalCardProps> = ({ goal, onStart,
   const hasFlashcards = !!goal.flashcards && goal.flashcards.length > 0;
   const questionCount = goal.questions?.length || 0;
 
-  const hasContent = videoCount > 0 || fileCount > 0 || linkCount > 0 || hasMindMap || hasFlashcards || questionCount > 0;
+  // Separação Lógica: Anexos vs Capacidade de Estudo
+  const hasActualMaterials = videoCount > 0 || fileCount > 0 || linkCount > 0 || hasMindMap || hasFlashcards || questionCount > 0;
+  const hasContent = hasActualMaterials || isFreeStudyGoal;
   const totalMaterials = videoCount + fileCount + linkCount + (hasMindMap ? 1 : 0) + (hasFlashcards ? 1 : 0) + (questionCount > 0 ? 1 : 0);
 
   // Sincroniza duração se a prop mudar (ex: após refresh real do banco)
@@ -562,13 +566,13 @@ export const StudentGoalCard: React.FC<StudentGoalCardProps> = ({ goal, onStart,
           <span 
             className="text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded border transition-colors flex items-center gap-1.5"
             style={{ 
-              color: goal.isFreeStudy ? '#10b981' : activeColor, 
-              borderColor: goal.isFreeStudy ? '#10b98140' : `${activeColor}40`, 
-              backgroundColor: goal.isFreeStudy ? '#10b98115' : `${activeColor}15`
+              color: isFreeStudyGoal ? '#10b981' : activeColor, 
+              borderColor: isFreeStudyGoal ? '#10b98140' : `${activeColor}40`, 
+              backgroundColor: isFreeStudyGoal ? '#10b98115' : `${activeColor}15`
             }}
           >
-            {goal.isFreeStudy ? <Trophy size={10} className="text-emerald-500" /> : null}
-            {goal.isFreeStudy ? 'ESTUDO LIVRE' : defaultConfig.label}
+            {isFreeStudyGoal ? <Trophy size={10} className="text-emerald-500" /> : null}
+            {isFreeStudyGoal ? 'ESTUDO LIVRE' : defaultConfig.label}
           </span>
 
           {goal.cycleName && (
@@ -807,7 +811,7 @@ export const StudentGoalCard: React.FC<StudentGoalCardProps> = ({ goal, onStart,
 
       {/* === FOOTER (CONDITIONAL) === */}
       
-      {isLessonGoal && hasContent && (
+      {isLessonGoal && hasActualMaterials && (
         <div 
             className="p-3 bg-zinc-950/30 border-t border-zinc-800/50 flex flex-col items-center justify-center cursor-pointer hover:bg-zinc-900/50 transition-colors group/indicator"
             onClick={(e) => {
@@ -828,7 +832,7 @@ export const StudentGoalCard: React.FC<StudentGoalCardProps> = ({ goal, onStart,
 
       {!isLessonGoal && (
         <div className="p-4 mt-auto">
-            {hasContent && (
+            {hasActualMaterials && (
                 <div 
                     className="flex flex-col items-center justify-center mb-3 cursor-pointer text-zinc-600 hover:text-white transition-colors group/indicator"
                     onClick={(e) => {

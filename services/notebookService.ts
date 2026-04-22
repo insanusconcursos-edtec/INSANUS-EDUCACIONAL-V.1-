@@ -14,7 +14,7 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 
-export type NoteType = 'note' | 'error';
+export type NoteType = 'note' | 'error' | 'questions';
 
 export interface EditalNote {
   id?: string;

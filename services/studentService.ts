@@ -70,7 +70,10 @@ export const registerStudySession = async (uid: string, planId: string, minutes:
     // Atualiza Lifetime e Plan Stats atomicamente
     await updateDoc(userRef, {
       lifetimeMinutes: increment(minutes),
-      [`planStats.${planId}.minutes`]: increment(minutes)
+      [`planStats.${planId}.minutes`]: increment(minutes),
+      // Campos solicitados para rastreamento de tempo
+      totalStudyTimeToday: increment(minutes),
+      totalStudyTimeWeek: increment(minutes)
     });
 
     console.log(`[Timer] Registrado: +${minutes.toFixed(2)} min para o plano ${planId}`);
@@ -106,6 +109,29 @@ export const updateGoalRecordedTime = async (uid: string, date: string, goalId: 
         // Salva de volta no banco
         await updateDoc(scheduleRef, cleanObject({ items }));
         console.log(`[Goal Timer] Atualizado: +${minutesToAdd.toFixed(2)} min na meta ${goalId} do dia ${date}`);
+      } else if (goalId === 'free_study' || goalId.includes('free_study')) {
+        // Fallback para estudo livre se não achar pelo ID exato
+        const freeStudyIndex = items.findIndex((i: any) => i.id === 'free_study' || i.type === 'free_study');
+        
+        if (freeStudyIndex !== -1) {
+          items[freeStudyIndex].recordedMinutes = (items[freeStudyIndex].recordedMinutes || 0) + minutesToAdd;
+        } else {
+          // Cria o item genérico se não existir
+          items.push({
+            id: 'free_study',
+            type: 'free_study',
+            title: 'Estudo Livre',
+            recordedMinutes: minutesToAdd,
+            planId: items[0]?.planId || '',
+            status: 'completed',
+            discipline: 'Geral',
+            topic: 'Estudo Livre',
+            disciplineId: 'free_study',
+            topicId: 'free_study'
+          });
+        }
+        await updateDoc(scheduleRef, cleanObject({ items }));
+        console.log(`[Goal Timer] Fallback Estudo Livre: +${minutesToAdd.toFixed(2)} min no dia ${date}`);
       }
     }
   } catch (error) {

@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { 
   LayoutDashboard, Coffee, Loader2, AlertTriangle, 
-  RefreshCw, CheckCircle2, Clock, ShieldCheck, X, Check, Trophy
+  RefreshCw, CheckCircle2, Clock, ShieldCheck, X, Check, Trophy, PlusCircle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { StudentGoalCard, StudentGoal } from '../../components/student/StudentGoalCard';
@@ -95,49 +95,62 @@ const StudentDashboard: React.FC = () => {
         setEdictStructure(edict);
         
         // Helper Mapper
-        const mapToGoal = (event: any): StudentGoal => ({
-            id: event.id,
-            metaId: event.metaId, // Essential for merge
-            planId: event.planId, // Essential for merge
-            date: event.date, // Essential for Time Tracking updates
-            type: event.type,
-            title: event.title,
-            discipline: event.disciplineName || event.discipline || 'Geral',
-            disciplineId: event.disciplineId,
-            topic: event.topicName || event.subject || '',
-            topicId: event.topicId,
-            duration: event.duration,
-            multiplier: Number(event.multiplier || event.lawConfig?.multiplier || event.lawConfig?.speedFactor) || 1,
-            recordedMinutes: event.recordedMinutes || 0, // NEW: Track actual time
-            isCompleted: event.status === 'completed',
-            observation: event.observation,
-            color: event.color || null,
-            part: event.part, // Map Part Number
-            order: event.order, // Map Order Number
-            smartExtension: event.smartExtension || null, // Map the extension config
-            cycleName: event.cycleName, // Map Cycle Name
-            cycleId: event.cycleId, // Map Cycle ID
-            cycleOrder: event.cycleOrder,
-            disciplineOrder: event.disciplineOrder,
-            subjectOrder: event.subjectOrder,
-            taskOrder: event.taskOrder,
+        const mapToGoal = (event: any): StudentGoal => {
+            // DETECÇÃO AGRESSIVA: Se o título, disciplina ou tópico for "ESTUDO LIVRE", tratamos como Estudo Livre
+            const titleUpper = (event.title || '').toUpperCase();
+            const disciplineUpper = (event.disciplineName || event.discipline || '').toUpperCase();
+            const topicUpper = (event.topicName || event.subject || '').toUpperCase();
             
-            // Review Specifics
-            reviewLabel: event.reviewLabel,
-            isSpacedReview: event.isSpacedReview || (event.type === 'review' && !!event.originalEventId),
+            const isFreeStudy = event.type === 'free_study' || 
+                               titleUpper === 'ESTUDO LIVRE' || 
+                               disciplineUpper === 'ESTUDO LIVRE' ||
+                               topicUpper === 'ESTUDO LIVRE';
 
-            videos: event.videos || [],
-            files: event.files || [],
-            links: event.links || [],
-            mindMap: event.mindMap || event.summaryConfig?.mindMap || [],
-            flashcards: event.flashcards || event.reviewConfig?.flashcards || event.flashcardConfig?.cards || [],
-            questions: event.questions || event.questionsConfig?.questions || [],
-            contentCount: {
-                video: event.videos?.length || 0,
-                pdf: event.files?.length || 0,
-                questions: event.questions?.length || event.questionsConfig?.questions?.length || 0 
-            }
-        });
+            return {
+                id: event.id,
+                metaId: event.metaId, // Essential for merge
+                planId: event.planId, // Essential for merge
+                date: event.date, // Essential for Time Tracking updates
+                type: isFreeStudy ? 'free_study' : event.type,
+                title: event.title,
+                discipline: event.disciplineName || event.discipline || 'Geral',
+                disciplineId: event.disciplineId,
+                topic: event.topicName || event.subject || '',
+                topicId: event.topicId,
+                duration: event.duration,
+                multiplier: Number(event.multiplier || event.lawConfig?.multiplier || event.lawConfig?.speedFactor) || 1,
+                recordedMinutes: event.recordedMinutes || 0, // NEW: Track actual time
+                isCompleted: event.status === 'completed',
+                observation: event.observation,
+                color: event.color || null,
+                part: event.part, // Map Part Number
+                order: event.order, // Map Order Number
+                smartExtension: event.smartExtension || null, // Map the extension config
+                cycleName: event.cycleName, // Map Cycle Name
+                cycleId: event.cycleId, // Map Cycle ID
+                cycleOrder: event.cycleOrder,
+                disciplineOrder: event.disciplineOrder,
+                subjectOrder: event.subjectOrder,
+                taskOrder: event.taskOrder,
+                
+                // Review Specifics
+                reviewLabel: event.reviewLabel,
+                isSpacedReview: event.isSpacedReview || (event.type === 'review' && !!event.originalEventId),
+                isFreeStudy: isFreeStudy, // Flag para sanitização posterior
+
+                videos: event.videos || [],
+                files: event.files || [],
+                links: event.links || [],
+                mindMap: event.mindMap || event.summaryConfig?.mindMap || [],
+                flashcards: event.flashcards || event.reviewConfig?.flashcards || event.flashcardConfig?.cards || [],
+                questions: event.questions || event.questionsConfig?.questions || [],
+                contentCount: {
+                    video: event.videos?.length || 0,
+                    pdf: event.files?.length || 0,
+                    questions: event.questions?.length || event.questionsConfig?.questions?.length || 0 
+                }
+            };
+        };
 
         // 1. Split Overdue Goals (Priority Logic)
         const spacedReviews = overdue.filter(ev => 
@@ -154,25 +167,36 @@ const StudentDashboard: React.FC = () => {
 
         // 2. Today Goals (Ordered)
         const mappedToday = today.map(mapToGoal);
-        const spacedReviewsToday = mappedToday.filter(item => item.isSpacedReview);
-        const normalTasksToday = mappedToday.filter(item => !item.isSpacedReview);
-        const sortedToday = [...spacedReviewsToday, ...normalTasksToday];
         
-        // Add flags for Dashboard (Today only)
+        // PILAR 1: Sanitização de Dados (Isolamento total na raiz)
+        const freeStudyToday = mappedToday.filter(goal => goal.type === 'free_study' || goal.isFreeStudy);
+        const regularTasksToday = mappedToday.filter(goal => goal.type !== 'free_study' && !goal.isFreeStudy);
+
+        // Ordenação da Trilha Regular
+        const spacedReviewsToday = regularTasksToday.filter(item => item.isSpacedReview);
+        const normalTasksToday = regularTasksToday.filter(item => !item.isSpacedReview);
+        const sortedRegular = [...spacedReviewsToday, ...normalTasksToday];
+        
+        // PILAR 2: Reset de Comparativo (Flags calculadas APENAS na trilha regular)
         let lastTopicId: string | null = null;
         let lastCycleId: string | null = null;
         let hasPreviousItem = false;
-        const todayWithFlags = sortedToday.map(goal => {
+
+        const regularWithFlags = sortedRegular.map(goal => {
             const isAbsoluteStartOfCycle = goal.disciplineOrder === 0 && goal.subjectOrder === 0 && goal.taskOrder === 0;
             const isNewTopic = !hasPreviousItem || goal.topicId !== lastTopicId;
             const isNewCycle = (hasPreviousItem && goal.cycleId !== lastCycleId) || isAbsoluteStartOfCycle;
+            
             lastTopicId = goal.topicId || null;
             lastCycleId = goal.cycleId || null;
             hasPreviousItem = true;
+            
             return { ...goal, isNewTopic, isNewCycle };
         });
         
-        setTodayGoals(todayWithFlags);
+        // Salvamos os dois tipos separadamente se preferir, ou mantemos no array mas respeitando a ordem
+        // O Estudo Livre NÃO terá isNewTopic/isNewCycle
+        setTodayGoals([...freeStudyToday, ...regularWithFlags]);
 
         // 3. CALCULATE SIMULADOS
         if (planId) {
@@ -963,42 +987,74 @@ const StudentDashboard: React.FC = () => {
                 </p>
             </div>
         ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                {todayGoals.map((goal) => {
-                    const isNewCycle = goal.isNewCycle;
-                    const isNewTopic = goal.isNewTopic;
+            <div className="flex flex-col gap-8">
+                {/* PILAR 3: Desestruturação de Renderização (Ações Livres) */}
+                {todayGoals.some(g => g.type === 'free_study' || g.isFreeStudy) && (
+                    <div className="flex flex-col gap-4 animate-in fade-in slide-in-from-top-2 duration-500">
+                        <div className="flex items-center gap-3">
+                            <PlusCircle size={16} className="text-emerald-500" />
+                            <h3 className="text-[10px] font-black text-emerald-500 uppercase tracking-[0.2em]">Ações Livres</h3>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                            {todayGoals.filter(g => g.type === 'free_study' || g.isFreeStudy).map(goal => (
+                                <StudentGoalCard 
+                                    key={goal.id}
+                                    goal={goal} 
+                                    onToggleComplete={(g) => handleToggleComplete(g)}
+                                    onRefresh={fetchSchedule}
+                                />
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* SESSÃO OFICIAL (Trilha Programada) */}
+                <div className="flex flex-col gap-1 mt-2">
+                    {todayGoals.some(g => g.type !== 'free_study' && !g.isFreeStudy) && (
+                         <div className="flex items-center gap-3 mb-4">
+                            <LayoutDashboard size={16} className="text-zinc-500" />
+                            <h3 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em]">Trilha Programada</h3>
+                        </div>
+                    )}
                     
-                    return (
-                        <React.Fragment key={goal.id}>
-                            {isNewCycle && (
-                                <div className="col-span-full flex flex-col items-center my-4 opacity-90 px-1">
-                                    <div className="w-full h-px border-t border-solid border-white/40 mb-1"></div>
-                                    <span className="text-[10px] text-white/80 font-bold text-center uppercase tracking-widest">
-                                        {goal.cycleName ? `INÍCIO: ${goal.cycleName}` : "NOVO CICLO"}
-                                    </span>
-                                    <div className="w-full h-px border-t border-solid border-white/40 mt-1"></div>
-                                </div>
-                            )}
-                            {isNewTopic && (
-                                <div className="col-span-full flex items-center gap-4 my-2">
-                                    <div className="h-px border-t border-dashed border-[var(--plan-theme)]/30 flex-1"></div>
-                                    <div className="flex flex-col items-center text-center px-4">
-                                        <span className="text-[9px] font-black text-[var(--plan-theme)] uppercase tracking-[0.2em]">Novo Tópico</span>
-                                        <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mt-0.5">{goal.discipline}</span>
-                                        <span className="text-[11px] font-black text-zinc-200 uppercase tracking-tight mt-0.5 leading-tight">{goal.topic}</span>
-                                    </div>
-                                    <div className="h-px border-t border-dashed border-[var(--plan-theme)]/30 flex-1"></div>
-                                </div>
-                            )}
-                            <StudentGoalCard 
-                                goal={goal} 
-                                onToggleComplete={(g) => handleToggleComplete(g)}
-                                onRefresh={fetchSchedule}
-                                onStart={goal.type === 'simulado' ? handleStartSimulado : undefined}
-                            />
-                        </React.Fragment>
-                    );
-                })}
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                        {todayGoals.filter(g => g.type !== 'free_study' && !g.isFreeStudy).map((goal) => {
+                            const isNewCycle = goal.isNewCycle;
+                            const isNewTopic = goal.isNewTopic;
+                            
+                            return (
+                                <React.Fragment key={goal.id}>
+                                    {isNewCycle && (
+                                        <div className="col-span-full flex flex-col items-center my-4 opacity-90 px-1">
+                                            <div className="w-full h-px border-t border-solid border-white/40 mb-1"></div>
+                                            <span className="text-[10px] text-white/80 font-bold text-center uppercase tracking-widest">
+                                                {goal.cycleName ? `INÍCIO: ${goal.cycleName}` : "NOVO CICLO"}
+                                            </span>
+                                            <div className="w-full h-px border-t border-solid border-white/40 mt-1"></div>
+                                        </div>
+                                    )}
+                                    {isNewTopic && (
+                                        <div className="col-span-full flex items-center gap-4 my-2">
+                                            <div className="h-px border-t border-dashed border-[var(--plan-theme)]/30 flex-1"></div>
+                                            <div className="flex flex-col items-center text-center px-4">
+                                                <span className="text-[9px] font-black text-[var(--plan-theme)] uppercase tracking-[0.2em]">Novo Tópico</span>
+                                                <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mt-0.5">{goal.discipline}</span>
+                                                <span className="text-[11px] font-black text-zinc-200 uppercase tracking-tight mt-0.5 leading-tight">{goal.topic}</span>
+                                            </div>
+                                            <div className="h-px border-t border-dashed border-[var(--plan-theme)]/30 flex-1"></div>
+                                        </div>
+                                    )}
+                                    <StudentGoalCard 
+                                        goal={goal} 
+                                        onToggleComplete={(g) => handleToggleComplete(g)}
+                                        onRefresh={fetchSchedule}
+                                        onStart={goal.type === 'simulado' ? handleStartSimulado : undefined}
+                                    />
+                                </React.Fragment>
+                            );
+                        })}
+                    </div>
+                </div>
             </div>
         )}
       </section>

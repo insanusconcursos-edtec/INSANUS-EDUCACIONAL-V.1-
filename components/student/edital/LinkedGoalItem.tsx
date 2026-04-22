@@ -4,26 +4,14 @@ import { createPortal } from 'react-dom';
 import { 
   CheckCircle2, ChevronDown, PlayCircle, FileText, 
   ListChecks, Book, Edit3, RefreshCw, ExternalLink, Download, 
-  Play, Plus, Trash2, Eye, Pencil, BrainCircuit, Layers, X, Loader2,
-  AlertTriangle, TextCursor, BookOpen, Lock, Trophy
+  Play, Eye, BrainCircuit, Layers, Lock, Trophy, TextCursor
 } from 'lucide-react';
-import { Meta, MetaType, MindMapNode } from '../../../services/metaService';
+import { Meta, MetaType } from '../../../services/metaService';
 import { isPandaVideo } from '../../../utils/videoHelpers';
 import { openWatermarkedPdf } from '../../../utils/pdfSecurityService';
 import { useAuth } from '../../../contexts/AuthContext';
-import { 
-  getUserContent, 
-  createUserContent, 
-  deleteUserContent, 
-  updateUserContent,
-  UserContentType, 
-  UserContentItem 
-} from '../../../services/userContentService';
 import MindMapViewerModal from '../MindMapViewerModal';
 import FlashcardPlayerModal from '../FlashcardPlayerModal';
-import MindMapFullscreen from '../../admin/metas/tools/mindmap/MindMapFullscreen';
-import FlashcardFullscreenEditor from '../../admin/metas/tools/FlashcardFullscreenEditor';
-import { NotebookEditorModal } from '../tools/NotebookEditorModal';
 
 interface LinkedGoalItemProps {
   goal: Meta;
@@ -58,35 +46,12 @@ const LinkedGoalItem: React.FC<LinkedGoalItemProps> = ({
   const { currentUser, userData } = useAuth();
   const [loadingPdf, setLoadingPdf] = useState(false);
 
-  // User Content State
-  const [userItems, setUserItems] = useState<UserContentItem[]>([]);
-  const [loadingContent, setLoadingContent] = useState(false);
-  
-  // Creation Modal State
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [newItemTitle, setNewItemTitle] = useState('');
-  const [isCreating, setIsCreating] = useState(false);
-
-  // Rename Modal State
-  const [itemToRename, setItemToRename] = useState<UserContentItem | null>(null);
-  const [renameTitle, setRenameTitle] = useState('');
-  const [isRenaming, setIsRenaming] = useState(false);
-
-  // Deletion Modal State
-  const [itemToDelete, setItemToDelete] = useState<UserContentItem | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
-
   // Confirmation Modal State
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   // Admin Content Viewers State
   const [isAdminMapOpen, setIsAdminMapOpen] = useState(false);
   const [isAdminFlashcardOpen, setIsAdminFlashcardOpen] = useState(false);
-
-  // User Content Editor State
-  const [activeUserItem, setActiveUserItem] = useState<UserContentItem | null>(null);
-  const [userEditorMode, setUserEditorMode] = useState<'VIEW' | 'EDIT'>('VIEW');
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success'>('idle');
 
   // --- AUTO-OPEN IF HIGHLIGHTED ---
   useEffect(() => {
@@ -107,148 +72,6 @@ const LinkedGoalItem: React.FC<LinkedGoalItemProps> = ({
   // Check for Admin Content
   const hasAdminMindMap = isSummary && goal.summaryConfig?.mindMap && goal.summaryConfig.mindMap.length > 0;
   const hasAdminFlashcards = isReview && goal.flashcardConfig?.cards && goal.flashcardConfig.cards.length > 0;
-
-  // --- HELPER: GET CONTENT TYPE & UI CONFIG ---
-  const getUserContentType = (): UserContentType | null => {
-    if (isSummary) return 'MAP';
-    if (isReview) return 'FLASHCARD';
-    if (isQuestions) return 'NOTEBOOK';
-    return null;
-  };
-
-  const getUserContentUI = () => {
-    if (isSummary) return { label: 'Meus Mapas Mentais', itemLabel: 'Mapa', btnLabel: 'NOVO MAPA', icon: BrainCircuit, color: '#a855f7' }; // Purple
-    if (isReview) return { label: 'Meus Flashcards', itemLabel: 'Deck', btnLabel: 'NOVO DECK', icon: Layers, color: '#ec4899' }; // Pink
-    if (isQuestions) return { label: 'Meus Cadernos', itemLabel: 'Caderno', btnLabel: 'NOVO CADERNO', icon: BookOpen, color: '#eab308' }; // Yellow
-    return null;
-  };
-
-  const uiConfig = getUserContentUI();
-
-  // --- EFFECT: LOAD USER CONTENT ---
-  useEffect(() => {
-    if (isOpen && supportsUserContent && currentUser && planId && goal.id) {
-        loadUserContent();
-    }
-  }, [isOpen, currentUser, planId]);
-
-  const loadUserContent = async () => {
-    if (!currentUser || !planId || !goal.id) return;
-    const type = getUserContentType();
-    if (!type) return;
-
-    setLoadingContent(true);
-    try {
-        const items = await getUserContent(currentUser.uid, planId, goal.id, type);
-        setUserItems(items);
-    } catch (error) {
-        console.error("Failed to load user content", error);
-    } finally {
-        setLoadingContent(false);
-    }
-  };
-
-  // --- HELPER: INITIAL MAP DATA ---
-  const getInitialMapData = (title: string): MindMapNode[] => {
-    return [{
-      id: crypto.randomUUID(),
-      label: title,
-      x: 0,
-      y: 0,
-      color: '#a855f7',
-      type: 'root'
-    }];
-  };
-
-  // --- CONTENT HANDLERS ---
-
-  const handleCreateConfirm = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!currentUser || !planId || !goal.id || !newItemTitle.trim()) return;
-    
-    const type = getUserContentType();
-    if (!type) return;
-
-    setIsCreating(true);
-    try {
-        await createUserContent(currentUser.uid, planId, goal.id, type, newItemTitle);
-        await loadUserContent(); // Refresh list
-        setIsCreateModalOpen(false);
-        setNewItemTitle('');
-    } catch (error: any) {
-        alert(error.message);
-    } finally {
-        setIsCreating(false);
-    }
-  };
-
-  const handleOpenUserItem = (item: UserContentItem, mode: 'VIEW' | 'EDIT') => {
-    setActiveUserItem(item);
-    setUserEditorMode(mode);
-  };
-
-  const handleSaveUserContent = async (contentData: any) => {
-    if (!currentUser || !planId || !activeUserItem) return;
-    
-    setSaveStatus('saving');
-
-    try {
-        // 1. Update Firestore
-        // FIXED: Now we pass { data: contentData } explicitly because the service is generic
-        await updateUserContent(currentUser.uid, planId, activeUserItem.id, { data: contentData });
-
-        // 2. Update Active Item State (Critical for Editor persistence without closing)
-        setActiveUserItem(prev => prev ? { ...prev, data: contentData } : null);
-
-        // 3. Update List State (Background refresh)
-        await loadUserContent();
-        
-        setSaveStatus('success');
-        setTimeout(() => setSaveStatus('idle'), 3000);
-
-        // Auto-close if editing flashcards (matches Admin behavior)
-        if (activeUserItem.type === 'FLASHCARD' && userEditorMode === 'EDIT') {
-             setActiveUserItem(null);
-        }
-        // NOTEBOOK does not auto-close to allow continuous editing
-    } catch (error) {
-        console.error("Failed to save user content", error);
-        alert("Erro ao salvar conteúdo.");
-        setSaveStatus('idle');
-    }
-  };
-
-  const handleRenameConfirm = async () => {
-    if (!currentUser || !planId || !itemToRename || !renameTitle.trim()) return;
-    
-    setIsRenaming(true);
-    try {
-        await updateUserContent(currentUser.uid, planId, itemToRename.id, { title: renameTitle.toUpperCase() });
-        await loadUserContent();
-        setItemToRename(null);
-        setRenameTitle('');
-    } catch (error) {
-        console.error("Failed to rename", error);
-        alert("Erro ao renomear.");
-    } finally {
-        setIsRenaming(false);
-    }
-  };
-
-  const handleConfirmDelete = async () => {
-    if (!currentUser || !planId || !itemToDelete) return;
-    setIsDeleting(true);
-    try {
-        await deleteUserContent(currentUser.uid, planId, itemToDelete.id);
-        setUserItems(prev => prev.filter(i => i.id !== itemToDelete.id));
-        setItemToDelete(null); // Fecha modal
-    } catch (error) {
-        console.error(error);
-        alert("Erro ao excluir.");
-    } finally {
-        setIsDeleting(false);
-    }
-  };
 
   const handleOpenPdf = async (url: string) => {
     if (!currentUser || loadingPdf) return;
@@ -524,81 +347,8 @@ const LinkedGoalItem: React.FC<LinkedGoalItemProps> = ({
              </div>
           )}
 
-          {/* 5. USER CONTENT SECTION (My Maps / My Flashcards / My Notebooks) */}
-          {supportsUserContent && uiConfig && (
-            <div className="mt-4 pt-3 border-t border-zinc-800/50">
-               <div className="flex items-center justify-between mb-3">
-                  <span className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2" style={{ color: uiConfig.color }}>
-                     <uiConfig.icon size={12} />
-                     {uiConfig.label}
-                  </span>
-                  <span className={`text-[9px] font-mono ${userItems.length >= 5 ? 'text-[var(--plan-theme)]' : 'text-zinc-600'}`}>
-                     {userItems.length}/5 Criados
-                  </span>
-               </div>
-
-               <div className="space-y-2">
-                  {userItems.map(item => (
-                     <div key={item.id} className="flex items-center justify-between p-2.5 bg-zinc-900 rounded-lg border border-zinc-800 group hover:border-zinc-700 transition-colors">
-                        <span className="text-xs font-medium text-zinc-300 uppercase truncate max-w-[150px]">
-                           {item.title}
-                        </span>
-                        <div className="flex items-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
-                           <button 
-                              onClick={() => handleOpenUserItem(item, 'VIEW')}
-                              className="p-1.5 hover:bg-zinc-800 rounded text-zinc-400 hover:text-white transition-colors" 
-                              title="Visualizar"
-                           >
-                              <Eye size={12} />
-                           </button>
-                           <button 
-                              onClick={() => handleOpenUserItem(item, 'EDIT')}
-                              className="p-1.5 hover:bg-zinc-800 rounded text-zinc-400 hover:text-white transition-colors" 
-                              title="Editar Conteúdo"
-                           >
-                              <Pencil size={12} />
-                           </button>
-                           
-                           {/* Rename Button - UPDATED ICON */}
-                           <button 
-                              onClick={(e) => { 
-                                  e.stopPropagation(); 
-                                  setItemToRename(item); 
-                                  setRenameTitle(item.title); 
-                              }}
-                              className="p-1.5 hover:bg-zinc-800 rounded text-zinc-400 hover:text-white transition-colors" 
-                              title="Renomear"
-                           >
-                              <TextCursor size={12} />
-                           </button>
-
-                           <button 
-                              onClick={(e) => { e.stopPropagation(); setItemToDelete(item); }}
-                              className="p-1.5 hover:bg-red-900/20 rounded text-zinc-400 hover:text-red-500 transition-colors" 
-                              title="Excluir"
-                           >
-                              <Trash2 size={12} />
-                           </button>
-                        </div>
-                     </div>
-                  ))}
-
-                  {/* Create Button */}
-                  {userItems.length < 5 && (
-                     <button 
-                        onClick={() => setIsCreateModalOpen(true)}
-                        className="w-full py-2.5 border border-dashed border-zinc-800 hover:border-zinc-600 rounded-lg text-[10px] font-bold text-zinc-500 hover:text-white hover:bg-zinc-900 transition-all flex items-center justify-center gap-2"
-                     >
-                        <Plus size={12} />
-                        {uiConfig.btnLabel}
-                     </button>
-                  )}
-               </div>
-            </div>
-          )}
-
           {/* EMPTY STATE */}
-          {(!goal.videos?.length && !goal.files?.length && !goal.links?.length && !supportsUserContent && !hasAdminMindMap && !hasAdminFlashcards) && (
+          {(!goal.videos?.length && !goal.files?.length && !goal.links?.length && !hasAdminMindMap && !hasAdminFlashcards) && (
              <div className="p-3 text-center border border-dashed border-zinc-800 rounded-lg">
                 <p className="text-[10px] text-zinc-600 uppercase font-bold">Sem conteúdo anexado</p>
              </div>
@@ -607,127 +357,6 @@ const LinkedGoalItem: React.FC<LinkedGoalItemProps> = ({
         </div>
       )}
     </div>
-
-    {/* --- MODAL: CREATE USER CONTENT --- */}
-    {isCreateModalOpen && createPortal(
-      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-        <div 
-            className="w-full max-w-sm bg-zinc-950 border border-zinc-800 rounded-2xl shadow-2xl p-6 animate-in zoom-in-95 duration-200"
-            onClick={e => e.stopPropagation()}
-        >
-            <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-black text-white uppercase tracking-tighter">
-                    Novo {uiConfig?.itemLabel}
-                </h3>
-                <button onClick={() => setIsCreateModalOpen(false)} className="text-zinc-500 hover:text-white"><X size={20}/></button>
-            </div>
-            
-            <form onSubmit={handleCreateConfirm}>
-                <div className="space-y-4">
-                    <div>
-                        <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">Título do Material</label>
-                        <input 
-                            value={newItemTitle}
-                            onChange={e => setNewItemTitle(e.target.value)}
-                            placeholder={`Ex: Meu ${uiConfig?.itemLabel} 01`}
-                            autoFocus
-                            className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-sm text-white placeholder-zinc-700 focus:outline-none focus:border-[var(--plan-theme)] font-bold uppercase"
-                        />
-                    </div>
-                    <button 
-                        type="submit" 
-                        disabled={isCreating || !newItemTitle.trim()}
-                        className="w-full py-3 bg-[var(--plan-theme)] hover:brightness-110 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-50"
-                    >
-                        {isCreating ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
-                        Criar Material
-                    </button>
-                </div>
-            </form>
-        </div>
-      </div>,
-      document.body
-    )}
-
-    {/* --- MODAL: RENAME USER CONTENT --- */}
-    {itemToRename && (
-        <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setItemToRename(null)}>
-            <div 
-                className="bg-zinc-950 border border-zinc-800 p-6 rounded-xl w-full max-w-sm shadow-2xl animate-in zoom-in-95 duration-200"
-                onClick={e => e.stopPropagation()}
-            >
-                <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                    <TextCursor className="w-5 h-5 text-blue-500" />
-                    Renomear Material
-                </h3>
-                
-                <input 
-                    type="text"
-                    value={renameTitle}
-                    onChange={(e) => setRenameTitle(e.target.value)}
-                    className="w-full bg-zinc-900 border border-zinc-800 text-white rounded-xl p-3 mb-6 focus:border-blue-500 outline-none font-bold uppercase"
-                    autoFocus
-                    placeholder="Novo Título"
-                />
-
-                <div className="flex justify-end gap-3">
-                    <button 
-                        onClick={() => setItemToRename(null)}
-                        className="px-4 py-2 text-zinc-400 hover:text-white text-xs font-bold uppercase tracking-widest bg-transparent border border-zinc-800 hover:bg-zinc-900 rounded-lg transition-colors"
-                        disabled={isRenaming}
-                    >
-                        Cancelar
-                    </button>
-                    <button 
-                        onClick={handleRenameConfirm}
-                        disabled={isRenaming || !renameTitle.trim()}
-                        className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold uppercase tracking-widest shadow-lg flex items-center gap-2 disabled:opacity-50"
-                    >
-                        {isRenaming ? <Loader2 size={12} className="animate-spin" /> : 'Salvar'}
-                    </button>
-                </div>
-            </div>
-        </div>
-    )}
-
-    {/* --- MODAL: CONFIRM DELETE USER CONTENT --- */}
-    {itemToDelete && (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setItemToDelete(null)}>
-            <div 
-                className="bg-zinc-950 border border-zinc-800 p-6 rounded-xl w-full max-w-sm shadow-2xl border-l-4 border-l-red-600 animate-in zoom-in-95 duration-200"
-                onClick={e => e.stopPropagation()}
-            >
-                <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
-                    <AlertTriangle className="w-5 h-5 text-red-500" />
-                    Excluir Material
-                </h3>
-                
-                <p className="text-zinc-400 text-sm mb-6 leading-relaxed">
-                    Tem certeza que deseja excluir permanentemente o item <span className="text-white font-bold uppercase">&quot;{itemToDelete.title}&quot;</span>?
-                    <br/>
-                    <span className="text-red-400 text-xs font-bold mt-2 block">Esta ação não pode ser desfeita.</span>
-                </p>
-
-                <div className="flex justify-end gap-3">
-                    <button 
-                        onClick={() => setItemToDelete(null)}
-                        className="px-4 py-2 text-zinc-400 hover:text-white text-xs font-bold uppercase tracking-widest transition-colors rounded-lg hover:bg-zinc-900"
-                        disabled={isDeleting}
-                    >
-                        Cancelar
-                    </button>
-                    <button 
-                        onClick={handleConfirmDelete}
-                        disabled={isDeleting}
-                        className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg text-xs font-bold uppercase tracking-widest shadow-lg shadow-red-900/20 flex items-center gap-2 transition-all disabled:opacity-50"
-                    >
-                        {isDeleting ? <Loader2 size={12} className="animate-spin"/> : <Trash2 size={12} />}
-                        {isDeleting ? 'Excluindo...' : 'Sim, Excluir'}
-                    </button>
-                </div>
-            </div>
-        </div>
-    )}
 
     {/* --- ADMIN CONTENT VIEWERS --- */}
     {hasAdminMindMap && (
@@ -750,66 +379,6 @@ const LinkedGoalItem: React.FC<LinkedGoalItemProps> = ({
             timerState={{ status: 'idle', formattedTime: '00:00' }}
             accentColor={metaColor}
         />
-    )}
-
-    {/* --- USER CONTENT EDITORS/VIEWERS --- */}
-    
-    {/* MAPA MENTAL */}
-    {activeUserItem && activeUserItem.type === 'MAP' && createPortal(
-        <div className="fixed inset-0 z-[200] w-screen h-screen bg-zinc-950">
-            {saveStatus === 'success' && (
-                <div className="absolute bottom-24 left-1/2 transform -translate-x-1/2 z-[210] bg-emerald-600 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 animate-in slide-in-from-bottom-4 fade-in duration-300 border border-emerald-400/50 backdrop-blur-md pointer-events-none">
-                    <div className="bg-white/20 p-1 rounded-full">
-                        <CheckCircle2 size={16} strokeWidth={3} />
-                    </div>
-                    <span className="font-bold text-xs tracking-widest uppercase">Mapa Salvo com Sucesso!</span>
-                </div>
-            )}
-            <MindMapFullscreen 
-                nodes={(activeUserItem.data && activeUserItem.data.length > 0) ? activeUserItem.data : getInitialMapData(activeUserItem.title)}
-                onChange={handleSaveUserContent}
-                onClose={() => setActiveUserItem(null)}
-                readOnly={userEditorMode === 'VIEW'}
-            />
-        </div>,
-        document.body
-    )}
-
-    {/* FLASHCARD EDITOR */}
-    {activeUserItem && activeUserItem.type === 'FLASHCARD' && userEditorMode === 'EDIT' && createPortal(
-        <div className="fixed inset-0 z-[200] w-screen h-screen bg-zinc-950 flex flex-col animate-in fade-in duration-200">
-            <FlashcardFullscreenEditor 
-                cards={activeUserItem.data || []}
-                onChange={handleSaveUserContent}
-                onClose={() => setActiveUserItem(null)}
-                accentColor={metaColor}
-            />
-        </div>,
-        document.body
-    )}
-
-    {/* FLASHCARD VIEWER */}
-    {activeUserItem && activeUserItem.type === 'FLASHCARD' && userEditorMode === 'VIEW' && (
-        <FlashcardPlayerModal 
-            isOpen={true}
-            onClose={() => setActiveUserItem(null)}
-            flashcards={activeUserItem.data || []}
-            title={activeUserItem.title}
-            timerState={{ status: 'idle', formattedTime: '00:00' }} 
-            accentColor={metaColor}
-        />
-    )}
-
-    {/* NOTEBOOK EDITOR (Fullscreen via Portal) */}
-    {activeUserItem && activeUserItem.type === 'NOTEBOOK' && createPortal(
-        <NotebookEditorModal
-            initialData={activeUserItem.data}
-            title={activeUserItem.title}
-            onSave={handleSaveUserContent}
-            onClose={() => setActiveUserItem(null)}
-            readOnly={userEditorMode === 'VIEW'}
-        />,
-        document.body
     )}
 
     {/* MODAL DE CONFIRMAÇÃO DE CONCLUSÃO MANUAL */}

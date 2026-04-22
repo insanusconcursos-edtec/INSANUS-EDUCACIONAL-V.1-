@@ -2,7 +2,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { 
-  ChevronRight, ChevronDown, CheckCircle2, Circle, Folder, Lock, AlertTriangle, Loader2, StickyNote, CalendarClock, BookOpen
+  ChevronRight, ChevronDown, CheckCircle2, Circle, Lock, StickyNote, CalendarClock, BookOpen,
+  Layers, Network, Loader2
 } from 'lucide-react';
 import { EdictTopic, EdictSubtopic, EdictStudyLevel } from '../../../services/edictService';
 import { Meta, MetaType } from '../../../services/metaService';
@@ -35,7 +36,8 @@ interface TopicItemProps {
   onBatchToggle?: (ids: string[], status: boolean) => void; // NEW PROP FOR BATCH UPDATE
   onPlayVideo?: (url: string) => void;
   onOpenNotes?: (id: string, title: string, linkedGoals?: any) => void;
-  onOpenErrors?: (id: string, title: string, linkedGoals?: any) => void;
+  onOpenFlashcards?: (id: string, title: string) => void;
+  onOpenMindMap?: (id: string, title: string) => void;
   highlightGoalId?: string | null;
   activeHighlightTopicId?: string | null;
   expandedTopics?: Set<string>;
@@ -55,7 +57,8 @@ const TopicItem: React.FC<TopicItemProps> = ({
   onBatchToggle,
   onPlayVideo,
   onOpenNotes,
-  onOpenErrors,
+  onOpenFlashcards,
+  onOpenMindMap,
   highlightGoalId,
   activeHighlightTopicId,
   expandedTopics
@@ -475,9 +478,34 @@ const TopicItem: React.FC<TopicItemProps> = ({
                 </button>
             )}
 
-            {/* CADERNO DE ANOTAÇÕES / ERROS (Apenas Leaf Nodes) */}
+            {/* ARSENAL DE ESTUDO (Apenas Leaf Nodes) */}
             {isLeaf && (
                 <div className="flex items-center gap-1.5 mr-3">
+                    {/* BOTÃO FLASHCARDS */}
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenFlashcards?.(item.id, item.name);
+                        }}
+                        className="p-2 bg-pink-500/10 hover:bg-pink-500/20 text-pink-500 rounded-lg border border-pink-500/20 transition-all group"
+                        title="Meus Flashcards"
+                    >
+                        <Layers size={14} className="group-hover:scale-110 transition-transform" />
+                    </button>
+
+                    {/* BOTÃO MAPAS MENTAIS */}
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenMindMap?.(item.id, item.name);
+                        }}
+                        className="p-2 bg-purple-500/10 hover:bg-purple-500/20 text-purple-500 rounded-lg border border-purple-500/20 transition-all group"
+                        title="Meus Mapas Mentais"
+                    >
+                        <Network size={14} className="group-hover:scale-110 transition-transform" />
+                    </button>
+
+                    {/* BOTÃO ANOTAÇÕES */}
                     <button
                         onClick={(e) => {
                             e.stopPropagation();
@@ -487,16 +515,6 @@ const TopicItem: React.FC<TopicItemProps> = ({
                         title="Caderno de Anotações"
                     >
                         <BookOpen size={14} className="group-hover:scale-110 transition-transform" />
-                    </button>
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onOpenErrors?.(item.id, item.name, item.linkedGoals);
-                        }}
-                        className="p-2 bg-orange-500/10 hover:bg-orange-500/20 text-orange-500 rounded-lg border border-orange-500/20 transition-all group"
-                        title="Caderno de Erros"
-                    >
-                        <AlertTriangle size={14} className="group-hover:scale-110 transition-transform" />
                     </button>
                 </div>
             )}
@@ -563,7 +581,8 @@ const TopicItem: React.FC<TopicItemProps> = ({
                     onBatchToggle={onBatchToggle} // PROPAGATE BATCH TOGGLE DOWN
                     onPlayVideo={onPlayVideo}
                     onOpenNotes={onOpenNotes}
-                    onOpenErrors={onOpenErrors}
+                    onOpenFlashcards={onOpenFlashcards}
+                    onOpenMindMap={onOpenMindMap}
                     highlightGoalId={highlightGoalId}
                     activeHighlightTopicId={activeHighlightTopicId}
                 />
