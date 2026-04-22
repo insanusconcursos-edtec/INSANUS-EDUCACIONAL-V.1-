@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { 
-  ChevronRight, ChevronDown, CheckCircle2, Circle, Folder, Lock, AlertTriangle, Loader2, StickyNote, CalendarClock
+  ChevronRight, ChevronDown, CheckCircle2, Circle, Folder, Lock, AlertTriangle, Loader2, StickyNote, CalendarClock, BookOpen
 } from 'lucide-react';
 import { EdictTopic, EdictSubtopic, EdictStudyLevel } from '../../../services/edictService';
 import { Meta, MetaType } from '../../../services/metaService';
@@ -34,6 +34,8 @@ interface TopicItemProps {
   onToggleGoal?: (goal: Meta) => void;
   onBatchToggle?: (ids: string[], status: boolean) => void; // NEW PROP FOR BATCH UPDATE
   onPlayVideo?: (url: string) => void;
+  onOpenNotes?: (id: string, title: string, linkedGoals?: any) => void;
+  onOpenErrors?: (id: string, title: string, linkedGoals?: any) => void;
   highlightGoalId?: string | null;
   activeHighlightTopicId?: string | null;
   expandedTopics?: Set<string>;
@@ -52,6 +54,8 @@ const TopicItem: React.FC<TopicItemProps> = ({
   onToggleGoal,
   onBatchToggle,
   onPlayVideo,
+  onOpenNotes,
+  onOpenErrors,
   highlightGoalId,
   activeHighlightTopicId,
   expandedTopics
@@ -123,6 +127,7 @@ const TopicItem: React.FC<TopicItemProps> = ({
 
   // Check for children
   const hasSubtopics = item.subtopics && item.subtopics.length > 0;
+  const isLeaf = !hasSubtopics;
   
   // Check for observation
   const observation = item.observation;
@@ -262,13 +267,35 @@ const TopicItem: React.FC<TopicItemProps> = ({
             const existingTopicReviews = allReviews.filter(r => r.type === 'topic_revision');
             
             if (existingTopicReviews.length === 0) {
+                // Lógica de Hereditariedade de Configuração (Config Lookup)
+                let inheritedConfig = [1, 7, 15, 30]; // Default padrão
+                const repeatLast = false;
+
+                if (item.linkedGoals) {
+                    // Tenta encontrar em qualquer categoria uma meta que tenha revisão ativa
+                    const allLinkedIds = Object.values(item.linkedGoals).flat() as string[];
+                    const goalWithReview = allLinkedIds
+                        .map(id => metaLookup[id])
+                        .find(g => g?.reviewConfig?.active);
+
+                    if (goalWithReview && goalWithReview.reviewConfig) {
+                        // Converte a string de intervalos "1,7,15,30" em array de números se necessário
+                        // Ou usa o array se já for array. Depende do schema.
+                        // Olhando o metaService, reviewConfig costuma ter spacedReviewIntervals string.
+                        const intervalsStr = goalWithReview.reviewConfig.spacedReviewIntervals || "1,7,15,30";
+                        inheritedConfig = intervalsStr.split(',').map(n => parseInt(n.trim())).filter(n => !isNaN(n));
+                    }
+                }
+
                 openSpacedReviewModal({
                     planId: planId || '',
                     disciplineId: disciplineId || '',
                     disciplineName: disciplineName || '',
-                    topicId: item.id,
+                    topicId: String(item.id),
                     topicName: item.name,
                     isAutoTriggered: true,
+                    config: inheritedConfig,
+                    contextType: planId ? 'plan' : 'course_topic', // Se tem planId, assume contexto de plano (Editais de Planos)
                     message: `🎉 PARABÉNS! Você concluiu todas as metas do tópico [${item.name}]. Deseja agendar suas revisões espaçadas agora?`
                 });
             }
@@ -415,13 +442,29 @@ const TopicItem: React.FC<TopicItemProps> = ({
                 <button
                     onClick={(e) => {
                         e.stopPropagation();
+                        
+                        // Busca configuração herdada para o agendamento manual também
+                        let inheritedConfig = [1, 7, 15, 30];
+                        if (item.linkedGoals) {
+                            const allLinkedIds = Object.values(item.linkedGoals).flat() as string[];
+                            const goalWithReview = allLinkedIds
+                                .map(id => metaLookup[id])
+                                .find(g => g?.reviewConfig?.active);
+                            if (goalWithReview?.reviewConfig) {
+                                const intervalsStr = goalWithReview.reviewConfig.spacedReviewIntervals || "1,7,15,30";
+                                inheritedConfig = intervalsStr.split(',').map(n => parseInt(n.trim())).filter(n => !isNaN(n));
+                            }
+                        }
+
                         openSpacedReviewModal({
                             planId: planId || '',
                             disciplineId: disciplineId || '',
                             disciplineName: disciplineName || '',
-                            topicId: item.id,
+                            topicId: String(item.id),
                             topicName: item.name,
                             isAutoTriggered: false,
+                            config: inheritedConfig,
+                            contextType: planId ? 'plan' : 'course_topic',
                             message: `Deseja agendar as revisões espaçadas para o tópico [${item.name}]?`
                         });
                     }}
@@ -430,6 +473,32 @@ const TopicItem: React.FC<TopicItemProps> = ({
                     <CalendarClock size={12} />
                     Agendar Revisões
                 </button>
+            )}
+
+            {/* CADERNO DE ANOTAÇÕES / ERROS (Apenas Leaf Nodes) */}
+            {isLeaf && (
+                <div className="flex items-center gap-1.5 mr-3">
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenNotes?.(item.id, item.name, item.linkedGoals);
+                        }}
+                        className="p-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-500 rounded-lg border border-blue-500/20 transition-all group"
+                        title="Caderno de Anotações"
+                    >
+                        <BookOpen size={14} className="group-hover:scale-110 transition-transform" />
+                    </button>
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenErrors?.(item.id, item.name, item.linkedGoals);
+                        }}
+                        className="p-2 bg-orange-500/10 hover:bg-orange-500/20 text-orange-500 rounded-lg border border-orange-500/20 transition-all group"
+                        title="Caderno de Erros"
+                    >
+                        <AlertTriangle size={14} className="group-hover:scale-110 transition-transform" />
+                    </button>
+                </div>
             )}
 
             {/* Status Icon */}
@@ -493,6 +562,8 @@ const TopicItem: React.FC<TopicItemProps> = ({
                     onToggleGoal={onToggleGoal}
                     onBatchToggle={onBatchToggle} // PROPAGATE BATCH TOGGLE DOWN
                     onPlayVideo={onPlayVideo}
+                    onOpenNotes={onOpenNotes}
+                    onOpenErrors={onOpenErrors}
                     highlightGoalId={highlightGoalId}
                     activeHighlightTopicId={activeHighlightTopicId}
                 />

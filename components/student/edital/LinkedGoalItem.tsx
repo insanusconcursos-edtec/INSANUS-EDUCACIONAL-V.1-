@@ -23,7 +23,7 @@ import MindMapViewerModal from '../MindMapViewerModal';
 import FlashcardPlayerModal from '../FlashcardPlayerModal';
 import MindMapFullscreen from '../../admin/metas/tools/mindmap/MindMapFullscreen';
 import FlashcardFullscreenEditor from '../../admin/metas/tools/FlashcardFullscreenEditor';
-import NotebookEditorModal from '../tools/NotebookEditorModal';
+import { NotebookEditorModal } from '../tools/NotebookEditorModal';
 
 interface LinkedGoalItemProps {
   goal: Meta;

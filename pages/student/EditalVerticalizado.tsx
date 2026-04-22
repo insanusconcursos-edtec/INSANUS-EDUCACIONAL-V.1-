@@ -15,6 +15,8 @@ import { useSpacedReviewModal } from '../../contexts/SpacedReviewModalContext';
 import { courseReviewService } from '../../services/courseReviewService';
 import { fetchFullPlanData } from '../../services/scheduleService';
 import { PlanHeroBanner } from '../../components/student/PlanHeroBanner';
+import { EditalNotebookModal } from '../../components/student/tools/EditalNotebookModal';
+import { NoteType } from '../../services/notebookService';
 
 const EditalVerticalizado: React.FC = () => {
   const { currentUser } = useAuth();
@@ -44,6 +46,81 @@ const EditalVerticalizado: React.FC = () => {
   
   // Video Player State
   const [activeVideo, setActiveVideo] = useState<string | null>(null);
+
+  // --- NOTEBOOK STATE ---
+  const [noteModal, setNoteModal] = useState<{
+    isOpen: boolean;
+    nodeId: string;
+    nodeTitle: string;
+    type: NoteType;
+    materials: any[];
+  }>({
+    isOpen: false,
+    nodeId: '',
+    nodeTitle: '',
+    type: 'note',
+    materials: []
+  });
+
+  const openNotebook = (nodeId: string, nodeTitle: string, type: NoteType, linkedGoals?: any) => {
+    // 1. Coleta Profunda de Materiais (PDFs) em todas as categorias de metas
+    const relatedMaterials: any[] = [];
+    
+    // Fallback: Se por algum motivo linkedGoals vier vazio, tenta buscar na estrutura carregada
+    let goalsToScan = linkedGoals;
+    if ((!goalsToScan || Object.keys(goalsToScan).length === 0) && structure) {
+        for (const disc of structure.disciplines) {
+            for (const topic of disc.topics) {
+                if (topic.id === nodeId) {
+                    goalsToScan = topic.linkedGoals;
+                    break;
+                }
+                for (const sub of topic.subtopics) {
+                    if (sub.id === nodeId) {
+                        goalsToScan = sub.linkedGoals;
+                        break;
+                    }
+                }
+                if (goalsToScan) break;
+            }
+            if (goalsToScan) break;
+        }
+    }
+
+    if (goalsToScan && metaLookup) {
+        // Itera sobre todas as categorias de metas vinculadas (lesson, material, law, questions, etc)
+        Object.keys(goalsToScan).forEach(category => {
+            const goalIds = goalsToScan[category];
+            if (Array.isArray(goalIds)) {
+                goalIds.forEach((goalId: string) => {
+                    const goal = metaLookup[goalId];
+                    if (goal && goal.files && goal.files.length > 0) {
+                        // Extração assistida de PDFs (suporta links com query params como FB storage)
+                        const pdfFiles = goal.files
+                            .filter((f: any) => (f.url || f.fileUrl)?.toLowerCase().includes('.pdf'))
+                            .map((f: any) => ({
+                                ...f,
+                                url: f.url || f.fileUrl,
+                                goalContext: goal.title // Útil para o aluno saber de qual meta veio o PDF
+                            }));
+                        
+                        if (pdfFiles.length > 0) {
+                            relatedMaterials.push(...pdfFiles);
+                        }
+                    }
+                });
+            }
+        });
+    }
+
+    setNoteModal({
+      isOpen: true,
+      nodeId,
+      nodeTitle,
+      type,
+      materials: relatedMaterials
+    });
+  };
 
   // === HOOK DE PROGRESSO (ANALYTICS) ===
   const stats = useEditalProgress(structure, completedMetaIds);
@@ -516,6 +593,8 @@ const EditalVerticalizado: React.FC = () => {
                                                 onToggleGoal={handleToggleGoal}
                                                 onBatchToggle={handleBatchToggle}
                                                 onPlayVideo={setActiveVideo}
+                                                onOpenNotes={(id, title, goals) => openNotebook(id, title, 'note', goals)}
+                                                onOpenErrors={(id, title, goals) => openNotebook(id, title, 'error', goals)}
                                                 highlightGoalId={activeHighlightGoal}
                                                 activeHighlightTopicId={activeHighlightTopic}
                                                 expandedTopics={expandedTopics}
@@ -558,6 +637,17 @@ const EditalVerticalizado: React.FC = () => {
             </div>,
             document.body
         )}
+
+        {/* --- MODAL DE CADERNO / ERROS --- */}
+        <EditalNotebookModal 
+            isOpen={noteModal.isOpen}
+            onClose={() => setNoteModal(prev => ({ ...prev, isOpen: false }))}
+            planId={planId || ''}
+            editalNodeId={noteModal.nodeId}
+            type={noteModal.type}
+            topicTitle={noteModal.nodeTitle}
+            materials={noteModal.materials}
+        />
       </div>
     </div>
   );

@@ -7,13 +7,16 @@ import toast from 'react-hot-toast';
 
 interface SpacedReviewModalContextType {
   openSpacedReviewModal: (params: {
-    planId: string;
+    planId?: string;
+    courseId?: string;
     disciplineId: string;
     disciplineName: string;
     topicId: string;
     topicName: string;
     isAutoTriggered?: boolean;
     message?: string;
+    contextType?: 'plan' | 'course_topic';
+    config?: number[];
   }) => void;
 }
 
@@ -31,23 +34,29 @@ export const SpacedReviewModalProvider: React.FC<{ children: React.ReactNode }> 
   const { currentUser } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [params, setParams] = useState<{
-    planId: string;
+    planId?: string;
+    courseId?: string;
     disciplineId: string;
     disciplineName: string;
     topicId: string;
     topicName: string;
     isAutoTriggered?: boolean;
     message?: string;
+    contextType?: 'plan' | 'course_topic';
+    config?: number[];
   } | null>(null);
 
   const openSpacedReviewModal = useCallback((newParams: {
-    planId: string;
+    planId?: string;
+    courseId?: string;
     disciplineId: string;
     disciplineName: string;
     topicId: string;
     topicName: string;
     isAutoTriggered?: boolean;
     message?: string;
+    contextType?: 'plan' | 'course_topic';
+    config?: number[];
   }) => {
     setParams(newParams);
     setIsOpen(true);
@@ -57,16 +66,20 @@ export const SpacedReviewModalProvider: React.FC<{ children: React.ReactNode }> 
     if (!params || !currentUser) return;
 
     try {
+      // Se o contexto for curso, garantimos que o courseId seja usado
+      const targetCourseId = params.contextType === 'course_topic' ? params.courseId : null;
+      const targetPlanId = params.contextType === 'plan' || !params.contextType ? params.planId : undefined;
+
       await courseReviewService.scheduleReviews(
         currentUser.uid,
-        null, // courseId
+        targetCourseId || null,
         params.disciplineId,
         params.disciplineName,
         params.topicId,
         params.topicName,
         intervals,
         repeatLast,
-        params.planId
+        targetPlanId
       );
       toast.success('Revisões agendadas com sucesso!');
       setIsOpen(false);
@@ -87,6 +100,7 @@ export const SpacedReviewModalProvider: React.FC<{ children: React.ReactNode }> 
           topicName={params.topicName}
           isAutoTriggered={params.isAutoTriggered ?? true}
           customMessage={params.message}
+          initialConfig={params.config}
         />
       )}
     </SpacedReviewModalContext.Provider>

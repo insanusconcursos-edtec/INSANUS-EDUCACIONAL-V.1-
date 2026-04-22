@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { OnlineCourse, CourseModule, CONTEST_STATUS_LABELS, CourseStructureModule } from '../../../types/course';
 import { courseService } from '../../../services/courseService';
+import { getStudentConfig } from '../../../services/studentService';
 import { liveEventService } from '../../../services/liveEventService';
 import { LiveEvent } from '../../../types/liveEvent';
 import { StudentModuleCard } from './StudentModuleCard';
@@ -58,7 +59,7 @@ export function CourseDetails({ course, onBack }: CourseDetailsProps) {
                     courseService.getCompletedLessons(currentUser.uid, course.id),
                     courseService.getDetailedProgress(currentUser.uid, course.id),
                     courseService.getCourseStats(course.id),
-                    courseService.getStudentConfig(currentUser.uid)
+                    getStudentConfig(currentUser.uid)
                 ]);
                 
                 setDetailedProgress(detailed);

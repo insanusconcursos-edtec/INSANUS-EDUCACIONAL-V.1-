@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { courseReviewService, CourseReview } from '../../../../services/courseReviewService';
 import { courseService } from '../../../../services/courseService';
+import { getEdict } from '../../../../services/edictService';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { AlertCircle, CalendarClock, CheckCircle2, ChevronRight, ChevronDown } from 'lucide-react';
 
@@ -12,15 +13,66 @@ export function CourseReviewDashboard({ courseId, planId, onReviewNow }: { cours
     const fetchReviews = async () => {
         if (!user) return;
         try {
-            // Busca as revisões pendentes filtradas por plano ou curso se fornecidos
-            // Se planId for fornecido, a prioridade é o isolamento por plano (Dashboard)
+            // 1. Busca as revisões pendentes filtradas por plano ou curso se fornecidos
             const reviewsData = await courseReviewService.getPendingReviews(
                 user.uid, 
                 planId || courseId, 
                 planId ? 'plan' : 'course'
             );
+
+            // 2. Busca a estrutura oficial para validação de integridade (Cross-Reference)
+            const validTopicIds = new Set<string>();
             
-            setReviews(reviewsData);
+            if (planId) {
+                const planEdict = await getEdict(planId);
+                const extractIds = (items: any[]) => {
+                    items.forEach(item => {
+                        validTopicIds.add(String(item.id));
+                        if (item.topics) extractIds(item.topics);
+                        if (item.subtopics) extractIds(item.subtopics);
+                    });
+                };
+                extractIds(planEdict.disciplines || []);
+            } else if (courseId) {
+                const courseEdital = await courseService.getCourseEdital(courseId);
+                const extractIds = (items: any[]) => {
+                    items.forEach(item => {
+                        validTopicIds.add(String(item.id));
+                        if (item.topics) extractIds(item.topics);
+                        if (item.subtopics) extractIds(item.subtopics);
+                    });
+                };
+                extractIds(courseEdital.disciplines || []);
+            }
+
+            // 3. Filtro de Integridade e Preparação do Self-Healing
+            const validReviews: CourseReview[] = [];
+            const orphanedReviews: CourseReview[] = [];
+
+            if (validTopicIds.size > 0) {
+                reviewsData.forEach(review => {
+                    if (validTopicIds.has(String(review.topicId))) {
+                        validReviews.push(review);
+                    } else {
+                        orphanedReviews.push(review);
+                    }
+                });
+
+                // 4. Self-Healing: Limpeza silenciosa em background
+                if (orphanedReviews.length > 0) {
+                    console.warn(`[Self-Healing] Detectadas ${orphanedReviews.length} revisões órfãs. Limpando banco...`);
+                    courseReviewService.cleanupOrphanedReviews(orphanedReviews)
+                        .catch(err => console.error("Erro no self-healing das revisões:", err));
+                }
+
+                setReviews(validReviews);
+            } else {
+                // Se não conseguimos validar a estrutura (ex: edital vazio), mantemos as revisões originais
+                // mas apenas se realmente não houver estrutura. Se houver estrutura e o Set estiver vazio,
+                // então todas seriam órfãs.
+                setReviews(reviewsData);
+            }
+            
         } catch (error) {
             console.error("Erro ao buscar revisões:", error);
         } finally {

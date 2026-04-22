@@ -9,11 +9,25 @@ interface SpacedReviewConfigModalProps {
   onClose: () => void;
   onSave: (intervals: number[], repeatLast: boolean) => void;
   isAutoTriggered?: boolean;
+  clearConfig?: boolean;
   customMessage?: string;
+  initialConfig?: number[];
 }
 
-export function SpacedReviewConfigModal({ isOpen, topicName, onClose, onSave, isAutoTriggered, customMessage }: SpacedReviewConfigModalProps) {
-  const [inputValue, setInputValue] = useState('1, 7, 15, 30');
+export function SpacedReviewConfigModal({ 
+  isOpen, 
+  topicName, 
+  onClose, 
+  onSave, 
+  isAutoTriggered, 
+  customMessage,
+  initialConfig 
+}: SpacedReviewConfigModalProps) {
+  const [inputValue, setInputValue] = useState(
+    initialConfig && initialConfig.length > 0 
+      ? initialConfig.join(', ') 
+      : '1, 7, 15, 30'
+  );
   const [repeatLast, setRepeatLast] = useState(false);
   const [error, setError] = useState('');
 

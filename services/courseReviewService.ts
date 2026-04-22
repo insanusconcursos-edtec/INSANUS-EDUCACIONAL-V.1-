@@ -244,5 +244,21 @@ export const courseReviewService = {
     }
 
     await batch.commit();
+  },
+
+  /**
+   * 7. Deleta um lote de revisões órfãs (Self-healing)
+   */
+  cleanupOrphanedReviews: async (reviews: CourseReview[]) => {
+    if (!reviews || reviews.length === 0) return;
+
+    const batch = writeBatch(db);
+    reviews.forEach(review => {
+      // Usamos a referência direta se o review tiver userId e ID
+      const reviewRef = doc(db, 'users', review.userId, 'course_reviews', review.id);
+      batch.delete(reviewRef);
+    });
+
+    await batch.commit();
   }
 };

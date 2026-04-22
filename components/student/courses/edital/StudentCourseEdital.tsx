@@ -2,8 +2,8 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { 
-  ChevronRight, ChevronDown, CheckCircle2, PlayCircle, FileText, FileQuestion,
-  BrainCircuit, Layers, StickyNote, X, BookOpen, Loader2, CalendarClock
+  ChevronRight, CheckCircle2, PlayCircle, FileText, FileQuestion,
+  BrainCircuit, Layers, X, BookOpen, Loader2, CalendarClock
 } from 'lucide-react';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useSpacedReviewModal } from '../../../../contexts/SpacedReviewModalContext';
@@ -18,7 +18,6 @@ import { CourseEditalStructure } from '../../../../types/courseEdital';
 
 // IMPORTAÇÕES DO SISTEMA DE REVISÃO
 import { courseReviewService, CourseReview } from '../../../../services/courseReviewService';
-import { SpacedReviewConfigModal } from '../reviews/SpacedReviewConfigModal';
 
 // Helper para formatar data curta (dd/mm)
 const formatShortDate = (dateStr: string) => {
@@ -32,7 +31,7 @@ const formatShortDate = (dateStr: string) => {
 // ==========================================
 function StudentTopicAccordion({ topic, courseId, planId, disciplineId, disciplineName, completedLessons, completedTopics, onToggleTopic, focusTopicId }: any) {
   
-  const { triggerReviewModal } = useSpacedReviewModal();
+  const { openSpacedReviewModal } = useSpacedReviewModal();
   // NOVA LÓGICA: Verifica se ESTE é o tópico exato que deve piscar
   const isFocused = String(topic.id) === String(focusTopicId);
 
@@ -638,12 +637,14 @@ function StudentTopicAccordion({ topic, courseId, planId, disciplineId, discipli
                     });
 
                     // E abre o modal de agendar revisão via Contexto Global
-                    triggerReviewModal({
-                        planId: planId || '', // Passa o planId se disponível
+                    openSpacedReviewModal({
+                        planId: planId || '', // Passa o planId se disponível (opcional para curso)
+                        courseId: courseId,   // CRÍTICO para curso
                         disciplineId: disciplineId || '',
                         disciplineName: disciplineName || '',
                         topicId: String(topic.id),
-                        topicName: topic.name
+                        topicName: topic.name,
+                        contextType: 'course_topic' // Define que é contexto de curso
                     });
                 }
             }}
