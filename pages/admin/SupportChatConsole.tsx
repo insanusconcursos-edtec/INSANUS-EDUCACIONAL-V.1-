@@ -2,9 +2,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Search, MessageSquare, Send, CheckCircle2, 
   PlayCircle, Loader2, MoreVertical, CheckCheck,
-  Paperclip, X
+  Paperclip, X, Trash2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import toast from 'react-hot-toast';
+import { doc, deleteDoc } from 'firebase/firestore';
+import { ref, deleteObject } from 'firebase/storage';
+import { db, storage } from '../../services/firebase';
 import { supportService } from '../../services/supportService';
 import { uploadSupportImage } from '../../services/storageService';
 import { SupportTicket, TicketMessage, ProductType } from '../../types/support';
@@ -33,6 +37,8 @@ export const SupportChatConsole: React.FC<SupportChatConsoleProps> = ({
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [messageToDelete, setMessageToDelete] = useState<TicketMessage | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -144,6 +150,34 @@ export const SupportChatConsole: React.FC<SupportChatConsoleProps> = ({
     setImagePreview(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!messageToDelete || !selectedTicket) return;
+
+    setIsDeleting(true);
+    try {
+      // Passo A: Remover do Storage se houver imagem
+      if (messageToDelete.imageUrl) {
+        try {
+          const storageRef = ref(storage, messageToDelete.imageUrl);
+          await deleteObject(storageRef);
+        } catch (storageError) {
+          console.error('Erro ao deletar imagem do storage:', storageError);
+          // Prosseguimos mesmo se o storage falhar (pode ser que o arquivo já não exista)
+        }
+      }
+
+      // Passo B: Remover do Firestore
+      await deleteDoc(doc(db, 'support_tickets', selectedTicket.id, 'messages', messageToDelete.id));
+      toast.success('Mensagem apagada com sucesso');
+      setMessageToDelete(null);
+    } catch (error) {
+      console.error('Erro ao deletar mensagem:', error);
+      toast.error('Erro ao apagar mensagem');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -320,27 +354,39 @@ export const SupportChatConsole: React.FC<SupportChatConsoleProps> = ({
                       )}
                       
                       <div className={`max-w-[80%] group flex gap-2 items-end ${isEquipe ? 'flex-row-reverse' : ''}`}>
-                        <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed ${
-                          isEquipe 
-                            ? 'bg-orange-600 text-white rounded-tr-none' 
-                            : 'bg-zinc-800 text-zinc-200 rounded-tl-none'
-                        }`}>
-                          {msg.imageUrl && (
-                            <div className="mb-2">
-                              <img 
-                                src={msg.imageUrl} 
-                                alt="Anexo" 
-                                className="max-w-[250px] md:max-w-sm rounded-lg cursor-pointer hover:opacity-90 transition-opacity border border-white/10"
-                                onClick={() => window.open(msg.imageUrl, '_blank')}
-                              />
-                            </div>
+                        <div className="relative group/msg">
+                          {isEquipe && (
+                            <button
+                              onClick={() => setMessageToDelete(msg)}
+                              className="absolute -left-10 top-2 p-2 bg-zinc-800 border border-zinc-700/50 rounded-lg text-zinc-500 hover:text-red-500 hover:bg-red-500/10 transition-all opacity-0 group-hover/msg:opacity-100"
+                              title="Apagar mensagem"
+                            >
+                              <Trash2 size={14} />
+                            </button>
                           )}
-                          {msg.text && <p className="whitespace-pre-wrap">{msg.text}</p>}
-                          <div className={`flex items-center gap-1 mt-1.5 ${isEquipe ? 'justify-end' : ''}`}>
-                            <span className={`text-[9px] font-medium ${isEquipe ? 'text-white/60' : 'text-zinc-500'}`}>
-                              {format(msg.createdAt, 'HH:mm')}
-                            </span>
-                            {isEquipe && <CheckCheck size={12} className="text-white/40" />}
+                          
+                          <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed ${
+                            isEquipe 
+                              ? 'bg-orange-600 text-white rounded-tr-none' 
+                              : 'bg-zinc-800 text-zinc-200 rounded-tl-none'
+                          }`}>
+                            {msg.imageUrl && (
+                              <div className="mb-2">
+                                <img 
+                                  src={msg.imageUrl} 
+                                  alt="Anexo" 
+                                  className="max-w-[250px] md:max-w-sm rounded-lg cursor-pointer hover:opacity-90 transition-opacity border border-white/10"
+                                  onClick={() => window.open(msg.imageUrl, '_blank')}
+                                />
+                              </div>
+                            )}
+                            {msg.text && <p className="whitespace-pre-wrap">{msg.text}</p>}
+                            <div className={`flex items-center gap-1 mt-1.5 ${isEquipe ? 'justify-end' : ''}`}>
+                              <span className={`text-[9px] font-medium ${isEquipe ? 'text-white/60' : 'text-zinc-500'}`}>
+                                {format(msg.createdAt, 'HH:mm')}
+                              </span>
+                              {isEquipe && <CheckCheck size={12} className="text-white/40" />}
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -452,6 +498,63 @@ export const SupportChatConsole: React.FC<SupportChatConsoleProps> = ({
           )}
         </AnimatePresence>
       </div>
+
+      {/* Confirmation Modal */}
+      <AnimatePresence>
+        {messageToDelete && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => !isDeleting && setMessageToDelete(null)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            />
+            
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden shadow-2xl"
+            >
+              <div className="p-6">
+                <div className="w-12 h-12 rounded-xl bg-red-500/10 flex items-center justify-center text-red-500 mb-4">
+                  <Trash2 size={24} />
+                </div>
+                
+                <h3 className="text-lg font-bold text-white mb-2 uppercase tracking-tight">Apagar Mensagem</h3>
+                <p className="text-zinc-400 text-sm leading-relaxed mb-6">
+                  Tem certeza que deseja apagar esta mensagem? Esta ação não pode ser desfeita e removerá permanentemente os anexos vinculados a ela.
+                </p>
+                
+                <div className="flex gap-3">
+                  <button 
+                    onClick={() => setMessageToDelete(null)}
+                    disabled={isDeleting}
+                    className="flex-1 py-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold uppercase text-[10px] rounded-xl transition-all disabled:opacity-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    onClick={handleConfirmDelete}
+                    disabled={isDeleting}
+                    className="flex-2 py-3 bg-red-600 hover:bg-red-500 text-white font-black uppercase text-[10px] rounded-xl transition-all shadow-lg shadow-red-900/20 disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {isDeleting ? (
+                      <>
+                        <Loader2 size={16} className="animate-spin" />
+                        Apagando...
+                      </>
+                    ) : (
+                      'Sim, Apagar'
+                    )}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
