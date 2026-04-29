@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  MessageSquare, Clock, CheckCircle2, ChevronRight, 
-  ArrowLeft, Search, Filter, Loader2, Send
+  MessageSquare, Clock, ArrowLeft, Search, Loader2, Send,
+  Paperclip, X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { supportService } from '../../services/supportService';
+import { uploadSupportImage } from '../../services/storageService';
 import { SupportTicket, TicketMessage } from '../../types/support';
 import { useAuth } from '../../contexts/AuthContext';
 import { format } from 'date-fns';
@@ -12,14 +13,18 @@ import { ptBR } from 'date-fns/locale';
 import Loading from '../../components/ui/Loading';
 
 export const StudentSupportHistory: React.FC<{ onBack: () => void }> = ({ onBack }) => {
-  const { currentUser } = useAuth();
+  const { currentUser, userProfile } = useAuth();
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(null);
   const [messages, setMessages] = useState<TicketMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const [loading, setLoading] = useState(true);
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -52,21 +57,58 @@ export const StudentSupportHistory: React.FC<{ onBack: () => void }> = ({ onBack
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim() || !selectedTicket || !currentUser || isSending) return;
+    if ((!newMessage.trim() && !selectedImage) || !selectedTicket || !currentUser || isSending || isUploading) return;
 
     setIsSending(true);
+    let imageUrl = '';
+
     try {
+      if (selectedImage) {
+        setIsUploading(true);
+        imageUrl = await uploadSupportImage(selectedTicket.id, selectedImage);
+        setIsUploading(false);
+      }
+
       await supportService.sendMessage(selectedTicket.id, {
         senderId: currentUser.uid,
         senderRole: 'student',
-        senderName: currentUser.displayName || 'Aluno',
+        senderName: userProfile?.name || currentUser.displayName || 'Aluno',
         text: newMessage,
+        imageUrl,
       }, false);
+
       setNewMessage('');
+      setSelectedImage(null);
+      setImagePreview(null);
     } catch (error) {
       console.error(error);
     } finally {
       setIsSending(false);
+      setIsUploading(false);
+    }
+  };
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        alert('A imagem deve ter no máximo 5MB');
+        return;
+      }
+      setSelectedImage(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeSelectedImage = () => {
+    setSelectedImage(null);
+    setImagePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
 
@@ -191,13 +233,23 @@ export const StudentSupportHistory: React.FC<{ onBack: () => void }> = ({ onBack
                         <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} ${isPrevSameAuthor ? '-mt-4' : ''}`}>
                           {!isPrevSameAuthor && (
                             <span className="text-[10px] font-black uppercase text-zinc-600 mb-1.5 px-2">
-                              {isMe ? 'Você' : msg.senderName}
+                              {isMe ? 'VOCÊ' : (msg.senderRole === 'student' ? msg.senderName.toUpperCase() : msg.senderName)}
                             </span>
                           )}
                           <div className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm leading-relaxed ${
                             isMe ? 'bg-orange-600 text-white rounded-tr-none' : 'bg-zinc-800 text-zinc-200 rounded-tl-none'
                           }`}>
-                            {msg.text}
+                            {msg.imageUrl && (
+                              <div className="mb-2">
+                                <img 
+                                  src={msg.imageUrl} 
+                                  alt="Anexo" 
+                                  className="max-w-full rounded-lg cursor-pointer hover:opacity-90 transition-opacity border border-white/10"
+                                  onClick={() => window.open(msg.imageUrl, '_blank')}
+                                />
+                              </div>
+                            )}
+                            {msg.text && <div>{msg.text}</div>}
                             <div className="text-[9px] mt-1.5 opacity-50 font-bold text-right">
                               {format(msg.createdAt, 'HH:mm')}
                             </div>
@@ -217,21 +269,59 @@ export const StudentSupportHistory: React.FC<{ onBack: () => void }> = ({ onBack
                         </p>
                       </div>
                     ) : (
-                      <form onSubmit={handleSendMessage} className="flex gap-2">
-                        <input
-                          value={newMessage}
-                          onChange={(e) => setNewMessage(e.target.value)}
-                          placeholder="Digite aqui sua mensagem..."
-                          className="flex-1 bg-black/50 border border-zinc-800 rounded-2xl px-5 py-4 text-sm text-white placeholder:text-zinc-700 focus:outline-none focus:border-orange-500/30 transition-all font-medium"
-                        />
-                        <button
-                          type="submit"
-                          disabled={!newMessage.trim() || isSending}
-                          className="w-14 h-14 bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-white rounded-2xl flex items-center justify-center transition-all shadow-xl shadow-orange-950/20"
-                        >
-                          {isSending ? <Loader2 size={24} className="animate-spin" /> : <Send size={24} />}
-                        </button>
-                      </form>
+                      <div className="flex flex-col gap-2">
+                        {imagePreview && (
+                          <div className="flex px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-2xl animate-in fade-in slide-in-from-bottom-2">
+                            <div className="relative group">
+                              <img src={imagePreview} alt="Preview" className="w-16 h-16 object-cover rounded-lg border border-zinc-700" />
+                              <button 
+                                type="button"
+                                onClick={removeSelectedImage}
+                                className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-zinc-900 border border-zinc-800 rounded-full flex items-center justify-center text-zinc-400 hover:text-white transition-colors"
+                              >
+                                <X size={12} />
+                              </button>
+                              {isUploading && (
+                                <div className="absolute inset-0 bg-black/60 rounded-lg flex items-center justify-center">
+                                  <Loader2 size={16} className="animate-spin text-white" />
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        <form onSubmit={handleSendMessage} className="flex gap-2">
+                          <input 
+                            type="file"
+                            ref={fileInputRef}
+                            onChange={handleImageSelect}
+                            accept="image/png, image/jpeg, image/webp"
+                            className="hidden"
+                          />
+                          <div className="flex-1 relative flex items-center">
+                            <input
+                              value={newMessage}
+                              onChange={(e) => setNewMessage(e.target.value)}
+                              placeholder="Digite aqui sua mensagem..."
+                              className="flex-1 bg-black/50 border border-zinc-800 rounded-2xl px-5 py-4 text-sm text-white placeholder:text-zinc-700 focus:outline-none focus:border-orange-500/30 transition-all font-medium pr-12"
+                            />
+                            <button 
+                              type="button"
+                              onClick={() => fileInputRef.current?.click()}
+                              className="absolute right-3 p-2 text-zinc-600 hover:text-zinc-400 transition-colors"
+                            >
+                              <Paperclip size={20} />
+                            </button>
+                          </div>
+                          <button
+                            type="submit"
+                            disabled={(!newMessage.trim() && !selectedImage) || isSending || isUploading}
+                            className="w-14 h-14 bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-white rounded-2xl flex items-center justify-center transition-all shadow-xl shadow-orange-950/20 shrink-0"
+                          >
+                            {(isSending || isUploading) ? <Loader2 size={24} className="animate-spin" /> : <Send size={24} />}
+                          </button>
+                        </form>
+                      </div>
                     )}
                   </div>
                 </motion.div>

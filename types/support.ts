@@ -27,5 +27,6 @@ export interface TicketMessage {
   senderRole: 'student' | 'admin' | 'collaborator';
   senderName: string;
   text: string;
+  imageUrl?: string;
   createdAt: number;
 }
