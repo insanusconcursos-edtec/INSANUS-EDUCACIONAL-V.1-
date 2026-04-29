@@ -1,0 +1,43 @@
+{
+  "entities": {
+    "Feedback": {
+      "title": "Feedback",
+      "description": "Feedback submitted by a student about a product or teacher.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userProfile": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" },
+            "email": { "type": "string" },
+            "photoUrl": { "type": "string" }
+          }
+        },
+        "productType": {
+          "type": "string",
+          "enum": ["plano", "curso_online", "turma_presencial", "simulado", "evento_ao_vivo"]
+        },
+        "productId": { "type": "string" },
+        "productName": { "type": "string" },
+        "category": {
+          "type": "string",
+          "enum": ["idea", "compliment", "complaint", "teacher_evaluation"]
+        },
+        "message": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "teacherId": { "type": "string" },
+        "teacherName": { "type": "string" },
+        "rating": { "type": "number" }
+      },
+      "required": ["userId", "productType", "productId", "category", "message", "createdAt"]
+    }
+  },
+  "firestore": {
+    "feedbacks/{feedbackId}": {
+      "schema": "Feedback",
+      "description": "Collection of student feedbacks."
+    }
+  }
+}

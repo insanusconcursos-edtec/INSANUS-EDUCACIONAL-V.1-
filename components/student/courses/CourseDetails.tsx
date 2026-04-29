@@ -13,6 +13,7 @@ import { CheckCircle2, LayoutList, ListTree, PlayCircle, ArrowLeft, Radio, Video
 import { StudentCourseEdital } from './edital/StudentCourseEdital';
 import { CourseReviewDashboard } from './reviews/CourseReviewDashboard';
 import { WelcomeVideoModal } from './WelcomeVideoModal';
+import { SupportFloatingButton } from '../support/SupportFloatingButton';
 
 interface CourseDetailsProps {
   course: OnlineCourse;
@@ -396,6 +397,14 @@ export function CourseDetails({ course, onBack }: CourseDetailsProps) {
           title={course.welcomeButtonTitle || 'BOAS VINDAS'}
         />
       )}
+      
+      <SupportFloatingButton 
+        productInfo={{
+          type: 'curso_online',
+          id: course.id,
+          name: course.title
+        }}
+      />
     </div>
   );
 }

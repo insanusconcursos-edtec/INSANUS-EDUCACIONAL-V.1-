@@ -5,7 +5,7 @@ import {
   PlayCircle, FileText, ListChecks, Book, RefreshCw, 
   Clock, CheckCircle2, Circle, StickyNote,
   ChevronDown, ChevronUp, Link as LinkIcon, Download,
-  BrainCircuit, Layers, Play, Pause, Check, Maximize2, Timer, Loader2, Square, PlusCircle, Trophy, AlertTriangle
+  BrainCircuit, Layers, Play, Pause, Check, Maximize2, Timer, Loader2, Square, PlusCircle, Trophy, AlertTriangle, MessageSquare
 } from 'lucide-react';
 import { useStudyTimer } from '../../hooks/useStudyTimer';
 import { useAuth } from '../../contexts/AuthContext';
@@ -130,6 +130,9 @@ export const StudentGoalCard: React.FC<StudentGoalCardProps> = ({ goal, onStart,
 
   // -- CONTROLE DE CONCLUSÃO MANUAL --
   const [isCompleteModalOpen, setIsCompleteModalOpen] = useState(false);
+
+  // -- CONTROLE DE OBSERVAÇÃO (ACORDEÃO) --
+  const [isObservationOpen, setIsObservationOpen] = useState(false);
 
   // -- CONTROLE DE SIMULADO (Local state to map to the requested logic) --
   const [isSimuladoMaterialsExpanded, setIsSimuladoMaterialsExpanded] = useState(false);
@@ -626,14 +629,26 @@ export const StudentGoalCard: React.FC<StudentGoalCardProps> = ({ goal, onStart,
         </p>
         
         {goal.observation && (
-          <div 
-            className="mt-3 flex items-start gap-2 bg-yellow-900/10 border border-yellow-500/20 p-2 rounded-lg"
-            onClick={(e) => e.stopPropagation()}
-          >
-              <StickyNote size={12} className="text-yellow-500 mt-0.5 shrink-0" />
-              <span className="text-[10px] text-yellow-500 font-medium leading-tight">
-                  {goal.observation}
-              </span>
+          <div className="mt-3 flex flex-col gap-1" onClick={(e) => e.stopPropagation()}>
+            <button 
+              onClick={() => setIsObservationOpen(!isObservationOpen)}
+              className="flex items-center justify-between w-full p-2.5 bg-orange-500/10 border border-orange-500/20 rounded-lg hover:bg-orange-500/20 transition-all group"
+            >
+              <div className="flex items-center gap-2 text-orange-500 text-[10px] font-black uppercase tracking-wider">
+                <MessageSquare size={14} className="group-hover:scale-110 transition-transform" />
+                <span>Dica do Mentor</span>
+              </div>
+              <ChevronDown 
+                size={14} 
+                className={`text-orange-500 transition-transform duration-300 ${isObservationOpen ? 'rotate-180' : ''}`} 
+              />
+            </button>
+            
+            {isObservationOpen && (
+              <div className="p-3 bg-orange-500/5 border border-orange-500/10 rounded-lg text-[11px] text-orange-200/90 leading-relaxed whitespace-pre-wrap animate-in fade-in slide-in-from-top-1 duration-300">
+                {goal.observation}
+              </div>
+            )}
           </div>
         )}
 

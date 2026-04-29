@@ -25,6 +25,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { useSpacedReviewModal } from '../../contexts/SpacedReviewModalContext';
 import { PlanHeroBanner } from '../../components/student/PlanHeroBanner';
+import { SupportFloatingButton } from '../../components/student/support/SupportFloatingButton';
 
 const StudentDashboard: React.FC = () => {
   const { currentUser } = useAuth();
@@ -1212,6 +1213,16 @@ const StudentDashboard: React.FC = () => {
       {/* MODAL DE REVISÃO ESPAÇADA (DIRETRIZ ESTRITA - MONTADO NO DASHBOARD) */}
       {/* Spaced Review Modal (GERENCIADO VIA CONTEXTO) */}
       </div>
+
+      {currentPlanId && (
+        <SupportFloatingButton 
+          productInfo={{
+            type: 'plano',
+            id: currentPlanId,
+            name: fullPlanData?.title || 'Meu Plano de Estudos'
+          }}
+        />
+      )}
     </div>
   );
 };

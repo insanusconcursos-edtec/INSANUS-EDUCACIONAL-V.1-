@@ -21,6 +21,7 @@ import Loading from '../../components/ui/Loading';
 import { StudentSimulatedList } from '../../components/student/simulados/StudentSimulatedList';
 import { StudentAutoDiagnosis } from '../../components/student/simulados/StudentAutoDiagnosis';
 import { StudentPerformanceDashboard } from '../../components/student/simulados/StudentPerformanceDashboard';
+import { SupportFloatingButton } from '../../components/student/support/SupportFloatingButton';
 
 // Helper Component para Linha do Ranking
 const RankingRow: React.FC<{ rank: SimulatedAttempt & { originalRank: number }, currentUserId?: string }> = ({ rank, currentUserId }) => {
@@ -837,6 +838,14 @@ const StudentSimulated: React.FC = () => {
                     </div>
                 </div>
               )}
+
+              <SupportFloatingButton 
+                productInfo={{
+                  type: 'simulado',
+                  id: selectedClass.id,
+                  name: selectedClass.title
+                }}
+              />
           </div>
       );
   }

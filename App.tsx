@@ -38,6 +38,7 @@ import {
 import { StudentHome } from './pages/student/StudentHome';
 import StudentConfigPage from './pages/student/StudentConfigPage';
 import ProductsManager from './pages/admin/products/ProductsManager';
+import { SupportManager } from './pages/admin/SupportManager';
 
 // Wrapper to handle root redirection based on role
 const RootRedirect = () => {
@@ -98,6 +99,8 @@ const App: React.FC = () => {
               <Route path="eventos-ao-vivo/:eventId" element={<AdminLiveEventDetails />} />
               
               <Route path="equipe" element={<TeamManager />} />
+              
+              <Route path="suporte" element={<SupportManager />} />
               
               <Route path="manutencao" element={<Maintenance />} />
           </Route>

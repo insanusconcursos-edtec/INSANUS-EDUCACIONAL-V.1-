@@ -3,7 +3,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { 
   Plus, Trash2, Shield, Users, Layers, GraduationCap, 
   CheckCircle2, XCircle, User, Lock, Key, Loader2, Pencil,
-  Package, Monitor, MapPin, Radio, Headphones
+  Package, Monitor, MapPin, Radio, Headphones, Headset
 } from 'lucide-react';
 import { 
   getCollaborators, 
@@ -86,7 +86,8 @@ const CreateCollaboratorModal = ({
     produtos: false,
     cursos_online: false,
     turmas_presenciais: false,
-    eventos_ao_vivo: false
+    eventos_ao_vivo: false,
+    suporte: false
   });
   const [loading, setLoading] = useState(false);
 
@@ -108,7 +109,8 @@ const CreateCollaboratorModal = ({
         produtos: false,
         cursos_online: false,
         turmas_presenciais: false,
-        eventos_ao_vivo: false
+        eventos_ao_vivo: false,
+        suporte: false
       });
     }
   }, [editingCollaborator, isOpen]);
@@ -260,6 +262,13 @@ const CreateCollaboratorModal = ({
                 checked={permissions.eventos_ao_vivo} 
                 onChange={() => togglePerm('eventos_ao_vivo')} 
                 colorClass="red-500" 
+              />
+              <PermissionToggle 
+                label="Suporte" 
+                icon={Headset} 
+                checked={permissions.suporte} 
+                onChange={() => togglePerm('suporte')} 
+                colorClass="sky-500" 
               />
             </div>
           </div>
@@ -440,6 +449,7 @@ const TeamManager: React.FC = () => {
                      <PermissionBadge label="CURSOS" active={collab.permissions.cursos_online} color="text-cyan-500" />
                      <PermissionBadge label="PRESENCIAL" active={collab.permissions.turmas_presenciais} color="text-yellow-500" />
                      <PermissionBadge label="EVENTOS" active={collab.permissions.eventos_ao_vivo} color="text-red-500" />
+                     <PermissionBadge label="SUPORTE" active={collab.permissions.suporte} color="text-sky-500" />
                   </div>
 
                </div>

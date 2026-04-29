@@ -9,6 +9,7 @@ import { StudentLiveChat } from '../../../components/student/lives/room/StudentL
 import { StudentLiveWaitingRoom } from '../../../components/student/lives/room/StudentLiveWaitingRoom';
 import { AdminLivePlayer } from '../../../components/admin/liveEvents/room/AdminLivePlayer';
 import { StudentLiveRecording } from '../../../components/student/lives/room/StudentLiveRecording';
+import { SupportFloatingButton } from '../../../components/student/support/SupportFloatingButton';
 import { joinLiveEvent, leaveLiveEvent } from '../../../services/liveChatService';
 import toast from 'react-hot-toast';
 
@@ -355,6 +356,16 @@ export const StudentLiveEventRoom: React.FC = () => {
           )}
         </div>
       </div>
+
+      {event && (
+        <SupportFloatingButton 
+          productInfo={{
+            type: 'evento_ao_vivo',
+            id: event.id,
+            name: event.title
+          }}
+        />
+      )}
     </div>
   );
 };

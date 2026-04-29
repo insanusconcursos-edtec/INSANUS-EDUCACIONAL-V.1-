@@ -52,6 +52,11 @@ const AdminLayout: React.FC = () => {
         items.push({ label: 'ALUNOS', path: '/admin/alunos' });
     }
 
+    // 6.5 SUPORTE
+    if (isAdmin || perms.suporte) {
+        items.push({ label: 'SUPORTE', path: '/admin/suporte' });
+    }
+
     // 7. MANUTENÇÃO (Admin Only)
     if (isAdmin) {
         items.push({ label: 'MANUTENÇÃO', path: '/admin/manutencao' });

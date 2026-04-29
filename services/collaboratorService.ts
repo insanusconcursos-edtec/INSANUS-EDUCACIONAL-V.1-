@@ -33,6 +33,7 @@ export interface CollaboratorPermissions {
   cursos_online: boolean;
   turmas_presenciais: boolean;
   eventos_ao_vivo: boolean;
+  suporte: boolean;
 }
 
 export interface Collaborator {

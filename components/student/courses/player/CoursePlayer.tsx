@@ -4,6 +4,7 @@ import { OnlineCourse, CourseModule, CourseSubModule, CourseLesson } from '../..
 import { courseService } from '../../../../services/courseService';
 import { CoursePlayerSidebar } from './CoursePlayerSidebar';
 import { CoursePlayerContent } from './CoursePlayerContent';
+import { SupportFloatingButton } from '../../../../components/student/support/SupportFloatingButton';
 import { useAuth } from '../../../../contexts/AuthContext';
 
 interface CoursePlayerProps {
@@ -148,6 +149,13 @@ export function CoursePlayer({ course, module, onBack }: CoursePlayerProps) {
         />
       </div>
 
+      <SupportFloatingButton 
+        productInfo={{
+          type: 'curso_online',
+          id: course.id,
+          name: course.title
+        }}
+      />
     </div>
   );
 }
