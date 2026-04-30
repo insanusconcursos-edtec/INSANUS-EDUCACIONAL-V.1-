@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { ChevronDown, ChevronRight, FileText, Link as LinkIcon, CheckCircle, Clock, AlertCircle, Globe, Video, CheckCircle2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, FileText, CheckCircle, Clock, AlertCircle, Globe, Video, CheckCircle2 } from 'lucide-react';
 import { Subject, Topic, Module } from '../../../../../../types/curriculum';
 import { ClassScheduleEvent } from '../../../../../../types/schedule';
 import { Teacher } from '../../../../../../types/teacher';
@@ -54,7 +54,7 @@ export function PedagogicalPlanning({ subjects, topics, modules, events, teacher
 
   const onlineModuleIds = new Set(modules.filter(m => m.isOnline).map(m => m.id));
 
-  const handleOpenPdf = async (url: string, title: string) => {
+  const handleOpenPdf = async (url: string, _title: string) => {
     try {
       await openWatermarkedPdf(url, {
         email: currentUser?.email || 'admin@insanus.com',
@@ -390,34 +390,86 @@ export function PedagogicalPlanning({ subjects, topics, modules, events, teacher
 
                                     {/* Materials Section */}
                                     {moduleContents.length > 0 && (
-                                      <div className="space-y-3">
+                                      <div className="space-y-4">
                                         <h4 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Materiais de Apoio</h4>
-                                        <div className="grid gap-2">
-                                          {moduleContents.map(content => (
-                                            <button 
-                                              key={content.id}
-                                              onClick={() => {
-                                                if (content.type === 'PDF') {
-                                                  handleOpenPdf(content.url, content.title);
-                                                } else {
-                                                  window.open(content.url, '_blank');
-                                                }
-                                              }}
-                                              className="w-full text-left flex items-center gap-3 p-3 rounded-md bg-zinc-900 border border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800 transition-all group"
-                                            >
-                                              <div className="p-2 rounded-md bg-zinc-950 border border-zinc-800 group-hover:border-zinc-700">
-                                                {content.type === 'PDF' ? (
-                                                  <FileText className="w-4 h-4 text-red-400" />
-                                                ) : (
-                                                  <LinkIcon className="w-4 h-4 text-blue-400" />
-                                                )}
-                                              </div>
-                                              <div className="flex-1">
-                                                <p className="text-sm text-zinc-300 group-hover:text-white transition-colors">{content.title}</p>
-                                                <p className="text-xs text-zinc-500">Adicionado em {new Date(content.createdAt).toLocaleDateString('pt-BR')}</p>
-                                              </div>
-                                            </button>
+                                        
+                                        <div className="space-y-3">
+                                          {/* Step A: Theory PDFs */}
+                                          {moduleContents.filter(c => c.fileType === 'theory' || !c.fileType).map(content => (
+                                            <div key={content.id} className="space-y-2">
+                                              <button 
+                                                onClick={() => {
+                                                  if (content.type === 'PDF') {
+                                                    handleOpenPdf(content.url, content.title);
+                                                  } else {
+                                                    window.open(content.url, '_blank');
+                                                  }
+                                                }}
+                                                className="w-full text-left flex items-center gap-3 p-3 rounded-md bg-zinc-900 border border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800 transition-all group"
+                                              >
+                                                <div className="p-2 rounded-md bg-zinc-950 border border-zinc-800 group-hover:border-zinc-700">
+                                                  <FileText className="w-4 h-4 text-red-500" />
+                                                </div>
+                                                <div className="flex-1">
+                                                  <div className="flex items-center gap-2">
+                                                    <span className="px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-500 border border-blue-500/20 text-[8px] font-black uppercase">Teoria</span>
+                                                    <p className="text-sm text-zinc-300 group-hover:text-white transition-colors">{content.title}</p>
+                                                  </div>
+                                                  <p className="text-xs text-zinc-500">Adicionado em {new Date(content.createdAt).toLocaleDateString('pt-BR')}</p>
+                                                </div>
+                                              </button>
+
+                                              {/* Step B & C: Linked Questions */}
+                                              {moduleContents.filter(q => q.fileType === 'questions' && q.linkedTheoryId === content.id).map(question => (
+                                                <div key={question.id} className="relative ml-8">
+                                                  {/* Connection Line */}
+                                                  <div className="absolute -left-5 top-0 h-1/2 w-5 border-b-2 border-l-2 border-zinc-700 rounded-bl-md"></div>
+                                                  
+                                                  <button 
+                                                    onClick={() => handleOpenPdf(question.url, question.title)}
+                                                    className="w-full text-left flex items-center gap-3 p-2 rounded-md bg-zinc-900/50 border border-zinc-800/50 hover:border-zinc-700 hover:bg-zinc-800 transition-all group"
+                                                  >
+                                                    <div className="p-1.5 rounded-md bg-zinc-950 border border-zinc-800 group-hover:border-zinc-700">
+                                                      <FileText className="w-3.5 h-3.5 text-orange-500" />
+                                                    </div>
+                                                    <div className="flex-1">
+                                                      <div className="flex items-center gap-2">
+                                                        <span className="px-1 py-0.5 rounded bg-orange-500/10 text-orange-500 border border-orange-500/20 text-[8px] font-black uppercase">Questões</span>
+                                                        <p className="text-xs text-zinc-400 group-hover:text-zinc-200 transition-colors">{question.title}</p>
+                                                      </div>
+                                                    </div>
+                                                  </button>
+                                                </div>
+                                              ))}
+                                            </div>
                                           ))}
+
+                                          {/* Step D: Orphaned Questions */}
+                                          {moduleContents.some(c => c.fileType === 'questions' && !c.linkedTheoryId) && (
+                                            <div className="pt-2 space-y-2">
+                                              <h5 className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest pl-1">Outras Listas de Questões</h5>
+                                              <div className="grid gap-2">
+                                                {moduleContents.filter(c => c.fileType === 'questions' && !c.linkedTheoryId).map(content => (
+                                                  <button 
+                                                    key={content.id}
+                                                    onClick={() => handleOpenPdf(content.url, content.title)}
+                                                    className="w-full text-left flex items-center gap-3 p-3 rounded-md bg-zinc-900 border border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800 transition-all group"
+                                                  >
+                                                    <div className="p-2 rounded-md bg-zinc-950 border border-zinc-800 group-hover:border-zinc-700">
+                                                      <FileText className="w-4 h-4 text-orange-500" />
+                                                    </div>
+                                                    <div className="flex-1">
+                                                      <div className="flex items-center gap-2">
+                                                        <span className="px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-500 border border-orange-500/20 text-[8px] font-black uppercase">Questões</span>
+                                                        <p className="text-sm text-zinc-300 group-hover:text-white transition-colors">{content.title}</p>
+                                                      </div>
+                                                      <p className="text-xs text-zinc-500">Adicionado em {new Date(content.createdAt).toLocaleDateString('pt-BR')}</p>
+                                                    </div>
+                                                  </button>
+                                                ))}
+                                              </div>
+                                            </div>
+                                          )}
                                         </div>
                                       </div>
                                     )}

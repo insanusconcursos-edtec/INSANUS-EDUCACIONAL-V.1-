@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ChevronDown, ChevronRight, FileText, Link as LinkIcon, CheckCircle, Clock, AlertCircle, BookOpen, Video, CheckCircle2, Calendar, PlayCircle } from 'lucide-react';
+import { ChevronDown, ChevronRight, FileText, Link as LinkIcon, CheckCircle, Clock, AlertCircle, BookOpen, Video, CheckCircle2, Calendar, PlayCircle, ClipboardList } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Subject, Topic } from '../../../types/curriculum';
 import { ClassScheduleEvent } from '../../../types/schedule';
@@ -421,38 +421,109 @@ export function StudentPedagogicalPlanning({ classId, totalMeetings = 0 }: Stude
                                     )}
                                     
                                     {/* Materials Section */}
-                                    {moduleContents.length > 0 && (
-                                      <div className="space-y-3">
-                                        <h4 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Materiais de Apoio</h4>
-                                        <div className="grid gap-2">
-                                          {moduleContents.map(content => (
-                                            <button 
-                                              key={content.id}
-                                              onClick={() => {
-                                                if (content.type === 'PDF') {
-                                                  handleOpenPdf(content.url, content.title);
-                                                } else {
-                                                  window.open(content.url, '_blank');
-                                                }
-                                              }}
-                                              className="w-full text-left flex items-center gap-3 p-3 rounded-md bg-zinc-900 border border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800 transition-all group"
-                                            >
-                                              <div className="p-2 rounded-md bg-black border border-zinc-800 group-hover:border-zinc-700">
-                                                {content.type === 'PDF' ? (
-                                                  <FileText className="w-4 h-4 text-red-400" />
-                                                ) : (
-                                                  <LinkIcon className="w-4 h-4 text-blue-400" />
+                                    {moduleContents.length > 0 && (() => {
+                                      const theoryPdfs = moduleContents.filter(c => (c.fileType === 'theory' || !c.fileType) && c.type === 'PDF');
+                                      const linkedQuestionPdfs = moduleContents.filter(c => c.fileType === 'questions' && c.linkedTheoryId && c.type === 'PDF');
+                                      const unlinkedQuestionPdfs = moduleContents.filter(c => c.fileType === 'questions' && !c.linkedTheoryId && c.type === 'PDF');
+                                      const otherContents = moduleContents.filter(c => c.type !== 'PDF');
+
+                                      return (
+                                        <div className="space-y-3">
+                                          <h4 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Materiais de Apoio</h4>
+                                          <div className="flex flex-col gap-2">
+                                            {/* Render Theories and Linked Questions */}
+                                            {theoryPdfs.map(theoryPdf => (
+                                              <React.Fragment key={theoryPdf.id}>
+                                                {/* Theory Card */}
+                                                <button 
+                                                  onClick={() => handleOpenPdf(theoryPdf.url, theoryPdf.title)}
+                                                  className="w-full text-left flex items-center gap-3 p-3 rounded-md bg-zinc-900 border border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800 transition-all group relative z-10"
+                                                >
+                                                  <div className="p-2 rounded-md bg-black border border-zinc-800 group-hover:border-zinc-700">
+                                                    <FileText className="w-4 h-4 text-red-500" />
+                                                  </div>
+                                                  <div className="flex-1">
+                                                    <p className="text-sm text-zinc-300 group-hover:text-white transition-colors">{theoryPdf.title}</p>
+                                                    <p className="text-xs text-zinc-500">Teoria • Adicionado em {new Date(theoryPdf.createdAt).toLocaleDateString('pt-BR')}</p>
+                                                  </div>
+                                                </button>
+
+                                                {/* Linked Questions */}
+                                                {linkedQuestionPdfs.filter(q => q.linkedTheoryId === theoryPdf.id).map(questionPdf => (
+                                                  <div key={questionPdf.id} className="relative ml-8 mt-1 mb-2">
+                                                    {/* Tree Connector */}
+                                                    <div className="absolute -left-5 top-0 h-1/2 w-4 border-b-2 border-l-2 border-zinc-700 rounded-bl-lg"></div>
+                                                    
+                                                    <button 
+                                                      onClick={() => handleOpenPdf(questionPdf.url, questionPdf.title)}
+                                                      className="w-full text-left flex items-center gap-3 p-2.5 rounded-md bg-zinc-900/40 border border-zinc-800/50 hover:border-zinc-700 hover:bg-zinc-800 transition-all group relative z-10"
+                                                    >
+                                                      <div className="p-1.5 rounded bg-black/40 border border-zinc-800/50 group-hover:border-zinc-700">
+                                                        <ClipboardList className="w-3.5 h-3.5 text-orange-500" />
+                                                      </div>
+                                                      <div className="flex-1">
+                                                        <p className="text-sm text-zinc-400 group-hover:text-white transition-colors">{questionPdf.title}</p>
+                                                        <p className="text-[10px] text-zinc-600">Questões Vinculadas</p>
+                                                      </div>
+                                                    </button>
+                                                  </div>
+                                                ))}
+                                              </React.Fragment>
+                                            ))}
+
+                                            {/* Unlinked Questions Section */}
+                                            {unlinkedQuestionPdfs.length > 0 && (
+                                              <div className="mt-4">
+                                                <h4 className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest mb-2 px-1">Cadernos de Questões Adicionais</h4>
+                                                <div className="flex flex-col gap-2">
+                                                  {unlinkedQuestionPdfs.map(questionPdf => (
+                                                    <button 
+                                                      key={questionPdf.id}
+                                                      onClick={() => handleOpenPdf(questionPdf.url, questionPdf.title)}
+                                                      className="w-full text-left flex items-center gap-3 p-3 rounded-md bg-zinc-900/60 border border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800 transition-all group"
+                                                    >
+                                                      <div className="p-2 rounded-md bg-black border border-zinc-800 group-hover:border-zinc-700">
+                                                        <ClipboardList className="w-4 h-4 text-orange-500" />
+                                                      </div>
+                                                      <div className="flex-1">
+                                                        <p className="text-sm text-zinc-300 group-hover:text-white transition-colors">{questionPdf.title}</p>
+                                                        <p className="text-xs text-zinc-500">Questões Avulsas • Adicionado em {new Date(questionPdf.createdAt).toLocaleDateString('pt-BR')}</p>
+                                                      </div>
+                                                    </button>
+                                                  ))}
+                                                </div>
+                                              </div>
+                                            )}
+
+                                            {/* Other Content (Links, etc) */}
+                                            {otherContents.length > 0 && (
+                                              <div className={unlinkedQuestionPdfs.length > 0 || theoryPdfs.length > 0 ? "mt-4" : ""}>
+                                                { (unlinkedQuestionPdfs.length > 0 || theoryPdfs.length > 0) && (
+                                                  <h4 className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest mb-2 px-1">Outros Recursos</h4>
                                                 )}
+                                                <div className="flex flex-col gap-2">
+                                                  {otherContents.map(content => (
+                                                    <button 
+                                                      key={content.id}
+                                                      onClick={() => window.open(content.url, '_blank')}
+                                                      className="w-full text-left flex items-center gap-3 p-3 rounded-md bg-zinc-900 border border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800 transition-all group"
+                                                    >
+                                                      <div className="p-2 rounded-md bg-black border border-zinc-800 group-hover:border-zinc-700">
+                                                        <LinkIcon className="w-4 h-4 text-blue-400" />
+                                                      </div>
+                                                      <div className="flex-1">
+                                                        <p className="text-sm text-zinc-300 group-hover:text-white transition-colors">{content.title}</p>
+                                                        <p className="text-xs text-zinc-500">Link Externo • Adicionado em {new Date(content.createdAt).toLocaleDateString('pt-BR')}</p>
+                                                      </div>
+                                                    </button>
+                                                  ))}
+                                                </div>
                                               </div>
-                                              <div className="flex-1">
-                                                <p className="text-sm text-zinc-300 group-hover:text-white transition-colors">{content.title}</p>
-                                                <p className="text-xs text-zinc-500">Adicionado em {new Date(content.createdAt).toLocaleDateString('pt-BR')}</p>
-                                              </div>
-                                            </button>
-                                          ))}
+                                            )}
+                                          </div>
                                         </div>
-                                      </div>
-                                    )}
+                                      );
+                                    })()}
 
                                     {/* Classes Section */}
                                     <div className="space-y-3">

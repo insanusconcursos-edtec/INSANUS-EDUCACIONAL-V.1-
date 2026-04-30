@@ -15,6 +15,8 @@ export interface ModuleContent {
   title: string;
   url: string;
   createdAt: string;
+  fileType?: 'theory' | 'questions';
+  linkedTheoryId?: string | null;
 }
 
 export interface Module {

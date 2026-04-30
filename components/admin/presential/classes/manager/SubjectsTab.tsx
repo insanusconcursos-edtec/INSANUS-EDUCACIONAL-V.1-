@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Edit2, ChevronDown, ChevronUp, AlertTriangle, BookOpen, User, CheckSquare, Square, Save, FileText, X, Loader2, Link } from 'lucide-react';
+import { Plus, Trash2, Edit2, ChevronDown, ChevronUp, AlertTriangle, BookOpen, User, CheckSquare, Save, Loader2, Link } from 'lucide-react';
 import { Class } from '../../../../../types/class';
 import { Subject, Topic, Module, ModuleContent, OnlineStatus, TeachingAreaLink } from '../../../../../types/curriculum';
 import { Teacher } from '../../../../../types/teacher';
@@ -57,6 +57,33 @@ export const SubjectsTab: React.FC<SubjectsTabProps> = ({ cls, onUpdate }) => {
   const [isSelectorOpen, setIsSelectorOpen] = useState(false);
 
   // Fetch Data
+  const sanitizeModules = (modules: Module[]): Module[] => {
+    return (modules || []).map(m => ({
+      id: m.id,
+      name: m.name || '',
+      classesCount: Number(m.classesCount) || 1,
+      isSelected: m.isSelected !== false,
+      isOnline: !!m.isOnline,
+      onlineStatus: m.onlineStatus || 'EM_GRAVACAO',
+      publicationDate: m.publicationDate || '',
+      contents: (m.contents || []).map((c: any) => ({
+        id: c.id,
+        type: c.type || 'PDF',
+        title: c.title || '',
+        url: c.url || '',
+        createdAt: c.createdAt || new Date().toISOString(),
+        fileType: c.fileType || 'theory',
+        linkedTheoryId: c.linkedTheoryId || null
+      })),
+      teachingAreaLink: m.teachingAreaLink ? {
+        moduleId: m.teachingAreaLink.moduleId || '',
+        folderId: m.teachingAreaLink.folderId || '',
+        moduleName: m.teachingAreaLink.moduleName || null,
+        folderName: m.teachingAreaLink.folderName || null
+      } : { moduleId: '', folderId: '' }
+    }));
+  };
+
   const fetchData = async (silent: boolean = false) => {
     try {
       if (!silent && subjects.length === 0) {
@@ -316,7 +343,8 @@ export const SubjectsTab: React.FC<SubjectsTabProps> = ({ cls, onUpdate }) => {
       );
       setTopics(updatedTopics);
 
-      await curriculumService.updateTopic(topicId, { isSelected: topicSelected, modules: updatedModules });
+      const sanitizedModules = sanitizeModules(updatedModules);
+      await curriculumService.updateTopic(topicId, { isSelected: topicSelected, modules: sanitizedModules });
       if (onUpdate) await onUpdate(true);
     } catch (error) {
       console.error("Error updating module selection:", error);
@@ -379,7 +407,7 @@ export const SubjectsTab: React.FC<SubjectsTabProps> = ({ cls, onUpdate }) => {
             ? { 
                 ...m, 
                 name: newModule.name, 
-                classesCount: Number(newModule.classesCount), 
+                classesCount: newModule.classesCount, 
                 contents: newModule.contents,
                 isOnline: newModule.isOnline,
                 onlineStatus: newModule.onlineStatus,
@@ -392,7 +420,7 @@ export const SubjectsTab: React.FC<SubjectsTabProps> = ({ cls, onUpdate }) => {
         const newMod: Module = {
           id: Date.now().toString(),
           name: newModule.name,
-          classesCount: Number(newModule.classesCount),
+          classesCount: newModule.classesCount,
           contents: newModule.contents,
           isOnline: newModule.isOnline,
           onlineStatus: newModule.onlineStatus,
@@ -402,13 +430,14 @@ export const SubjectsTab: React.FC<SubjectsTabProps> = ({ cls, onUpdate }) => {
         updatedModules = [...currentModules, newMod];
       }
 
-      // Optimistic update
+      // Optimistic update (with original data for state)
       const updatedTopics = topics.map(t => 
         t.id === activeTopicId ? { ...t, modules: updatedModules } : t
       );
       setTopics(updatedTopics);
 
-      await curriculumService.updateTopic(activeTopicId, { modules: updatedModules });
+      const sanitizedModules = sanitizeModules(updatedModules);
+      await curriculumService.updateTopic(activeTopicId, { modules: sanitizedModules });
       
       setIsModuleModalOpen(false);
       setEditingModule(null);
@@ -445,7 +474,8 @@ export const SubjectsTab: React.FC<SubjectsTabProps> = ({ cls, onUpdate }) => {
       );
       setTopics(updatedTopics);
 
-      await curriculumService.updateTopic(moduleDeleteModal.topicId!, { modules: updatedModules });
+      const sanitizedModules = sanitizeModules(updatedModules);
+      await curriculumService.updateTopic(moduleDeleteModal.topicId!, { modules: sanitizedModules });
       
       setModuleDeleteModal({ isOpen: false, topicId: null, moduleId: null });
 
@@ -480,7 +510,8 @@ export const SubjectsTab: React.FC<SubjectsTabProps> = ({ cls, onUpdate }) => {
     setTopics(updatedTopics);
 
     try {
-      await curriculumService.updateTopic(topicId, { modules: newModules });
+      const sanitizedModules = sanitizeModules(newModules);
+      await curriculumService.updateTopic(topicId, { modules: sanitizedModules });
       if (onUpdate) await onUpdate(true);
     } catch (error) {
       console.error("Error moving module:", error);
@@ -488,7 +519,7 @@ export const SubjectsTab: React.FC<SubjectsTabProps> = ({ cls, onUpdate }) => {
     }
   };
 
-  const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>, fileType: 'theory' | 'questions' = 'theory') => {
     if (!e.target.files || !e.target.files[0]) return;
     
     const file = e.target.files[0];
@@ -504,7 +535,9 @@ export const SubjectsTab: React.FC<SubjectsTabProps> = ({ cls, onUpdate }) => {
         type: 'PDF',
         title: file.name,
         url: downloadUrl,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        fileType,
+        linkedTheoryId: null
       };
 
       setNewModule(prev => ({
@@ -516,7 +549,33 @@ export const SubjectsTab: React.FC<SubjectsTabProps> = ({ cls, onUpdate }) => {
       alert("Erro ao fazer upload do PDF. Tente novamente.");
     } finally {
       setIsUploadingPdf(false);
+      // Reset input
+      e.target.value = '';
     }
+  };
+
+  const handleUpdatePdfType = (contentId: string, newType: 'theory' | 'questions') => {
+    setNewModule(prev => ({
+      ...prev,
+      contents: prev.contents.map(c => 
+        c.id === contentId 
+          ? { 
+              ...c, 
+              fileType: newType, 
+              linkedTheoryId: newType === 'theory' ? null : (c.linkedTheoryId || null) 
+            } 
+          : c
+      )
+    }));
+  };
+
+  const handleUpdateLinkedTheory = (contentId: string, linkedTheoryId: string | null) => {
+    setNewModule(prev => ({
+      ...prev,
+      contents: prev.contents.map(c => 
+        c.id === contentId ? { ...c, linkedTheoryId } : c
+      )
+    }));
   };
 
   const handleRemovePdf = (contentId: string) => {
@@ -579,12 +638,6 @@ export const SubjectsTab: React.FC<SubjectsTabProps> = ({ cls, onUpdate }) => {
   const getTeacherName = (id?: string) => {
     if (!id) return null;
     return teachers.find(t => t.id === id)?.name || 'Professor não encontrado';
-  };
-
-  const getTopicTeacherName = (topic: Topic, subject: Subject) => {
-    if (topic.teacherId) return getTeacherName(topic.teacherId);
-    if (subject.defaultTeacherId) return getTeacherName(subject.defaultTeacherId);
-    return 'Sem Professor';
   };
 
   return (
@@ -1278,51 +1331,161 @@ export const SubjectsTab: React.FC<SubjectsTabProps> = ({ cls, onUpdate }) => {
               <div>
                 <label className="block text-xs font-bold text-zinc-400 uppercase mb-2">Materiais de Apoio (PDF)</label>
                 
-                <div className="space-y-2 mb-3">
-                  {newModule.contents?.map(content => (
-                    <div key={content.id} className="flex items-center gap-2 bg-zinc-950 p-2 rounded border border-zinc-800">
-                      <FileText className="w-4 h-4 text-zinc-500 shrink-0" />
-                      <input
-                        type="text"
-                        value={content.title}
-                        onChange={(e) => handleUpdatePdfTitle(content.id, e.target.value)}
-                        className="flex-1 bg-transparent border-none text-xs text-white focus:ring-0 p-0"
-                        placeholder="Nome do arquivo"
-                      />
-                      <button
-                        onClick={() => handleRemovePdf(content.id)}
-                        className="p-1 text-zinc-500 hover:text-red-500 hover:bg-zinc-900 rounded transition-colors"
-                        title="Remover arquivo"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                <div className="space-y-3 mb-4">
+                  {newModule.contents?.filter(c => c.fileType === 'theory' || !c.fileType).map(content => (
+                    <div key={content.id} className="space-y-2">
+                      <div className="flex items-center gap-2 bg-zinc-950 p-2 rounded border border-zinc-800">
+                        <select
+                          value={content.fileType || 'theory'}
+                          onChange={(e) => handleUpdatePdfType(content.id, e.target.value as 'theory' | 'questions')}
+                          className="p-1 px-1.5 rounded bg-blue-500/10 text-blue-500 border border-blue-500/20 text-[9px] font-black uppercase focus:outline-none cursor-pointer hover:bg-blue-500/20 transition-colors"
+                        >
+                          <option value="theory" className="bg-zinc-900 text-white">Teoria</option>
+                          <option value="questions" className="bg-zinc-900 text-white">Questões</option>
+                        </select>
+                        <input
+                          type="text"
+                          value={content.title}
+                          onChange={(e) => handleUpdatePdfTitle(content.id, e.target.value)}
+                          className="flex-1 bg-transparent border-none text-xs text-white focus:ring-0 p-0"
+                          placeholder="Nome do arquivo"
+                        />
+                        <button
+                          onClick={() => handleRemovePdf(content.id)}
+                          className="p-1 text-zinc-500 hover:text-red-500 hover:bg-zinc-900 rounded transition-colors"
+                          title="Remover arquivo"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      {/* Linked Questions */}
+                      {newModule.contents?.filter(q => q.fileType === 'questions' && q.linkedTheoryId === content.id).map(question => (
+                        <div key={question.id} className="relative ml-6">
+                          <div className="absolute -left-4 top-0 h-1/2 w-4 border-b-2 border-l-2 border-zinc-700 rounded-bl-md"></div>
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2 bg-zinc-950/50 p-2 rounded border border-zinc-800">
+                              <select
+                                value={question.fileType || 'questions'}
+                                onChange={(e) => handleUpdatePdfType(question.id, e.target.value as 'theory' | 'questions')}
+                                className="p-1 px-1.5 rounded bg-orange-500/10 text-orange-500 border border-orange-500/20 text-[9px] font-black uppercase focus:outline-none cursor-pointer hover:bg-orange-500/20 transition-colors"
+                              >
+                                <option value="theory" className="bg-zinc-900 text-white">Teoria</option>
+                                <option value="questions" className="bg-zinc-900 text-white">Questões</option>
+                              </select>
+                              <input
+                                type="text"
+                                value={question.title}
+                                onChange={(e) => handleUpdatePdfTitle(question.id, e.target.value)}
+                                className="flex-1 bg-transparent border-none text-xs text-white focus:ring-0 p-0"
+                                placeholder="Nome do arquivo"
+                              />
+                              <button
+                                onClick={() => handleRemovePdf(question.id)}
+                                className="p-1 text-zinc-500 hover:text-red-500 hover:bg-zinc-900 rounded transition-colors"
+                                title="Remover arquivo"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                            <div className="ml-6">
+                              <select
+                                value={question.linkedTheoryId || ''}
+                                onChange={(e) => handleUpdateLinkedTheory(question.id, e.target.value || null)}
+                                className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-[10px] text-zinc-400 focus:outline-none focus:border-brand-red transition-colors"
+                              >
+                                <option value="">Vincular a qual material de teoria? (Opcional)</option>
+                                {newModule.contents?.filter(c => (c.fileType === 'theory' || !c.fileType) && c.id !== question.id).map(theory => (
+                                  <option key={theory.id} value={theory.id}>{theory.title}</option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+
+                  {/* Orphaned Questions */}
+                  {newModule.contents?.filter(c => c.fileType === 'questions' && !c.linkedTheoryId).map(content => (
+                    <div key={content.id} className="space-y-2">
+                       <div className="flex items-center gap-2 bg-zinc-950 p-2 rounded border border-zinc-800">
+                        <select
+                          value={content.fileType || 'questions'}
+                          onChange={(e) => handleUpdatePdfType(content.id, e.target.value as 'theory' | 'questions')}
+                          className="p-1 px-1.5 rounded bg-orange-500/10 text-orange-500 border border-orange-500/20 text-[9px] font-black uppercase focus:outline-none cursor-pointer hover:bg-orange-500/20 transition-colors"
+                        >
+                          <option value="theory" className="bg-zinc-900 text-white">Teoria</option>
+                          <option value="questions" className="bg-zinc-900 text-white">Questões</option>
+                        </select>
+                        <input
+                          type="text"
+                          value={content.title}
+                          onChange={(e) => handleUpdatePdfTitle(content.id, e.target.value)}
+                          className="flex-1 bg-transparent border-none text-xs text-white focus:ring-0 p-0"
+                          placeholder="Nome do arquivo"
+                        />
+                        <button
+                          onClick={() => handleRemovePdf(content.id)}
+                          className="p-1 text-zinc-500 hover:text-red-500 hover:bg-zinc-900 rounded transition-colors"
+                          title="Remover arquivo"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      <div className="ml-6">
+                        <select
+                          value={content.linkedTheoryId || ''}
+                          onChange={(e) => handleUpdateLinkedTheory(content.id, e.target.value || null)}
+                          className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-[10px] text-zinc-400 focus:outline-none focus:border-brand-red transition-colors"
+                        >
+                          <option value="">Vincular a qual material de teoria? (Opcional)</option>
+                          {newModule.contents?.filter(c => c.fileType === 'theory' || !c.fileType).map(theory => (
+                            <option key={theory.id} value={theory.id}>{theory.title}</option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
                   ))}
                 </div>
 
-                <div className="relative">
-                  <input
-                    type="file"
-                    accept="application/pdf"
-                    onChange={handlePdfUpload}
-                    disabled={isUploadingPdf}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
-                  />
-                  <div className={`w-full py-2 border border-dashed border-zinc-800 rounded-lg flex items-center justify-center gap-2 transition-colors ${isUploadingPdf ? 'bg-zinc-900 opacity-50' : 'hover:border-brand-red/50 hover:bg-zinc-900/50'}`}>
-                    {isUploadingPdf ? (
-                      <>
-                        <Loader2 className="w-4 h-4 text-brand-red animate-spin" />
-                        <span className="text-xs font-bold text-zinc-500 uppercase">Enviando...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Plus className="w-4 h-4 text-zinc-500" />
-                        <span className="text-xs font-bold text-zinc-500 uppercase">Adicionar PDF</span>
-                      </>
-                    )}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="relative">
+                    <input
+                      type="file"
+                      accept="application/pdf"
+                      onChange={(e) => handlePdfUpload(e, 'theory')}
+                      disabled={isUploadingPdf}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+                    />
+                    <div className={`w-full py-2 border border-dashed border-zinc-800 rounded-lg flex items-center justify-center gap-2 transition-colors ${isUploadingPdf ? 'bg-zinc-900 opacity-50' : 'hover:border-blue-500/50 hover:bg-blue-500/5'}`}>
+                      <Plus className="w-3 h-3 text-zinc-500" />
+                      <span className="text-[10px] font-bold text-zinc-500 uppercase">Teoria</span>
+                    </div>
+                  </div>
+
+                  <div className="relative">
+                    <input
+                      type="file"
+                      accept="application/pdf"
+                      onChange={(e) => handlePdfUpload(e, 'questions')}
+                      disabled={isUploadingPdf}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+                    />
+                    <div className={`w-full py-2 border border-dashed border-zinc-800 rounded-lg flex items-center justify-center gap-2 transition-colors ${isUploadingPdf ? 'bg-zinc-900 opacity-50' : 'hover:border-orange-500/50 hover:bg-orange-500/5'}`}>
+                      <Plus className="w-3 h-3 text-zinc-500" />
+                      <span className="text-[10px] font-bold text-zinc-500 uppercase">Questões</span>
+                    </div>
                   </div>
                 </div>
+                {isUploadingPdf && (
+                  <div className="mt-2 flex items-center justify-center gap-2">
+                    <Loader2 className="w-3 h-3 text-brand-red animate-spin" />
+                    <span className="text-[10px] font-bold text-zinc-500 uppercase">Fazendo upload...</span>
+                  </div>
+                )}
               </div>
+
             </div>
 
             <div className="flex justify-end gap-3 mt-6">
