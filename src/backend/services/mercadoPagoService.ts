@@ -1,5 +1,4 @@
 import { MercadoPagoConfig, Payment } from 'mercadopago';
-import { getAdminConfig } from './firebaseAdmin.js';
 import { provisionPurchase } from './provisioningService.js';
 
 const client = new MercadoPagoConfig({ 
@@ -7,29 +6,57 @@ const client = new MercadoPagoConfig({
 });
 
 export const createMPPayment = async (data: any) => {
+  // 2. Verificação do Access Token
+  if (!process.env.MP_ACCESS_TOKEN) {
+    console.error("❌ ERRO: MP_ACCESS_TOKEN não está definido no ambiente.");
+    throw new Error("Configuração do Mercado Pago ausente no servidor (Token).");
+  }
+
   const payment = new Payment(client);
   
+  // 1. Sanitização do Payer Payload
+  const rawCpf = data.payer?.identification?.number || '';
+  const sanitizedCpf = rawCpf.replace(/\D/g, ''); // Apenas números
+  const email = data.payer?.email?.trim();
+
   try {
+    console.log(`[MP] Iniciando criação de pagamento para: ${email}`);
+    
+    // 3. Tratamento de Erro (Try/Catch) Explícito com Log Detalhado
     const response = await payment.create({
       body: {
-        transaction_amount: data.transaction_amount,
+        transaction_amount: Number(data.transaction_amount),
         token: data.token,
         description: data.description,
-        installments: data.installments,
+        installments: Number(data.installments),
         payment_method_id: data.payment_method_id,
         issuer_id: data.issuer_id,
         payer: {
-          email: data.payer.email,
-          identification: data.payer.identification,
+          email: email,
+          identification: { 
+            type: 'CPF', 
+            number: sanitizedCpf 
+          },
         },
-        metadata: data.metadata // courseId, etc.
+        metadata: data.metadata,
+        external_reference: String(data.metadata?.courseId || data.metadata?.course_id || '')
       }
     });
 
+    console.log(`[MP] Pagamento criado com sucesso: ${response.id} | Status: ${response.status}`);
     return response;
-  } catch (error) {
-    console.error('Error creating Mercado Pago payment:', error);
-    throw error;
+  } catch (error: any) {
+    // Log detalhado para o console do servidor
+    console.error("❌ MP Create Payment Error:", {
+      message: error?.message,
+      cause: error?.cause,
+      status: error?.status,
+      details: error?.response?.data || error?.details
+    });
+    
+    // Lançando o erro com detalhes simplificados para o server.ts
+    const detailedMessage = error?.cause?.[0]?.description || error?.message || 'Erro interno no processamento do Mercado Pago';
+    throw new Error(detailedMessage);
   }
 };
 

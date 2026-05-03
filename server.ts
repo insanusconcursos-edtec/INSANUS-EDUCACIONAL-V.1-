@@ -482,10 +482,11 @@ async function startServer() {
       const response = await createMPPayment(req.body);
       return res.status(200).json({ success: true, payment: response });
     } catch (error) {
-      console.error("Erro ao criar pagamento Mercado Pago:", error);
-      return res.status(500).json({ 
+      console.error("❌ MP Route Error:", error);
+      return res.status(400).json({ 
         success: false, 
-        error: error instanceof Error ? error.message : "Erro ao processar pagamento." 
+        error: "Erro ao processar pagamento no Mercado Pago",
+        message: error instanceof Error ? error.message : "Falha na comunicação com o provedor de pagamentos."
       });
     }
   });
