@@ -143,14 +143,17 @@ export default function StandaloneCheckout() {
   const onSubmit = React.useCallback(async (formData: any) => {
     if (!product || !offer) return;
     try {
-      // Extração robusta do payment_method_id para evitar nulos
+      // Extração ultra-robusta do payment_method_id para garantir que nunca vá nulo
       const capturedPaymentMethodId = formData.payment_method_id || 
+                                     formData.formData?.payment_method_id ||
                                      formData.paymentMethodId || 
-                                     (formData.payment_type_id === 'bank_transfer' ? 'pix' : null);
+                                     (formData.payment_type_id === 'bank_transfer' ? 'pix' : null) ||
+                                     (formData.paymentType === 'bank_transfer' ? 'pix' : null) ||
+                                     (formData.selectedPaymentMethod === 'bank_transfer' ? 'pix' : null);
 
       const paymentData = {
         ...formData, // Preserva campos gerados pelo Brick
-        payment_method_id: capturedPaymentMethodId, // MAPEAMENTO ROBUSTO
+        payment_method_id: capturedPaymentMethodId, // GARANTE O VALOR EXTRAÍDO
         transaction_amount: Number(offer.price), // FORÇA O PREÇO NO PAYLOAD
         description: `Compra de ${product.name} - ${offer.name}`,
         payer: {
