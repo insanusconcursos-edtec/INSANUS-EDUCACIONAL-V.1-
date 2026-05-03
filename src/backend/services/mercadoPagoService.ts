@@ -83,7 +83,13 @@ export const createMPPayment = async (data: any) => {
     });
     
     // Lançando o erro com detalhes simplificados para o server.ts
-    const detailedMessage = error?.cause?.[0]?.description || error?.message || 'Erro interno no processamento do Mercado Pago';
+    let detailedMessage = error?.cause?.[0]?.description || error?.message || 'Erro interno no processamento do Mercado Pago';
+    
+    // Captura específica para erro de chave PIX ausente na conta do vendedor
+    if (detailedMessage.includes('Collector user without key enabled') || error?.message?.includes('Collector user without key enabled')) {
+      detailedMessage = "O vendedor não possui uma chave PIX cadastrada no Mercado Pago. Por favor, cadastre uma chave PIX na sua conta do Mercado Pago para aceitar pagamentos via PIX.";
+    }
+
     throw new Error(detailedMessage);
   }
 };
