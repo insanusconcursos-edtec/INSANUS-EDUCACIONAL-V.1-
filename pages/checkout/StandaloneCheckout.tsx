@@ -53,41 +53,15 @@ export default function StandaloneCheckout() {
     loadData();
   }, [offerId]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center p-4">
-        <Loader2 className="w-12 h-12 text-red-600 animate-spin mb-4" />
-        <p className="text-zinc-500 font-bold uppercase tracking-widest text-sm">Carregando seu checkout...</p>
-      </div>
-    );
-  }
-
-  if (error || !product || !offer) {
-    return (
-      <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center p-4">
-        <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-2xl p-8 text-center">
-          <div className="mb-6 flex justify-center">
-             <SystemLogo />
-          </div>
-          <h2 className="text-xl font-black text-white uppercase mb-2">Ops!</h2>
-          <p className="text-zinc-400 mb-6">{error || 'Não foi possível encontrar esta oferta.'}</p>
-          <a 
-            href="/" 
-            className="inline-block bg-red-600 hover:bg-red-700 text-white font-black px-8 py-3 rounded-xl transition-all uppercase text-sm tracking-widest"
-          >
-            Voltar para o Início
-          </a>
-        </div>
-      </div>
-    );
-  }
-
-  const initialization = React.useMemo(() => ({
-    amount: Number(offer.price),
-    payer: {
-      email: currentUser?.email || '',
-    },
-  }), [offer.price, currentUser?.email]);
+  const initialization = React.useMemo(() => {
+    if (!offer) return { amount: 0, payer: { email: '' } };
+    return {
+      amount: Number(offer.price),
+      payer: {
+        email: currentUser?.email || '',
+      },
+    };
+  }, [offer, currentUser?.email]);
 
   const customization = React.useMemo(() => ({
     paymentMethods: {
@@ -104,6 +78,7 @@ export default function StandaloneCheckout() {
   }), []);
 
   const onSubmit = React.useCallback(async (formData: any) => {
+    if (!product || !offer) return;
     try {
       const paymentData = {
         transaction_amount: formData.transaction_amount,
@@ -140,6 +115,35 @@ export default function StandaloneCheckout() {
       toast.error("Erro ao processar o pagamento. Tente novamente.");
     }
   }, [product, offer, currentUser]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center p-4">
+        <Loader2 className="w-12 h-12 text-red-600 animate-spin mb-4" />
+        <p className="text-zinc-500 font-bold uppercase tracking-widest text-sm">Carregando seu checkout...</p>
+      </div>
+    );
+  }
+
+  if (error || !product || !offer) {
+    return (
+      <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center p-4">
+        <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-2xl p-8 text-center">
+          <div className="mb-6 flex justify-center">
+             <SystemLogo />
+          </div>
+          <h2 className="text-xl font-black text-white uppercase mb-2">Ops!</h2>
+          <p className="text-zinc-400 mb-6">{error || 'Não foi possível encontrar esta oferta.'}</p>
+          <a 
+            href="/" 
+            className="inline-block bg-red-600 hover:bg-red-700 text-white font-black px-8 py-3 rounded-xl transition-all uppercase text-sm tracking-widest"
+          >
+            Voltar para o Início
+          </a>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white font-sans selection:bg-red-600/30">
