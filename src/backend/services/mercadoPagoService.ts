@@ -22,25 +22,37 @@ export const createMPPayment = async (data: any) => {
   try {
     console.log(`[MP] Iniciando criação de pagamento para: ${email}`);
     
-    // 3. Tratamento de Erro (Try/Catch) Explícito com Log Detalhado
-    const response = await payment.create({
-      body: {
-        transaction_amount: Number(data.transaction_amount),
-        token: data.token,
-        description: data.description,
-        installments: Number(data.installments),
-        payment_method_id: data.payment_method_id,
-        issuer_id: data.issuer_id,
-        payer: {
-          email: email,
-          identification: { 
-            type: 'CPF', 
-            number: sanitizedCpf 
-          },
+    // 3. Construção Dinâmica do Body (Evita erro 500 por campos conflitantes no Pix)
+    const paymentBody: any = {
+      transaction_amount: Number(data.transaction_amount),
+      description: data.description,
+      payment_method_id: data.payment_method_id,
+      payer: {
+        email: email,
+        identification: { 
+          type: 'CPF', 
+          number: sanitizedCpf 
         },
-        metadata: data.metadata,
-        external_reference: String(data.metadata?.courseId || data.metadata?.course_id || '')
+      },
+      metadata: data.metadata,
+      external_reference: String(data.metadata?.courseId || data.metadata?.course_id || '')
+    };
+
+    // Lógica condicional por método de pagamento
+    if (data.payment_method_id === 'pix') {
+      paymentBody.installments = 1;
+      // Pix não aceita token ou issuer_id
+    } else {
+      // Cartões e outros métodos
+      paymentBody.token = data.token;
+      paymentBody.installments = Number(data.installments) || 1;
+      if (data.issuer_id) {
+        paymentBody.issuer_id = data.issuer_id;
       }
+    }
+
+    const response = await payment.create({
+      body: paymentBody
     });
 
     console.log(`[MP] Pagamento criado com sucesso: ${response.id} | Status: ${response.status}`);
