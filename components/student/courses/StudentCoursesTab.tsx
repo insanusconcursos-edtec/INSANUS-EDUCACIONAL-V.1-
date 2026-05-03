@@ -26,6 +26,7 @@ export function StudentCoursesTab() {
   // Navegação e Checkout
   const [selectedCourse, setSelectedCourse] = useState<OnlineCourse | null>(null);
   const [checkoutProduct, setCheckoutProduct] = useState<TictoProduct | null>(null);
+  const [selectedOfferId, setSelectedOfferId] = useState<string | null>(null);
 
   // Estados de Filtro
   const [searchTerm, setSearchTerm] = useState('');
@@ -99,7 +100,21 @@ export function StudentCoursesTab() {
         setSelectedCourse(course);
       }
     }
-  }, [courseId, myCourses]);
+
+    // Checkout direto via link de oferta
+    const productIdParam = searchParams.get('productId');
+    const offerIdParam = searchParams.get('offerId');
+
+    if (productIdParam && availableProducts.length > 0) {
+      const product = availableProducts.find(p => p.id === productIdParam);
+      if (product) {
+        setCheckoutProduct(product);
+        if (offerIdParam) {
+          setSelectedOfferId(offerIdParam);
+        }
+      }
+    }
+  }, [courseId, myCourses, availableProducts, searchParams]);
 
   // 2. Lógica de Filtragem (Pesquisa/Categoria)
   useEffect(() => {
@@ -282,15 +297,21 @@ export function StudentCoursesTab() {
                     </div>
                     
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-                        {availableProducts.map(product => (
-                            <StudentCourseCard 
-                                key={product.id} 
-                                course={product} 
-                                isLocked={true}
-                                price={product.price}
-                                onClick={(p) => setCheckoutProduct(p)}
-                            />
-                        ))}
+                        {availableProducts.map(product => {
+                            const defaultOffer = product.offers?.find(o => o.isDefault);
+                            return (
+                                <StudentCourseCard 
+                                    key={product.id} 
+                                    course={product} 
+                                    isLocked={true}
+                                    price={defaultOffer?.price || product.price}
+                                    onClick={(p) => {
+                                        setCheckoutProduct(p);
+                                        setSelectedOfferId(null);
+                                    }}
+                                />
+                            );
+                        })}
                     </div>
                 </div>
             )}
@@ -301,7 +322,11 @@ export function StudentCoursesTab() {
       {checkoutProduct && (
           <CheckoutModal 
               product={checkoutProduct}
-              onClose={() => setCheckoutProduct(null)}
+              offerId={selectedOfferId}
+              onClose={() => {
+                  setCheckoutProduct(null);
+                  setSelectedOfferId(null);
+              }}
               onSuccess={() => {
                   // O webhook vai liberar, mas podemos dar um feedback ou refresh
                   window.location.reload();

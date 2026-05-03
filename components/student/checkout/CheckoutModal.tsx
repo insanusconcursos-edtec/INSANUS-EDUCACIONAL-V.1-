@@ -16,13 +16,20 @@ if (MP_PUBLIC_KEY) {
 
 interface CheckoutModalProps {
   product: TictoProduct;
+  offerId?: string | null;
   onClose: () => void;
   onSuccess: () => void;
 }
 
-export default function CheckoutModal({ product, onClose, onSuccess }: CheckoutModalProps) {
+export default function CheckoutModal({ product, offerId, onClose, onSuccess }: CheckoutModalProps) {
   const { currentUser } = useAuth();
   const [loading, setLoading] = useState(false);
+
+  const currentOffer = offerId 
+    ? product.offers?.find(o => o.id === offerId) 
+    : product.offers?.find(o => o.isDefault);
+
+  const price = currentOffer?.price || product.price || 0;
 
   useEffect(() => {
     if (!MP_PUBLIC_KEY) {
@@ -32,7 +39,7 @@ export default function CheckoutModal({ product, onClose, onSuccess }: CheckoutM
   }, []);
 
   const initialization = {
-    amount: product.price,
+    amount: price,
     preferenceId: undefined, // Baseado em payment brick (API externa)
     payer: {
       email: currentUser?.email || '',
@@ -60,7 +67,7 @@ export default function CheckoutModal({ product, onClose, onSuccess }: CheckoutM
       const paymentData = {
         transaction_amount: formData.transaction_amount,
         token: formData.token,
-        description: `Compra de ${product.name}`,
+        description: `Compra de ${product.name}${currentOffer ? ` - ${currentOffer.name}` : ''}`,
         installments: formData.installments,
         payment_method_id: formData.payment_method_id,
         issuer_id: formData.issuer_id,
@@ -70,8 +77,8 @@ export default function CheckoutModal({ product, onClose, onSuccess }: CheckoutM
         },
         metadata: {
           courseId: product.id!,
+          offerId: currentOffer?.id || 'default',
           userName: currentUser?.displayName || 'Aluno',
-          // userPhone can be added if available in user profile
         },
       };
 
@@ -134,7 +141,7 @@ export default function CheckoutModal({ product, onClose, onSuccess }: CheckoutM
                 <div className="mt-4 p-4 bg-zinc-900/50 border border-zinc-800 rounded-xl">
                    <p className="text-[10px] font-black text-zinc-500 uppercase mb-1">Total a pagar:</p>
                    <p className="text-2xl font-black text-white tracking-tighter">
-                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(product.price)}
+                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(price)}
                    </p>
                 </div>
              </div>

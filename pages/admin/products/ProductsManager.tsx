@@ -208,7 +208,9 @@ export default function ProductsManager() {
                       </div>
                     </td>
                     <td className="px-6 py-4 font-bold text-white">
-                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(product.price || 0)}
+                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+                        product.offers?.find(o => o.isDefault)?.price || product.price || 0
+                      )}
                     </td>
                     <td className="px-6 py-4 font-mono text-sm">{product.tictoId}</td>
                     <td className="px-6 py-4">

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, AlertCircle, Upload, ChevronDown, ChevronUp, Search, Video } from 'lucide-react';
-import { TictoProduct, ProductType } from '../../../types/product';
+import { X, Save, AlertCircle, Upload, ChevronDown, ChevronUp, Search, Video, Plus, Trash2, Copy, Check, Globe } from 'lucide-react';
+import { TictoProduct, ProductType, ProductOffer } from '../../../types/product';
 import { createProduct, updateProduct, uploadProductCover } from '../../../services/productService';
 import { getPlans } from '../../../services/planService';
 import { courseService } from '../../../services/courseService';
@@ -20,7 +20,7 @@ export default function ProductFormModal({ product, onClose, onSave }: ProductFo
 
   // Form State
   const [name, setName] = useState(product?.name || '');
-  const [price, setPrice] = useState(product?.price || 0);
+  const [offers, setOffers] = useState<ProductOffer[]>(product?.offers || []);
   const [tictoId, setTictoId] = useState(product?.tictoId || '');
   const [type, setType] = useState<ProductType>(product?.type || 'COMBO');
   const [accessDays, setAccessDays] = useState(product?.accessDays || 365);
@@ -73,12 +73,22 @@ export default function ProductFormModal({ product, onClose, onSave }: ProductFo
       return;
     }
 
+    if (offers.length === 0) {
+      setError('Adicione pelo menos uma oferta ao produto.');
+      return;
+    }
+
+    if (!offers.some(o => o.isDefault)) {
+      setError('Selecione uma oferta como padrão (Default).');
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
     const productData = {
       name,
-      price,
+      offers,
       tictoId,
       type,
       accessDays,
@@ -107,6 +117,38 @@ export default function ProductFormModal({ product, onClose, onSave }: ProductFo
     } finally {
       setLoading(false);
     }
+  };
+
+  const addOffer = () => {
+    const newOffer: ProductOffer = {
+      id: Math.random().toString(36).substr(2, 9),
+      name: '',
+      price: 0,
+      isDefault: offers.length === 0,
+      isActive: true
+    };
+    setOffers([...offers, newOffer]);
+  };
+
+  const removeOffer = (id: string) => {
+    setOffers(offers.filter(o => o.id !== id));
+  };
+
+  const updateOffer = (id: string, updates: Partial<ProductOffer>) => {
+    setOffers(offers.map(o => o.id === id ? { ...o, ...updates } : o));
+  };
+
+  const setDefaultOffer = (id: string) => {
+    setOffers(offers.map(o => ({ ...o, isDefault: o.id === id })));
+  };
+
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const copyOfferLink = (offerId: string) => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const link = `${origin}/checkout/${offerId}`;
+    navigator.clipboard.writeText(link);
+    setCopiedId(offerId);
+    setTimeout(() => setCopiedId(null), 2000);
   };
 
   const productTypes: ProductType[] = ['COMBO', 'PLANO', 'TURMA_ONLINE', 'CURSO_ISOLADO', 'SIMULADO', 'EVENTO'];
@@ -155,22 +197,6 @@ export default function ProductFormModal({ product, onClose, onSave }: ProductFo
 
               <div>
                 <label className="block text-sm font-medium text-zinc-400 mb-2">
-                  Preço (R$) *
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={price}
-                  onChange={(e) => setPrice(parseFloat(e.target.value) || 0)}
-                  placeholder="Ex: 297.00"
-                  className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-4 py-2.5 focus:outline-none focus:border-red-500"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-2">
                   ID do Produto na Ticto (Webhook) *
                 </label>
                 <input
@@ -211,6 +237,116 @@ export default function ProductFormModal({ product, onClose, onSave }: ProductFo
                   className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-4 py-2.5 focus:outline-none focus:border-red-500"
                   required
                 />
+              </div>
+            </div>
+
+            {/* Offers Management */}
+            <div className="border-t border-zinc-800 pt-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-white">Ofertas e Precificação</h3>
+                  <p className="text-sm text-zinc-500">Gerencie diferentes preços e links de checkout para este produto.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={addOffer}
+                  className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border border-zinc-700"
+                >
+                  <Plus size={16} />
+                  Nova Oferta
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                {offers.map((offer) => (
+                  <div 
+                    key={offer.id} 
+                    className={`p-4 bg-zinc-950 border rounded-xl transition-all ${
+                      offer.isDefault ? 'border-red-600/50 shadow-[0_0_15px_rgba(220,38,38,0.1)]' : 'border-zinc-800'
+                    }`}
+                  >
+                    <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1 w-full">
+                        <div>
+                          <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Nome da Oferta</label>
+                          <input
+                            type="text"
+                            value={offer.name}
+                            onChange={(e) => updateOffer(offer.id, { name: e.target.value })}
+                            placeholder="Ex: Preço Cheio, Black Friday..."
+                            className="w-full bg-zinc-900 border border-zinc-800 text-white rounded-lg px-3 py-1.5 focus:outline-none focus:border-red-500 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Preço (R$)</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={offer.price}
+                            onChange={(e) => updateOffer(offer.id, { price: parseFloat(e.target.value) || 0 })}
+                            className="w-full bg-zinc-900 border border-zinc-800 text-white rounded-lg px-3 py-1.5 focus:outline-none focus:border-red-500 text-sm"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => updateOffer(offer.id, { isActive: !offer.isActive })}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition ${
+                            offer.isActive 
+                              ? 'bg-zinc-800 text-green-500 hover:bg-zinc-700' 
+                              : 'bg-zinc-800 text-zinc-600 hover:bg-zinc-700'
+                          }`}
+                          title={offer.isActive ? 'Ativa' : 'Inativa'}
+                        >
+                          <Globe size={14} />
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setDefaultOffer(offer.id)}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition ${
+                            offer.isDefault 
+                              ? 'bg-red-600 text-white shadow-lg shadow-red-600/20' 
+                              : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                          }`}
+                        >
+                          {offer.isDefault ? <Check size={14} /> : <div className="w-3.5 h-3.5 border-2 border-zinc-600 rounded-full" />}
+                          {offer.isDefault ? 'Padrão' : 'Definir Padrão'}
+                        </button>
+
+                        {product?.id && (
+                          <button
+                            type="button"
+                            onClick={() => copyOfferLink(offer.id)}
+                            className={`p-2 rounded-lg transition ${
+                              copiedId === offer.id ? 'bg-green-600/20 text-green-500' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white'
+                            }`}
+                            title="Copiar Link da Oferta"
+                          >
+                            {copiedId === offer.id ? <Check size={18} /> : <Copy size={18} />}
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => removeOffer(offer.id)}
+                          className="p-2 bg-zinc-800 text-zinc-500 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+                {offers.length === 0 && (
+                  <div className="p-8 text-center bg-zinc-950 border border-dotted border-zinc-800 rounded-2xl">
+                    <p className="text-zinc-500 text-sm font-medium uppercase tracking-widest">Nenhuma oferta cadastrada.</p>
+                    <p className="text-zinc-600 text-[10px] mt-1 font-bold uppercase tracking-tight">Adicione uma oferta para definir o preço do produto.</p>
+                  </div>
+                )}
               </div>
             </div>
 

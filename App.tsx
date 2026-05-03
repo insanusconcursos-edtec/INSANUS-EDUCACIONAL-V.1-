@@ -27,6 +27,7 @@ import StudentLayout from './components/Layout/StudentLayout';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { SpacedReviewModalProvider } from './contexts/SpacedReviewModalContext';
 import PrivateRoute from './components/PrivateRoute';
+import StandaloneCheckout from './pages/checkout/StandaloneCheckout';
 
 // Student Pages Imports
 import { 
@@ -59,6 +60,7 @@ const App: React.FC = () => {
         <Routes>
           <Route path="/migracao/:token" element={<MigrationEnrollment />} />
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/checkout/:offerId" element={<StandaloneCheckout />} />
           
           {/* Video Room (Full Screen) */}
           <Route path="/video-room/:callId" element={

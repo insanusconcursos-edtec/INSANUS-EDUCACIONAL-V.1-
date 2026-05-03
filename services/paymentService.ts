@@ -15,6 +15,7 @@ export interface MPPaymentData {
   };
   metadata: {
     courseId: string;
+    offerId?: string; // Novo: Identificador da oferta
     userName: string;
     userPhone?: string;
   };

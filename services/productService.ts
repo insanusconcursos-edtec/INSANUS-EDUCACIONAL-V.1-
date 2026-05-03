@@ -24,6 +24,24 @@ export const getProducts = async (): Promise<TictoProduct[]> => {
   }
 };
 
+export const getProductByOfferId = async (offerId: string): Promise<{ product: TictoProduct, offer: any } | null> => {
+  try {
+    const products = await getProducts();
+    for (const product of products) {
+      if (product.offers) {
+        const offer = product.offers.find(o => o.id === offerId);
+        if (offer) {
+          return { product, offer };
+        }
+      }
+    }
+    return null;
+  } catch (error) {
+    console.error('Error finding product by offer ID:', error);
+    throw error;
+  }
+};
+
 export const createProduct = async (product: Omit<TictoProduct, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> => {
   try {
     const docRef = await addDoc(collection(db, COLLECTION_NAME), {

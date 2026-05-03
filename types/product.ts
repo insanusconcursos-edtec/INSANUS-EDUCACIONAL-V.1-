@@ -8,15 +8,24 @@ export interface LinkedResources {
   liveEvents: string[];
 }
 
+export interface ProductOffer {
+  id: string;
+  name: string;
+  price: number;
+  isDefault: boolean;
+  isActive: boolean;
+}
+
 export interface TictoProduct {
   id?: string;
   name: string;
-  price: number; // Novo: Preço do produto para o Mercado Pago
+  price?: number; // Tornou-se opcional em favor das Offers
   tictoId: string;
   type: ProductType;
   accessDays: number;
   coverUrl?: string;
   linkedResources: LinkedResources;
+  offers?: ProductOffer[]; // Novo: Sistema de múltiplas ofertas
   liveEventIds?: string[]; // IDs dos eventos vinculados diretamente
   createdAt?: any;
   updatedAt?: any;

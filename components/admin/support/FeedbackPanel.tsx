@@ -250,7 +250,7 @@ export const FeedbackPanel: React.FC<FeedbackPanelProps> = ({ productId, product
                                     PONTOS: {f.rating && f.rating > 0 ? `+${f.rating}` : f.rating || 0}
                                   </div>
                                 </div>
-                                <p className="text-zinc-400 text-xs italic leading-relaxed">"{f.message}"</p>
+                                <p className="text-zinc-400 text-xs italic leading-relaxed">&quot;{f.message}&quot;</p>
                               </div>
                             ))}
                           </div>
