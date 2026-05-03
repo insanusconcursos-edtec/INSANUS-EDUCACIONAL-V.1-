@@ -40,6 +40,7 @@ export const createMPPayment = async (data: any) => {
 
     // Proteção Adicional: Validação de segurança para transaction_amount e payment_method_id
     if (!data.payment_method_id) {
+      console.error("❌ MP Falha Crítica: Payload recebido sem payment_method_id:", JSON.stringify(data, null, 2));
       throw new Error("Falha interna: payment_method_id ausente no payload da requisição.");
     }
 
