@@ -61,13 +61,24 @@ export interface CourseModule {
   releaseDate?: string | null; 
 }
 
-// --- NOVO: Interface da Pasta (Submódulo) ---
-export interface CourseSubModule {
+// --- NOVO: Interface do Grupo (Agrupador de Pastas e Aulas) ---
+export interface CourseGroup {
   id: string;
   moduleId: string; // Vincula ao módulo pai
   title: string;
   order: number;
+}
+
+// --- NOVO: Interface da Pasta (Submódulo) ---
+export interface CourseSubModule {
+  id: string;
+  moduleId: string; // Vincula ao módulo pai
+  groupId?: string | null; // Opcional para retrocompatibilidade
+  title: string;
+  order: number;
   publishDate?: string | null; // Adicionado para Drip Content
+  scheduledDate?: string | null; // Novo: Data de gravação/agendamento
+  status?: 'published' | 'recording' | 'scheduled' | null; // Novo: Status do módulo
 }
 
 // --- NOVO: Interface da Aula ---
@@ -75,6 +86,7 @@ export interface CourseLesson {
   id: string;
   moduleId: string;
   subModuleId?: string | null;
+  groupId?: string | null; // Opcional para retrocompatibilidade
   title: string;
   coverUrl?: string;
   order: number;
@@ -135,6 +147,7 @@ export interface CourseContent {
   fileUrl?: string; // Para PDF
   pdfClassification?: 'TEORIA' | 'QUESTÕES' | 'TEORIA_QUESTÕES';
   isLinkedToPreviousTheory?: boolean;
+  linkedTheoryId?: string | null;
   
   linkUrl?: string; // Para Links
   

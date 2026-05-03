@@ -54,20 +54,7 @@ export function CoursePlayerContent({ lesson }: CoursePlayerContentProps) {
     }
   };
 
-  // Helper para renderizar o ícone do PDF baseado na classificação
-  const renderPdfIcon = (classification?: string) => {
-    switch (classification) {
-      case 'QUESTÕES':
-        return <FileQuestion size={24} />;
-      case 'TEORIA_QUESTÕES':
-        return <Layers size={24} />;
-      case 'TEORIA':
-      default:
-        return <FileText size={24} />;
-    }
-  };
-
-  // Helper para renderizar o helper do YouTube
+  // Helper para o YouTube
   function getYouTubeID(url: string) {
     const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
     const match = url.match(regExp);
@@ -125,11 +112,44 @@ export function CoursePlayerContent({ lesson }: CoursePlayerContentProps) {
 
                     {/* PDF (COM SEGURANÇA) */}
                     {item.type === 'pdf' && (() => {
-                        const isTheory = item.pdfClassification === 'TEORIA';
-                        const isQuestions = item.pdfClassification === 'QUESTÕES';
-                        const colorClass = isTheory ? 'text-yellow-500' : 'text-orange-500';
-                        const bgClass = isTheory ? 'bg-yellow-500/10' : 'bg-orange-500/10';
-                        const borderClass = isTheory ? 'border-yellow-500/20' : 'border-orange-500/20';
+                        const getMaterialStyles = (classification?: string) => {
+                            const upperClass = classification?.toUpperCase();
+                            switch (upperClass) {
+                                case 'TEORIA':
+                                    return {
+                                        Icon: FileText,
+                                        colorClass: 'text-yellow-500',
+                                        borderClass: 'border-yellow-500/20',
+                                        bgClass: 'bg-yellow-500/10'
+                                    };
+                                case 'QUESTÕES':
+                                    return {
+                                        Icon: FileQuestion,
+                                        colorClass: 'text-orange-500',
+                                        borderClass: 'border-orange-500/20',
+                                        bgClass: 'bg-orange-500/10'
+                                    };
+                                case 'TEORIA_QUESTÕES':
+                                case 'AMBOS':
+                                case 'HÍBRIDO':
+                                    return {
+                                        Icon: Layers,
+                                        colorClass: 'text-blue-500',
+                                        borderClass: 'border-blue-500/20',
+                                        bgClass: 'bg-blue-500/10'
+                                    };
+                                default:
+                                    // Default para Teoria se não houver classificação
+                                    return {
+                                        Icon: FileText,
+                                        colorClass: 'text-yellow-500',
+                                        borderClass: 'border-yellow-500/20',
+                                        bgClass: 'bg-yellow-500/10'
+                                    };
+                            }
+                        };
+
+                        const styles = getMaterialStyles(item.pdfClassification);
                         const isLinked = item.isLinkedToPreviousTheory;
 
                         return (
@@ -140,15 +160,15 @@ export function CoursePlayerContent({ lesson }: CoursePlayerContentProps) {
                                 <div 
                                     onClick={() => handleOpenPdf(item.fileUrl || '', item.id)}
                                     className={`
-                                        flex items-center gap-4 p-4 bg-[#1a1d24] border ${borderClass} rounded-xl transition-all group mb-4 cursor-pointer
+                                        flex items-center gap-4 p-4 bg-[#1a1d24] border ${styles.borderClass} rounded-xl transition-all group mb-4 cursor-pointer
                                         ${openingPdfId === item.id ? 'opacity-75 pointer-events-none' : `hover:border-red-600/50 hover:bg-[#202329]` }
                                     `}
                                 >
-                                    <div className={`w-10 h-10 rounded ${bgClass} flex items-center justify-center ${colorClass} group-hover:scale-110 transition-transform shrink-0`}>
+                                    <div className={`w-10 h-10 rounded ${styles.bgClass} flex items-center justify-center ${styles.colorClass} group-hover:scale-110 transition-transform shrink-0`}>
                                         {openingPdfId === item.id ? (
-                                            <div className={`animate-spin h-5 w-5 border-2 ${colorClass} border-t-transparent rounded-full`}></div>
+                                            <div className={`animate-spin h-5 w-5 border-2 ${styles.colorClass} border-t-transparent rounded-full`}></div>
                                         ) : (
-                                            isTheory ? <FileText size={24} /> : isQuestions ? <FileQuestion size={24} /> : <Layers size={24} />
+                                            <styles.Icon size={24} />
                                         )}
                                     </div>
                                     <div className="flex-1">

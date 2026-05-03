@@ -4,16 +4,19 @@ import { courseService } from '../../../../../services/courseService';
 interface LessonModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (title: string, coverUrl: string, type: 'video' | 'pdf') => Promise<void>;
+  onSave: (title: string, coverUrl: string, type: 'video' | 'pdf', groupId?: string | null) => Promise<void>;
   initialTitle?: string;
   initialCover?: string;
   initialType?: 'video' | 'pdf';
+  initialGroupId?: string | null;
+  groups?: CourseGroup[];
 }
 
-export function LessonModal({ isOpen, onClose, onSave, initialTitle, initialCover, initialType }: LessonModalProps) {
+export function LessonModal({ isOpen, onClose, onSave, initialTitle, initialCover, initialType, initialGroupId, groups = [] }: LessonModalProps) {
   const [title, setTitle] = useState('');
   const [coverUrl, setCoverUrl] = useState('');
   const [type, setType] = useState<'video' | 'pdf'>('video');
+  const [groupId, setGroupId] = useState<string | null>(null);
   
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState('');
@@ -26,9 +29,10 @@ export function LessonModal({ isOpen, onClose, onSave, initialTitle, initialCove
       setCoverUrl(initialCover || '');
       setPreviewUrl(initialCover || '');
       setType(initialType || 'video');
+      setGroupId(initialGroupId || null);
       setSelectedFile(null);
     }
-  }, [isOpen, initialTitle, initialCover, initialType]);
+  }, [isOpen, initialTitle, initialCover, initialType, initialGroupId]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -54,7 +58,7 @@ export function LessonModal({ isOpen, onClose, onSave, initialTitle, initialCove
         }
     }
 
-    await onSave(title, finalUrl, type);
+    await onSave(title, finalUrl, type, groupId);
     setLoading(false);
     onClose();
   };
@@ -81,6 +85,21 @@ export function LessonModal({ isOpen, onClose, onSave, initialTitle, initialCove
               className="w-full bg-black border border-gray-800 rounded p-3 text-white focus:border-red-600 outline-none"
               required
             />
+          </div>
+
+          {/* Seleção de Grupo */}
+          <div>
+            <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Vincular a um Grupo (Título)</label>
+            <select 
+              value={groupId || ''}
+              onChange={e => setGroupId(e.target.value || null)}
+              className="w-full bg-black border border-gray-800 rounded p-3 text-white focus:border-red-600 outline-none text-xs"
+            >
+              <option value="">Nenhum Grupo (Raiz)</option>
+              {groups.map(group => (
+                <option key={group.id} value={group.id}>{group.title}</option>
+              ))}
+            </select>
           </div>
 
           {/* --- SELETOR DE TIPO DE AULA (NOVO) --- */}

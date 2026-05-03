@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { OnlineCourse, CourseModule, CourseSubModule, CourseLesson } from '../../../../types/course';
+import { OnlineCourse, CourseModule, CourseSubModule, CourseLesson, CourseGroup } from '../../../../types/course';
 import { courseService } from '../../../../services/courseService';
 import { CoursePlayerSidebar } from './CoursePlayerSidebar';
 import { CoursePlayerContent } from './CoursePlayerContent';
@@ -16,7 +16,11 @@ interface CoursePlayerProps {
 export function CoursePlayer({ course, module, onBack }: CoursePlayerProps) {
   const [searchParams] = useSearchParams();
   const { currentUser } = useAuth();
-  const [structure, setStructure] = useState<{ subModules: CourseSubModule[], lessons: CourseLesson[] }>({ subModules: [], lessons: [] });
+  const [structure, setStructure] = useState<{ 
+    groups: CourseGroup[],
+    subModules: CourseSubModule[], 
+    lessons: CourseLesson[] 
+  }>({ groups: [], subModules: [], lessons: [] });
   const [loading, setLoading] = useState(true);
   const [activeLesson, setActiveLesson] = useState<CourseLesson | null>(null);
   
@@ -27,11 +31,12 @@ export function CoursePlayer({ course, module, onBack }: CoursePlayerProps) {
     const loadData = async () => {
         try {
             // 1. Carrega dados do Módulo Atual
-            const [subs, lessons] = await Promise.all([
+            const [subs, lessons, grps] = await Promise.all([
                 courseService.getSubModules(module.id),
-                courseService.getLessons(module.id)
+                courseService.getLessons(module.id),
+                courseService.getGroups(module.id)
             ]);
-            setStructure({ subModules: subs, lessons: lessons });
+            setStructure({ subModules: subs, lessons: lessons, groups: grps });
             
             // 2. Carrega Progresso (Aulas Feitas)
             if (currentUser) {

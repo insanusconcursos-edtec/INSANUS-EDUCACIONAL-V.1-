@@ -57,13 +57,35 @@ export function LessonContentManager({ lesson, onBack }: LessonContentManagerPro
     const targetIndex = direction === 'up' ? index - 1 : index + 1;
     [newContents[index], newContents[targetIndex]] = [newContents[targetIndex], newContents[index]];
     
-    // Check rule and reset flag if broken
+    // Check rule and update linkage based on new position
     newContents.forEach((item, i) => {
         if (item.isLinkedToPreviousTheory) {
-            const previous = newContents[i - 1];
-            if (item.type !== 'pdf' || item.pdfClassification !== 'QUESTÕES' || previous?.pdfClassification !== 'TEORIA') {
+            // Se mudou de tipo ou classificação, remove vínculo
+            if (item.type !== 'pdf' || item.pdfClassification !== 'QUESTÕES') {
                 item.isLinkedToPreviousTheory = false;
+                item.linkedTheoryId = null;
+                return;
             }
+
+            // Busca reversa pela teoria mais próxima
+            let foundTheoryId = null;
+            for (let j = i - 1; j >= 0; j--) {
+                const prev = newContents[j];
+                if (prev.pdfClassification === 'TEORIA' || prev.pdfClassification === 'TEORIA_QUESTÕES') {
+                    foundTheoryId = prev.id;
+                    break;
+                }
+            }
+
+            if (foundTheoryId) {
+                item.linkedTheoryId = foundTheoryId;
+            } else {
+                // Se não achou nenhuma teoria antes, desmarca
+                item.isLinkedToPreviousTheory = false;
+                item.linkedTheoryId = null;
+            }
+        } else {
+            item.linkedTheoryId = null;
         }
     });
     

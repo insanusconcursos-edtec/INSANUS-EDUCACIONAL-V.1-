@@ -1,30 +1,35 @@
 import React, { useState, useEffect } from 'react';
+import { CourseGroup } from '../../../../../types/course';
 
 interface FolderModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (title: string, publishDate: string | null) => Promise<void>;
+  onSave: (title: string, publishDate: string | null, groupId?: string | null) => Promise<void>;
   initialTitle?: string;
   initialPublishDate?: string | null;
+  initialGroupId?: string | null;
+  groups?: CourseGroup[];
 }
 
-export function FolderModal({ isOpen, onClose, onSave, initialTitle, initialPublishDate }: FolderModalProps) {
+export function FolderModal({ isOpen, onClose, onSave, initialTitle, initialPublishDate, initialGroupId, groups = [] }: FolderModalProps) {
   const [title, setTitle] = useState('');
   const [publishDate, setPublishDate] = useState<string | null>(null);
+  const [groupId, setGroupId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       setTitle(initialTitle || '');
       setPublishDate(initialPublishDate || null);
+      setGroupId(initialGroupId || null);
     }
-  }, [isOpen, initialTitle, initialPublishDate]);
+  }, [isOpen, initialTitle, initialPublishDate, initialGroupId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
     setLoading(true);
-    await onSave(title, publishDate);
+    await onSave(title, publishDate, groupId);
     setLoading(false);
     onClose();
   };
@@ -50,6 +55,22 @@ export function FolderModal({ isOpen, onClose, onSave, initialTitle, initialPubl
               required
             />
           </div>
+
+          {/* Seleção de Grupo */}
+          <div>
+            <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Vincular a um Grupo (Título)</label>
+            <select 
+              value={groupId || ''}
+              onChange={e => setGroupId(e.target.value || null)}
+              className="w-full bg-black border border-gray-800 rounded p-3 text-white focus:border-red-600 outline-none text-xs"
+            >
+              <option value="">Nenhum Grupo (Raiz)</option>
+              {groups.map(group => (
+                <option key={group.id} value={group.id}>{group.title}</option>
+              ))}
+            </select>
+          </div>
+
           <div>
             <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Data de Liberação (Opcional)</label>
             <input 

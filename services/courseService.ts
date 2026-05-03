@@ -28,11 +28,72 @@ import { CourseEditalStructure } from '../types/courseEdital';
 const COLLECTION_NAME = 'online_courses';
 const MODULES_COLLECTION = 'course_modules';
 const SUBMODULES_COLLECTION = 'course_submodules';
+const GROUPS_COLLECTION = 'course_groups';
 const LESSONS_COLLECTION = 'course_lessons';
 const CONTENTS_COLLECTION = 'course_contents';
 const EDITAL_COLLECTION = 'course_edital'; 
 
 export const courseService = {
+  // --- GRUPOS ---
+
+  createGroup: async (data: Omit<CourseGroup, 'id'>) => {
+    try {
+      const q = query(
+        collection(db, GROUPS_COLLECTION), 
+        where('moduleId', '==', data.moduleId),
+        orderBy('order', 'desc')
+      );
+      const snapshot = await getDocs(q);
+      const lastOrder = snapshot.docs.length > 0 ? snapshot.docs[0].data().order : 0;
+
+      const docRef = await addDoc(collection(db, GROUPS_COLLECTION), {
+        ...data,
+        order: lastOrder + 1
+      });
+      return docRef.id;
+    } catch (error) {
+      console.error("Erro ao criar grupo:", error);
+      throw error;
+    }
+  },
+
+  getGroups: async (moduleId: string): Promise<CourseGroup[]> => {
+    try {
+      const q = query(
+        collection(db, GROUPS_COLLECTION),
+        where('moduleId', '==', moduleId),
+        orderBy('order', 'asc')
+      );
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CourseGroup));
+    } catch (error) {
+      console.error("Erro ao buscar grupos:", error);
+      throw error;
+    }
+  },
+
+  updateGroup: async (id: string, data: Partial<CourseGroup>) => {
+    await updateDoc(doc(db, GROUPS_COLLECTION, id), data);
+  },
+
+  deleteGroup: async (id: string) => {
+    await deleteDoc(doc(db, GROUPS_COLLECTION, id));
+  },
+
+  reorderGroups: async (groups: CourseGroup[]) => {
+    try {
+      const batch = writeBatch(db);
+      groups.forEach((group, index) => {
+        const docRef = doc(db, GROUPS_COLLECTION, group.id);
+        batch.update(docRef, { order: index + 1 });
+      });
+      await batch.commit();
+    } catch (error) {
+      console.error("Erro ao reordenar grupos:", error);
+      throw error;
+    }
+  },
+
   // Helper para upload de Banner
   uploadBanner: async (file: File): Promise<string> => {
     try {

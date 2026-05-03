@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Folder, Download, Wand2 } from 'lucide-react';
-import { CourseModule, CourseSubModule, CourseLesson } from '../../../../types/course';
+import { Folder, Download, Wand2, Layers, FolderTree, ChevronDown, ChevronRight, GripVertical } from 'lucide-react';
+import { CourseModule, CourseSubModule, CourseLesson, CourseGroup } from '../../../../types/course';
 import { courseService } from '../../../../services/courseService';
 import { LessonItem } from './items/LessonItem';
 import { SubModuleItem } from './items/SubModuleItem';
 import { FolderModal } from './modals/FolderModal';
 import { LessonModal } from './modals/LessonModal';
+import { GroupModal } from './modals/GroupModal';
 import { ConfirmationModal } from '../../ui/ConfirmationModal';
 import { LessonContentManager } from '../lessons/LessonContentManager';
 import { PDFTemplate } from '../../../../src/frontend/components/PDFTemplate';
@@ -17,11 +18,15 @@ interface ModuleContentManagerProps {
 }
 
 export function ModuleContentManager({ module, onBack }: ModuleContentManagerProps) {
+  const [groups, setGroups] = useState<CourseGroup[]>([]);
   const [subModules, setSubModules] = useState<CourseSubModule[]>([]);
   const [lessons, setLessons] = useState<CourseLesson[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Estados de Modais
+  const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
+  const [editingGroup, setEditingGroup] = useState<CourseGroup | null>(null);
+
   const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
   const [editingFolder, setEditingFolder] = useState<CourseSubModule | null>(null);
   
@@ -29,7 +34,7 @@ export function ModuleContentManager({ module, onBack }: ModuleContentManagerPro
   const [editingLesson, setEditingLesson] = useState<CourseLesson | null>(null);
   const [targetFolderIdForNewLesson, setTargetFolderIdForNewLesson] = useState<string | null>(null);
 
-  const [itemToDelete, setItemToDelete] = useState<{ type: 'folder' | 'lesson', id: string, title: string } | null>(null);
+  const [itemToDelete, setItemToDelete] = useState<{ type: 'folder' | 'lesson' | 'group', id: string, title: string } | null>(null);
   const [lessonToMove, setLessonToMove] = useState<CourseLesson | null>(null);
 
   // Estado para Drill-down de Aula (Gerenciar Conteúdos)
@@ -37,12 +42,20 @@ export function ModuleContentManager({ module, onBack }: ModuleContentManagerPro
 
   // NOVO ESTADO: Controla quais pastas estão abertas (persiste após updates)
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
 
   // Helper para abrir/fechar pasta
   const toggleFolder = (folderId: string) => {
     setExpandedFolders(prev => ({
       ...prev,
       [folderId]: !prev[folderId]
+    }));
+  };
+
+  const toggleGroup = (groupId: string) => {
+    setExpandedGroups(prev => ({
+      ...prev,
+      [groupId]: !prev[groupId]
     }));
   };
 
@@ -201,12 +214,25 @@ export function ModuleContentManager({ module, onBack }: ModuleContentManagerPro
   const loadContent = async () => {
     setLoading(true);
     try {
-      const [subs, less] = await Promise.all([
+      const [subs, less, grps] = await Promise.all([
         courseService.getSubModules(module.id),
-        courseService.getLessons(module.id)
+        courseService.getLessons(module.id),
+        courseService.getGroups(module.id)
       ]);
       setSubModules(subs);
       setLessons(less);
+      setGroups(grps);
+      
+      // Auto-expand groups that have items
+      const groupExpandedState: Record<string, boolean> = {};
+      grps.forEach(g => {
+        const hasFolders = subs.some(s => s.groupId === g.id);
+        const hasLessons = less.some(l => !l.subModuleId && l.groupId === g.id);
+        if (hasFolders || hasLessons) {
+          groupExpandedState[g.id] = true;
+        }
+      });
+      setExpandedGroups(prev => ({ ...groupExpandedState, ...prev }));
     } catch (error) {
       console.error("Erro ao carregar conteúdo", error);
     } finally {
@@ -218,20 +244,51 @@ export function ModuleContentManager({ module, onBack }: ModuleContentManagerPro
     loadContent();
   }, [module.id]);
 
-  // --- CRUD PASTAS ---
-  const handleSaveFolder = async (title: string, publishDate: string | null) => {
+  // --- CRUD GRUPOS ---
+  const handleSaveGroup = async (title: string) => {
     try {
+      if (editingGroup) {
+        await courseService.updateGroup(editingGroup.id, { title });
+        setGroups(prev => prev.map(g => g.id === editingGroup.id ? { ...g, title } : g));
+      } else {
+        const newId = await courseService.createGroup({
+          title,
+          moduleId: module.id,
+          order: groups.length + 1
+        });
+        setGroups(prev => [...prev, { id: newId, title, moduleId: module.id, order: groups.length + 1 }]);
+        setExpandedGroups(prev => ({ ...prev, [newId]: true }));
+      }
+    } catch (error) {
+      console.error("Erro ao salvar grupo:", error);
+    }
+  };
+
+  const handleDeleteGroup = async () => {
+    if (itemToDelete && itemToDelete.type === 'group') {
+      await courseService.deleteGroup(itemToDelete.id);
+      // Itens órfãos (o usuário não pediu para excluir os itens, então eles ficam sem grupo)
+      await loadContent();
+      setItemToDelete(null);
+    }
+  };
+
+  // --- CRUD PASTAS ---
+  const handleSaveFolder = async (title: string, publishDate: string | null, groupId?: string | null) => {
+    try {
+      const data = { title, publishDate, groupId: groupId || null };
       if (editingFolder) {
-        await courseService.updateSubModule(editingFolder.id, { title, publishDate });
+        await courseService.updateSubModule(editingFolder.id, data);
         // Atualização Otimista
-        setSubModules(prev => prev.map(s => s.id === editingFolder.id ? { ...s, title, publishDate } : s));
+        setSubModules(prev => prev.map(s => s.id === editingFolder.id ? { ...s, ...data } : s));
       } else {
         const newOrder = subModules.length > 0 ? Math.max(...subModules.map(s => s.order)) + 1 : 1;
         const newId = await courseService.createSubModule({ 
             title, 
             moduleId: module.id, 
             order: newOrder,
-            publishDate
+            publishDate,
+            groupId: groupId || null
         });
 
         // Atualização Otimista
@@ -240,11 +297,13 @@ export function ModuleContentManager({ module, onBack }: ModuleContentManagerPro
             moduleId: module.id,
             title,
             order: newOrder,
-            publishDate
+            publishDate,
+            groupId: groupId || null
         }]);
 
         // Abre a nova pasta
         setExpandedFolders(prev => ({ ...prev, [newId]: true }));
+        if (groupId) toggleGroup(groupId); // Garante que o grupo está aberto
       }
       setIsFolderModalOpen(false); // Fecha o modal
       setEditingFolder(null); // Limpa edição
@@ -263,12 +322,13 @@ export function ModuleContentManager({ module, onBack }: ModuleContentManagerPro
   };
 
   // --- CRUD AULAS ---
-  const handleSaveLesson = async (title: string, coverUrl: string, type: 'video' | 'pdf') => {
+  const handleSaveLesson = async (title: string, coverUrl: string, type: 'video' | 'pdf', groupId?: string | null) => {
     try {
+      const data = { title, coverUrl, type, groupId: groupId || null };
       if (editingLesson) {
-        await courseService.updateLesson(editingLesson.id, { title, coverUrl, type });
+        await courseService.updateLesson(editingLesson.id, data);
         // Atualização Otimista
-        setLessons(prev => prev.map(l => l.id === editingLesson.id ? { ...l, title, coverUrl, type } : l));
+        setLessons(prev => prev.map(l => l.id === editingLesson.id ? { ...l, ...data } : l));
       } else {
         const targetFolderId = targetFolderIdForNewLesson || null;
         
@@ -284,6 +344,7 @@ export function ModuleContentManager({ module, onBack }: ModuleContentManagerPro
           coverUrl, 
           moduleId: module.id, 
           subModuleId: targetFolderId, 
+          groupId: groupId || null,
           order: newOrder,
           type
         };
@@ -303,6 +364,7 @@ export function ModuleContentManager({ module, onBack }: ModuleContentManagerPro
         if (targetFolderId) {
             setExpandedFolders(prev => ({ ...prev, [targetFolderId]: true }));
         }
+        if (groupId) setExpandedGroups(prev => ({ ...prev, [groupId]: true }));
       }
       setIsLessonModalOpen(false);
       setEditingLesson(null);
@@ -362,11 +424,11 @@ export function ModuleContentManager({ module, onBack }: ModuleContentManagerPro
     }
   };
 
-  // --- NOVA FUNÇÃO: Reordenar Conteúdo Misto (Pastas + Aulas Raiz) ---
+  // --- NOVA FUNÇÃO: Reordenar Conteúdo Misto (Pastas + Aulas Raiz) (APENAS ÓRFÃOS) ---
   const handleReorderMixed = async (index: number, direction: 'up' | 'down') => {
     const mixedContent = [
-      ...subModules.map(f => ({ type: 'folder' as const, id: f.id, order: f.order })),
-      ...lessons.filter(l => !l.subModuleId).map(l => ({ type: 'lesson' as const, id: l.id, order: l.order }))
+      ...subModules.filter(f => !f.groupId).map(f => ({ type: 'folder' as const, id: f.id, order: f.order })),
+      ...lessons.filter(l => !l.subModuleId && !l.groupId).map(l => ({ type: 'lesson' as const, id: l.id, order: l.order }))
     ].sort((a, b) => (a.order || 0) - (b.order || 0));
 
     const targetIndex = direction === 'up' ? index - 1 : index + 1;
@@ -394,6 +456,59 @@ export function ModuleContentManager({ module, onBack }: ModuleContentManagerPro
       await courseService.reorderMixedContent(updates);
     } catch (error) {
       console.error("Erro ao reordenar conteúdo misto", error);
+      loadContent();
+    }
+  };
+
+  const handleReorderMixedInGroup = async (groupId: string, index: number, direction: 'up' | 'down') => {
+    const mixedContent = [
+      ...subModules.filter(f => f.groupId === groupId).map(f => ({ type: 'folder' as const, id: f.id, order: f.order })),
+      ...lessons.filter(l => !l.subModuleId && l.groupId === groupId).map(l => ({ type: 'lesson' as const, id: l.id, order: l.order }))
+    ].sort((a, b) => (a.order || 0) - (b.order || 0));
+
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= mixedContent.length) return;
+
+    // Swap
+    [mixedContent[index], mixedContent[targetIndex]] = [mixedContent[targetIndex], mixedContent[index]];
+
+    // Recalculate orders
+    const updates = mixedContent.map((item, idx) => ({ ...item, order: idx + 1 }));
+
+    // Update local state
+    setSubModules(prev => prev.map(s => {
+      const update = updates.find(u => u.type === 'folder' && u.id === s.id);
+      return update ? { ...s, order: update.order } : s;
+    }).sort((a, b) => a.order - b.order));
+
+    setLessons(prev => prev.map(l => {
+      const update = updates.find(u => u.type === 'lesson' && u.id === l.id);
+      return update ? { ...l, order: update.order } : l;
+    }).sort((a, b) => a.order - b.order));
+
+    // Save to DB
+    try {
+      await courseService.reorderMixedContent(updates);
+    } catch (error) {
+      console.error("Erro ao reordenar conteúdo no grupo", error);
+      loadContent();
+    }
+  };
+
+  const handleReorderGroups = async (index: number, direction: 'up' | 'down') => {
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= groups.length) return;
+
+    const newGroups = [...groups];
+    [newGroups[index], newGroups[targetIndex]] = [newGroups[targetIndex], newGroups[index]];
+
+    const updates = newGroups.map((g, idx) => ({ ...g, order: idx + 1 }));
+    setGroups(updates);
+
+    try {
+      await courseService.reorderGroups(updates);
+    } catch (error) {
+      console.error("Erro ao reordenar grupos", error);
       loadContent();
     }
   };
@@ -520,6 +635,13 @@ export function ModuleContentManager({ module, onBack }: ModuleContentManagerPro
             )}
 
             <button 
+                onClick={() => { setEditingGroup(null); setIsGroupModalOpen(true); }}
+                className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold uppercase text-xs rounded border border-zinc-700 flex items-center gap-2"
+            >
+                <Layers size={16} className="text-zinc-500" />
+                Criar Grupo
+            </button>
+            <button 
                 onClick={() => { setEditingFolder(null); setIsFolderModalOpen(true); }}
                 className="px-4 py-2 bg-[#1a1d24] border border-gray-700 hover:border-gray-500 text-white font-bold uppercase text-xs rounded flex items-center gap-2"
             >
@@ -537,69 +659,198 @@ export function ModuleContentManager({ module, onBack }: ModuleContentManagerPro
       </div>
 
       {/* Conteúdo */}
-      <div className="space-y-4 max-w-4xl mx-auto">
+      <div className="space-y-4 max-w-4xl mx-auto pb-20">
         {loading ? (
             <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-red-600"></div></div>
         ) : (
             <>
-                {/* Lista Unificada de Pastas e Aulas Raiz */}
-                {[
-                  ...subModules.map(folder => ({ type: 'folder' as const, id: folder.id, data: folder, order: folder.order })),
-                  ...lessons.filter(l => !l.subModuleId).map(lesson => ({ type: 'lesson' as const, id: lesson.id, data: lesson, order: lesson.order }))
-                ]
-                .sort((a, b) => (a.order || 0) - (b.order || 0))
-                .map((item, index, array) => {
-                  if (item.type === 'folder') {
-                    const folder = item.data;
-                    return (
-                      <SubModuleItem 
-                        key={folder.id}
-                        subModule={folder}
-                        lessons={getLessonsInFolder(folder.id)}
-                        onEdit={() => { setEditingFolder(folder); setIsFolderModalOpen(true); }}
-                        onDelete={() => setItemToDelete({ type: 'folder', id: folder.id, title: folder.title })}
-                        onAddLesson={() => { setEditingLesson(null); setTargetFolderIdForNewLesson(folder.id); setIsLessonModalOpen(true); }}
-                        onEditLesson={(l) => { setEditingLesson(l); setIsLessonModalOpen(true); }}
-                        onDeleteLesson={(l) => setItemToDelete({ type: 'lesson', id: l.id, title: l.title })}
-                        onMoveLesson={setLessonToMove}
-                        onManageLesson={setManagingLesson} 
-                        
-                        onMoveUp={() => handleReorderMixed(index, 'up')}
-                        onMoveDown={() => handleReorderMixed(index, 'down')}
-                        onReorderLesson={(idx, dir) => handleReorderLesson(idx, dir, folder.id)}
-                        isFirst={index === 0}
-                        isLast={index === array.length - 1}
+                {/* --- SEÇÃO 1: ITENS ÓRFÃOS (SEM GRUPO) --- */}
+                <div className="space-y-3">
+                  {[
+                    ...subModules.filter(s => !s.groupId).map(folder => ({ type: 'folder' as const, id: folder.id, data: folder, order: folder.order })),
+                    ...lessons.filter(l => !l.subModuleId && !l.groupId).map(lesson => ({ type: 'lesson' as const, id: lesson.id, data: lesson, order: lesson.order }))
+                  ]
+                  .sort((a, b) => (a.order || 0) - (b.order || 0))
+                  .map((item, index, array) => {
+                    if (item.type === 'folder') {
+                      const folder = item.data;
+                      return (
+                        <SubModuleItem 
+                          key={folder.id}
+                          subModule={folder}
+                          lessons={getLessonsInFolder(folder.id)}
+                          onEdit={() => { setEditingFolder(folder); setIsFolderModalOpen(true); }}
+                          onDelete={() => setItemToDelete({ type: 'folder', id: folder.id, title: folder.title })}
+                          onAddLesson={() => { setEditingLesson(null); setTargetFolderIdForNewLesson(folder.id); setIsLessonModalOpen(true); }}
+                          onEditLesson={(l) => { setEditingLesson(l); setIsLessonModalOpen(true); }}
+                          onDeleteLesson={(l) => setItemToDelete({ type: 'lesson', id: l.id, title: l.title })}
+                          onMoveLesson={setLessonToMove}
+                          onManageLesson={setManagingLesson} 
+                          
+                          onMoveUp={() => handleReorderMixed(index, 'up')}
+                          onMoveDown={() => handleReorderMixed(index, 'down')}
+                          onReorderLesson={(idx, dir) => handleReorderLesson(idx, dir, folder.id)}
+                          isFirst={index === 0}
+                          isLast={index === array.length - 1}
 
-                        isOpen={!!expandedFolders[folder.id]}
-                        onToggle={() => toggleFolder(folder.id)}
+                          isOpen={!!expandedFolders[folder.id]}
+                          onToggle={() => toggleFolder(folder.id)}
 
-                        selectedLessonIds={selectedLessonIds}
-                        onToggleLessonSelection={toggleLessonSelection}
-                      />
-                    );
-                  } else {
-                    const lesson = item.data;
-                    return (
-                      <LessonItem 
-                        key={lesson.id}
-                        lesson={lesson}
-                        onEdit={() => { setEditingLesson(lesson); setIsLessonModalOpen(true); }}
-                        onDelete={() => setItemToDelete({ type: 'lesson', id: lesson.id, title: lesson.title })}
-                        onMove={() => setLessonToMove(lesson)}
-                        onManageContent={() => setManagingLesson(lesson)} 
-                        onReorderUp={() => handleReorderMixed(index, 'up')}
-                        onReorderDown={() => handleReorderMixed(index, 'down')}
-                        isFirst={index === 0}
-                        isLast={index === array.length - 1}
+                          selectedLessonIds={selectedLessonIds}
+                          onToggleLessonSelection={toggleLessonSelection}
+                        />
+                      );
+                    } else {
+                      const lesson = item.data;
+                      return (
+                        <LessonItem 
+                          key={lesson.id}
+                          lesson={lesson}
+                          onEdit={() => { setEditingLesson(lesson); setIsLessonModalOpen(true); }}
+                          onDelete={() => setItemToDelete({ type: 'lesson', id: lesson.id, title: lesson.title })}
+                          onMove={() => setLessonToMove(lesson)}
+                          onManageContent={() => setManagingLesson(lesson)} 
+                          onReorderUp={() => handleReorderMixed(index, 'up')}
+                          onReorderDown={() => handleReorderMixed(index, 'down')}
+                          isFirst={index === 0}
+                          isLast={index === array.length - 1}
 
-                        isSelected={selectedLessonIds.includes(lesson.id)}
-                        onToggleSelection={toggleLessonSelection}
-                      />
-                    );
-                  }
+                          isSelected={selectedLessonIds.includes(lesson.id)}
+                          onToggleSelection={toggleLessonSelection}
+                        />
+                      );
+                    }
+                  })}
+                </div>
+
+                {/* --- SEÇÃO 2: GRUPOS (ACORDEÕES) --- */}
+                {groups.sort((a,b) => a.order - b.order).map((group, groupIdx) => {
+                  const groupItems = [
+                    ...subModules.filter(s => s.groupId === group.id).map(folder => ({ type: 'folder' as const, id: folder.id, data: folder, order: folder.order })),
+                    ...lessons.filter(l => !l.subModuleId && l.groupId === group.id).map(lesson => ({ type: 'lesson' as const, id: lesson.id, data: lesson, order: lesson.order }))
+                  ].sort((a, b) => (a.order || 0) - (b.order || 0));
+
+                  const isExpanded = expandedGroups[group.id];
+
+                  return (
+                    <div key={group.id} className="border border-gray-800 rounded-xl overflow-hidden bg-zinc-900/20">
+                      {/* Header do Grupo */}
+                      <div 
+                        className={`flex items-center gap-3 p-4 cursor-pointer transition-colors ${isExpanded ? 'bg-zinc-900/60' : 'hover:bg-zinc-900/40'}`}
+                        onClick={() => toggleGroup(group.id)}
+                      >
+                        <div className="flex items-center gap-3 flex-1">
+                          <div className="p-2 bg-zinc-800 rounded-lg text-zinc-400">
+                            <FolderTree size={18} />
+                          </div>
+                          <h3 className="font-black text-xs text-white uppercase tracking-wider">{group.title}</h3>
+                          <span className="text-[10px] font-bold text-gray-500 bg-black/50 px-2 py-0.5 rounded-full border border-gray-800">
+                            {groupItems.length} ITENS
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                           {/* Controles de Grupo */}
+                           <div className="flex items-center gap-1 mr-4 border-r border-gray-800 pr-4" onClick={e => e.stopPropagation()}>
+                              <button 
+                                onClick={() => { setEditingGroup(group); setIsGroupModalOpen(true); }}
+                                className="p-1 hover:bg-white/5 rounded text-gray-500 hover:text-white transition-colors"
+                              >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                              </button>
+                              <button 
+                                onClick={() => setItemToDelete({ type: 'group', id: group.id, title: group.title })}
+                                className="p-1 hover:bg-red-900/20 rounded text-gray-500 hover:text-red-500 transition-colors"
+                              >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                              </button>
+                              <div className="flex flex-col gap-0.5 ml-2">
+                                <button 
+                                  disabled={groupIdx === 0}
+                                  onClick={() => handleReorderGroups(groupIdx, 'up')}
+                                  className="p-0.5 hover:bg-gray-700 rounded disabled:opacity-30"
+                                >
+                                  <ChevronDown size={14} className="rotate-180" />
+                                </button>
+                                <button 
+                                  disabled={groupIdx === groups.length - 1}
+                                  onClick={() => handleReorderGroups(groupIdx, 'down')}
+                                  className="p-0.5 hover:bg-gray-700 rounded disabled:opacity-30"
+                                >
+                                  <ChevronDown size={14} />
+                                </button>
+                              </div>
+                           </div>
+
+                           {isExpanded ? <ChevronDown size={20} className="text-gray-500" /> : <ChevronRight size={20} className="text-gray-500" />}
+                        </div>
+                      </div>
+
+                      {/* Corpo do Grupo */}
+                      {isExpanded && (
+                        <div className="p-4 pt-0 space-y-3 bg-black/20 animate-in slide-in-from-top-2 duration-200">
+                          {groupItems.length === 0 ? (
+                            <div className="text-center py-8 border border-dashed border-gray-800 rounded-lg">
+                              <p className="text-gray-600 text-[10px] font-bold uppercase">Nenhum item neste grupo</p>
+                            </div>
+                          ) : (
+                            groupItems.map((item, index) => {
+                              if (item.type === 'folder') {
+                                return (
+                                  <SubModuleItem 
+                                    key={item.id}
+                                    subModule={item.data}
+                                    lessons={getLessonsInFolder(item.id)}
+                                    
+                                    onEdit={() => { setEditingFolder(item.data); setIsFolderModalOpen(true); }}
+                                    onDelete={() => setItemToDelete({ type: 'folder', id: item.id, title: item.data.title })}
+                                    onAddLesson={() => { setEditingLesson(null); setTargetFolderIdForNewLesson(item.id); setIsLessonModalOpen(true); }}
+                                    onEditLesson={(l) => { setEditingLesson(l); setIsLessonModalOpen(true); }}
+                                    onDeleteLesson={(l) => setItemToDelete({ type: 'lesson', id: l.id, title: l.title })}
+                                    onMoveLesson={setLessonToMove}
+                                    onManageLesson={setManagingLesson} 
+                                    
+                                    onMoveUp={() => handleReorderMixedInGroup(group.id, index, 'up')}
+                                    onMoveDown={() => handleReorderMixedInGroup(group.id, index, 'down')}
+                                    onReorderLesson={(idx, dir) => handleReorderLesson(idx, dir, item.id)}
+
+                                    isOpen={!!expandedFolders[item.id]}
+                                    onToggle={() => toggleFolder(item.id)}
+                                    selectedLessonIds={selectedLessonIds}
+                                    onToggleLessonSelection={toggleLessonSelection}
+                                    isFirst={index === 0}
+                                    isLast={index === groupItems.length - 1}
+                                  />
+                                );
+                              } else {
+                                return (
+                                  <LessonItem 
+                                    key={item.id}
+                                    lesson={item.data}
+                                    onEdit={() => { setEditingLesson(item.data); setIsLessonModalOpen(true); }}
+                                    onDelete={() => setItemToDelete({ type: 'lesson', id: item.id, title: item.data.title })}
+                                    onMove={() => setLessonToMove(item.data)}
+                                    onManageContent={() => setManagingLesson(item.data)} 
+                                    
+                                    onReorderUp={() => handleReorderMixedInGroup(group.id, index, 'up')}
+                                    onReorderDown={() => handleReorderMixedInGroup(group.id, index, 'down')}
+
+                                    isSelected={selectedLessonIds.includes(item.id)}
+                                    onToggleSelection={toggleLessonSelection}
+                                    isFirst={index === 0}
+                                    isLast={index === groupItems.length - 1}
+                                  />
+                                );
+                              }
+                            })
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
                 })}
 
-                {lessons.length === 0 && subModules.length === 0 && (
+                {lessons.length === 0 && subModules.length === 0 && groups.length === 0 && (
                     <div className="text-center py-20 border border-dashed border-gray-800 rounded-xl">
                         <p className="text-gray-500">Este módulo está vazio.</p>
                     </div>
@@ -610,12 +861,21 @@ export function ModuleContentManager({ module, onBack }: ModuleContentManagerPro
 
       {/* --- MODAIS --- */}
       
+      <GroupModal 
+        isOpen={isGroupModalOpen}
+        onClose={() => setIsGroupModalOpen(false)}
+        onSave={handleSaveGroup}
+        initialTitle={editingGroup?.title}
+      />
+
       <FolderModal 
         isOpen={isFolderModalOpen}
         onClose={() => setIsFolderModalOpen(false)}
         onSave={handleSaveFolder}
         initialTitle={editingFolder?.title}
         initialPublishDate={editingFolder?.publishDate}
+        initialGroupId={editingFolder?.groupId}
+        groups={groups}
       />
 
       <LessonModal
@@ -625,13 +885,15 @@ export function ModuleContentManager({ module, onBack }: ModuleContentManagerPro
         initialTitle={editingLesson?.title}
         initialCover={editingLesson?.coverUrl}
         initialType={editingLesson?.type}
+        initialGroupId={editingLesson?.groupId}
+        groups={groups}
       />
 
       <ConfirmationModal 
         isOpen={!!itemToDelete}
-        title={`Excluir ${itemToDelete?.type === 'folder' ? 'Pasta' : 'Aula'}?`}
-        message={`Deseja excluir "${itemToDelete?.title}"?`}
-        onConfirm={itemToDelete?.type === 'folder' ? handleDeleteFolder : handleDeleteLesson}
+        title={`Excluir ${itemToDelete?.type === 'folder' ? 'Pasta' : itemToDelete?.type === 'group' ? 'Grupo' : 'Aula'}?`}
+        message={`Deseja excluir "${itemToDelete?.title}"? ${itemToDelete?.type === 'group' ? 'Os itens internos NÃO serão excluídos, mas ficarão sem grupo.' : ''}`}
+        onConfirm={itemToDelete?.type === 'folder' ? handleDeleteFolder : itemToDelete?.type === 'group' ? handleDeleteGroup : handleDeleteLesson}
         onCancel={() => setItemToDelete(null)}
         isDanger
       />

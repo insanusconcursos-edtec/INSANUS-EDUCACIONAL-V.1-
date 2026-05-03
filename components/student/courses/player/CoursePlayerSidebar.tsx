@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { CourseLesson, CourseSubModule } from '../../../../types/course';
+import React, { useState, useEffect, useMemo } from 'react';
+import { ChevronDown, ChevronRight, Layers, Clock, Video } from 'lucide-react';
+import { CourseLesson, CourseSubModule, CourseGroup } from '../../../../types/course';
 
 interface CoursePlayerSidebarProps {
   structure: {
+    groups: CourseGroup[];
     subModules: CourseSubModule[];
     lessons: CourseLesson[];
   };
@@ -26,6 +28,35 @@ export function CoursePlayerSidebar({
   const moduleTotal = structure.lessons.length;
   const moduleCompleted = structure.lessons.filter(l => completedLessons.includes(l.id)).length;
   const modulePercentage = moduleTotal > 0 ? Math.round((moduleCompleted / moduleTotal) * 100) : 0;
+
+  // --- ESTRUTURAÇÃO DA HIERARQUIA ---
+  const navigationGroups = useMemo(() => {
+    // 1. Mapeia os grupos
+    const grps = structure.groups.sort((a, b) => (a.order || 0) - (b.order || 0)).map(group => {
+      const groupFolders = structure.subModules.filter(s => s.groupId === group.id);
+      const groupLessons = structure.lessons.filter(l => !l.subModuleId && l.groupId === group.id);
+      
+      return {
+        id: group.id,
+        title: group.title,
+        items: [
+          ...groupFolders.map(f => ({ type: 'folder' as const, id: f.id, data: f, order: f.order })),
+          ...groupLessons.map(l => ({ type: 'lesson' as const, id: l.id, data: l, order: l.order }))
+        ].sort((a, b) => (a.order || 0) - (b.order || 0))
+      };
+    });
+
+    // 2. Filtra órfãos
+    const orphanFolders = structure.subModules.filter(s => !s.groupId);
+    const orphanLessons = structure.lessons.filter(l => !l.subModuleId && !l.groupId);
+    
+    const orphans = [
+      ...orphanFolders.map(f => ({ type: 'folder' as const, id: f.id, data: f, order: f.order })),
+      ...orphanLessons.map(l => ({ type: 'lesson' as const, id: l.id, data: l, order: l.order }))
+    ].sort((a, b) => (a.order || 0) - (b.order || 0));
+
+    return { groups: grps, orphans };
+  }, [structure]);
 
   return (
     <div className="
@@ -58,13 +89,8 @@ export function CoursePlayerSidebar({
       {/* Lista Scrollável */}
       <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
         
-        {/* Lista Unificada de Pastas e Aulas Raiz */}
-        {[
-          ...structure.subModules.map(folder => ({ type: 'folder' as const, id: folder.id, data: folder, order: folder.order })),
-          ...structure.lessons.filter(l => !l.subModuleId).map(lesson => ({ type: 'lesson' as const, id: lesson.id, data: lesson, order: lesson.order }))
-        ]
-        .sort((a, b) => (a.order || 0) - (b.order || 0))
-        .map(item => {
+        {/* 1. ITENS ÓRFÃOS (Legados) */}
+        {navigationGroups.orphans.map(item => {
           if (item.type === 'folder') {
             const folder = item.data;
             return (
@@ -90,10 +116,129 @@ export function CoursePlayerSidebar({
             );
           }
         })}
+
+        {/* 2. GRUPOS (Acordeões) */}
+        {navigationGroups.groups.map(group => (
+          <GroupAccordion 
+            key={group.id}
+            group={group}
+            activeLessonId={activeLessonId}
+            onSelectLesson={onSelectLesson}
+            completedLessons={completedLessons}
+            getLessonsInFolder={getLessonsInFolder}
+          />
+        ))}
+
+        {structure.lessons.length === 0 && (
+          <div className="text-center py-10 opacity-40">
+            <p className="text-xs font-bold uppercase">Nenhum conteúdo</p>
+          </div>
+        )}
       </div>
     </div>
   );
 }
+
+// Subcomponente de Grupo (Acordeão Nível 1)
+interface GroupAccordionProps {
+  group: { 
+    id: string; 
+    title: string; 
+    items: Array<{ type: 'folder' | 'lesson', id: string, data: any, order: number }>; 
+  };
+  activeLessonId: string | null;
+  onSelectLesson: (lesson: CourseLesson) => void;
+  completedLessons: string[];
+  getLessonsInFolder: (folderId: string) => CourseLesson[];
+}
+
+const GroupAccordion: React.FC<GroupAccordionProps> = ({ 
+  group, 
+  activeLessonId, 
+  onSelectLesson, 
+  completedLessons,
+  getLessonsInFolder
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+
+  // Abre automaticamente se a aula ativa estiver dentro deste grupo
+  useEffect(() => {
+    const hasActiveLesson = group.items.some(item => {
+      if (item.type === 'lesson') return item.id === activeLessonId;
+      if (item.type === 'folder') return getLessonsInFolder(item.id).some(l => l.id === activeLessonId);
+      return false;
+    });
+    if (hasActiveLesson) setIsOpen(true);
+  }, [activeLessonId, group.items, getLessonsInFolder]);
+
+  // Cálculo de Progresso do Grupo
+  const groupAulas = useMemo(() => {
+    const aulasDirect = group.items.filter(i => i.type === 'lesson').map(i => i.data);
+    const aulasInFolders = group.items.filter(i => i.type === 'folder').flatMap(i => getLessonsInFolder(i.id));
+    return [...aulasDirect, ...aulasInFolders];
+  }, [group.items, getLessonsInFolder]);
+
+  const completedCount = groupAulas.filter(l => completedLessons.includes(l.id)).length;
+  const isComplete = groupAulas.length > 0 && completedCount === groupAulas.length;
+
+  return (
+    <div className="mb-2">
+      <button 
+        onClick={() => setIsOpen(!isOpen)}
+        className={`w-full flex items-center justify-between p-3 rounded-lg transition-all text-left group
+          ${isOpen ? 'bg-zinc-800/80 border border-zinc-700/50 shadow-lg' : 'bg-transparent hover:bg-zinc-800/40 border border-transparent'}
+        `}
+      >
+        <div className="flex items-center gap-3 overflow-hidden">
+          <div className={`p-1.5 rounded-md ${isOpen ? 'bg-zinc-700 text-white' : 'bg-zinc-900 text-zinc-500'}`}>
+            <Layers size={14} />
+          </div>
+          <div className="flex flex-col min-w-0">
+            <span className={`text-[10px] font-black uppercase tracking-wider truncate mb-0.5 ${isComplete ? 'text-green-500' : 'text-zinc-300'}`}>
+              {group.title}
+            </span>
+            <span className="text-[9px] text-zinc-500 font-bold">
+              {completedCount}/{groupAulas.length} CONCLUÍDAS
+            </span>
+          </div>
+        </div>
+        {isOpen ? <ChevronDown size={16} className="text-zinc-500" /> : <ChevronRight size={16} className="text-zinc-500" />}
+      </button>
+
+      {isOpen && (
+        <div className="mt-1 space-y-1 animate-in slide-in-from-top-1 duration-200">
+          {group.items.map(item => {
+            if (item.type === 'folder') {
+              return (
+                <div key={item.id} className="ml-2">
+                  <FolderItem 
+                    folder={item.data} 
+                    lessons={getLessonsInFolder(item.id)}
+                    activeLessonId={activeLessonId}
+                    onSelectLesson={onSelectLesson}
+                    completedLessons={completedLessons}
+                    isNested
+                  />
+                </div>
+              );
+            } else {
+              return (
+                <div key={item.id} className="ml-2">
+                  <LessonRow 
+                    lesson={item.data} 
+                    isActive={item.id === activeLessonId} 
+                    isCompleted={completedLessons.includes(item.id)}
+                    onClick={() => onSelectLesson(item.data)} 
+                  />
+                </div>
+              );
+            }
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
 
 // Subcomponente de Pasta
 interface FolderItemProps {
@@ -102,14 +247,24 @@ interface FolderItemProps {
     activeLessonId: string | null;
     onSelectLesson: (lesson: CourseLesson) => void;
     completedLessons: string[];
+    isNested?: boolean;
 }
 
-const FolderItem: React.FC<FolderItemProps> = ({ folder, lessons, activeLessonId, onSelectLesson, completedLessons }) => {
+const FolderItem: React.FC<FolderItemProps> = ({ folder, lessons, activeLessonId, onSelectLesson, completedLessons, isNested }) => {
     const [isOpen, setIsOpen] = useState(false);
     
     // Lógica de Bloqueio (Drip Content)
     const isLocked = folder.publishDate && new Date(folder.publishDate) > new Date();
-    const formattedDate = folder.publishDate ? new Date(folder.publishDate).toLocaleString('pt-BR', {
+    const isRecording = folder.status === 'recording' || (folder.scheduledDate && new Date(folder.scheduledDate) > new Date());
+    
+    const formatDate = (dateStr: string) => {
+        return new Date(dateStr).toLocaleDateString('pt-BR', {
+            day: '2-digit',
+            month: '2-digit'
+        });
+    };
+
+    const formattedPublishDate = folder.publishDate ? new Date(folder.publishDate).toLocaleString('pt-BR', {
         day: '2-digit',
         month: '2-digit',
         year: 'numeric',
@@ -126,7 +281,7 @@ const FolderItem: React.FC<FolderItemProps> = ({ folder, lessons, activeLessonId
     const isFolderComplete = lessons.length > 0 && folderCompletedCount === lessons.length;
 
     return (
-        <div className={`mb-1 ${isLocked ? 'opacity-60 cursor-not-allowed' : ''}`}>
+        <div className={`mb-1 ${isLocked ? 'opacity-60 cursor-not-allowed' : ''} ${isNested ? 'ml-2' : ''}`}>
             <button 
                 onClick={() => !isLocked && setIsOpen(!isOpen)}
                 className={`w-full flex items-center justify-between p-3 rounded transition-colors text-left group
@@ -134,19 +289,34 @@ const FolderItem: React.FC<FolderItemProps> = ({ folder, lessons, activeLessonId
                 `}
                 disabled={isLocked}
             >
-                <div className="flex items-center gap-3 overflow-hidden">
+                <div className="flex items-center gap-3 overflow-hidden flex-1">
                     {isLocked ? (
-                        <svg className="w-4 h-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                        <div className="p-1 rounded bg-zinc-800 text-zinc-500 shrink-0">
+                            <Clock size={12} className="opacity-50" />
+                        </div>
+                    ) : isRecording ? (
+                        <div className="p-1 rounded bg-blue-500/10 text-blue-500 shrink-0">
+                            <Video size={12} className="animate-pulse" />
+                        </div>
                     ) : (
-                        <svg className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-90 text-white' : 'text-gray-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                        <svg className={`w-4 h-4 shrink-0 transition-transform ${isOpen ? 'rotate-90 text-white' : 'text-gray-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                     )}
-                    <div className="flex flex-col min-w-0">
-                        <span className={`text-xs font-bold uppercase truncate ${isFolderComplete ? 'text-green-500' : isLocked ? 'text-gray-500' : 'text-gray-300 group-hover:text-white'}`}>
+                    
+                    <div className="flex flex-col flex-1 min-w-0 pr-2">
+                        <span className={`text-[11px] font-bold uppercase truncate ${isFolderComplete ? 'text-green-500' : isLocked ? 'text-gray-500' : 'text-gray-200 group-hover:text-white'}`}>
                             {folder.title}
                         </span>
-                        {isLocked && (
-                            <span className="text-[9px] text-[var(--plan-theme)]/70 font-bold uppercase tracking-tighter">
-                                Disponível em: {formattedDate}
+                        
+                        {/* Badge de Agendamento / Em Gravação */}
+                        {folder.scheduledDate && (
+                            <span className="mt-1 text-[9px] font-medium bg-blue-500/10 text-blue-400 px-1.5 py-0.5 rounded w-fit border border-blue-500/20 whitespace-nowrap">
+                                EM GRAVAÇÃO: {formatDate(folder.scheduledDate)}
+                            </span>
+                        )}
+
+                        {isLocked && !folder.scheduledDate && (
+                            <span className="text-[9px] text-[var(--plan-theme)]/70 font-bold uppercase tracking-tighter truncate">
+                                Disponível em: {formattedPublishDate}
                             </span>
                         )}
                     </div>
