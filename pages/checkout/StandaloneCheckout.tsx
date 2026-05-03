@@ -20,6 +20,7 @@ export default function StandaloneCheckout() {
   const [offer, setOffer] = useState<ProductOffer | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isMpReady, setIsMpReady] = useState(false);
+  const [pixData, setPixData] = useState<{ qrCode: string; qrCodeBase64: string } | null>(null);
   
   // Buyer Data Steps
   const [currentStep, setCurrentStep] = useState(1);
@@ -179,18 +180,28 @@ export default function StandaloneCheckout() {
       
       if (result.status === 'approved') {
         toast.success("Pagamento aprovado com sucesso!");
-        // Redirecionar para home ou área do aluno
         setTimeout(() => {
           window.location.href = '/app/home';
         }, 2000);
+      } else if (result.status === 'pending' && capturedPaymentMethodId === 'pix') {
+        const qrCode = result.point_of_interaction?.transaction_data?.qr_code;
+        const qrCodeBase64 = result.point_of_interaction?.transaction_data?.qr_code_base64;
+        
+        if (qrCode && qrCodeBase64) {
+          setPixData({ qrCode, qrCodeBase64 });
+          toast.success("PIX gerado! Pague agora para liberar o acesso.");
+        } else {
+          console.error("PIX details missing in response:", result);
+          toast.error("PIX gerado, mas não conseguimos carregar o QR Code. Verifique o seu e-mail.");
+        }
       } else {
-        toast.error(`Pagamento ${result.status_detail}`);
+        toast.error(`Status do Pagamento: ${result.status_detail || result.status || 'Em processamento'}`);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      toast.error("Erro ao processar o pagamento. Tente novamente.");
+      toast.error(err.message || "Erro ao processar o pagamento. Tente novamente.");
     }
-  }, [product, offer, currentUser]);
+  }, [product, offer, buyerData, currentUser]);
 
   if (loading) {
     return (
@@ -383,6 +394,70 @@ export default function StandaloneCheckout() {
                   <ShieldCheck size={14} className="text-emerald-500" />
                   Seus dados estão protegidos e criptografados
                 </div>
+              </div>
+            ) : pixData ? (
+              <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="text-center space-y-2">
+                  <div className="inline-flex items-center gap-2 bg-emerald-50 text-emerald-600 px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest border border-emerald-100">
+                    <QrCode size={14} /> PIX Gerado com Sucesso
+                  </div>
+                  <h3 className="text-2xl font-black text-zinc-900 tracking-tight">Escaneie o QR Code para pagar</h3>
+                  <p className="text-zinc-500 text-sm max-w-xs mx-auto">
+                    Seu acesso será liberado instantaneamente após a confirmação do pagamento.
+                  </p>
+                </div>
+
+                <div className="bg-zinc-50 p-6 rounded-3xl border-2 border-zinc-100 flex flex-col items-center gap-6">
+                  <div className="bg-white p-4 rounded-2xl shadow-sm border border-zinc-200">
+                     <img 
+                       src={`data:image/jpeg;base64,${pixData.qrCodeBase64}`} 
+                       alt="QR Code PIX" 
+                       className="w-48 h-48 md:w-56 md:h-56"
+                     />
+                  </div>
+
+                  <div className="w-full space-y-3">
+                    <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest text-center block">Ou copie o código abaixo</label>
+                    <div className="relative group">
+                      <input 
+                        readOnly 
+                        value={pixData.qrCode}
+                        className="w-full bg-white border border-zinc-200 rounded-xl px-4 py-3.5 pr-24 text-zinc-600 text-xs font-mono overflow-hidden text-ellipsis focus:outline-none"
+                      />
+                      <button 
+                        onClick={() => {
+                          navigator.clipboard.writeText(pixData.qrCode);
+                          toast.success("Código PIX copiado!");
+                        }}
+                        className="absolute right-1.5 top-1.5 bottom-1.5 bg-zinc-900 hover:bg-red-600 text-white text-[10px] font-black px-4 rounded-lg transition-all uppercase tracking-widest"
+                      >
+                        Copiar
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-red-50 p-4 rounded-2xl border border-red-100 flex items-start gap-3">
+                  <div className="bg-red-100 p-2 rounded-full text-red-600">
+                    <ShieldCheck size={16} />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-red-900 text-[11px] font-black uppercase tracking-tight">Aviso Importante</p>
+                    <p className="text-red-700 text-[10px] leading-snug">
+                      Não feche esta página até concluir o pagamento. Após pagar, você será redirecionado automaticamente.
+                    </p>
+                  </div>
+                </div>
+
+                <button 
+                  onClick={() => {
+                    setPixData(null);
+                    setCurrentStep(2);
+                  }}
+                  className="w-full text-zinc-400 hover:text-zinc-600 text-[10px] font-black uppercase tracking-widest transition-all py-2"
+                >
+                  Tentar outro método de pagamento
+                </button>
               </div>
             ) : (
               <div className="payment-brick-container">
