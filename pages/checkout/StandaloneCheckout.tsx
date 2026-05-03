@@ -145,6 +145,7 @@ export default function StandaloneCheckout() {
     try {
       const paymentData = {
         ...formData, // Preserva campos gerados pelo Brick
+        payment_method_id: formData.payment_method_id, // MAPEAMENTO EXPLÍCITO
         transaction_amount: Number(offer.price), // FORÇA O PREÇO NO PAYLOAD
         description: `Compra de ${product.name} - ${offer.name}`,
         payer: {
