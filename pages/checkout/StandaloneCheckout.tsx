@@ -144,13 +144,11 @@ export default function StandaloneCheckout() {
     if (!product || !offer) return;
     try {
       const paymentData = {
-        transaction_amount: formData.transaction_amount,
-        token: formData.token,
+        ...formData, // Preserva campos gerados pelo Brick
+        transaction_amount: Number(offer.price), // FORÇA O PREÇO NO PAYLOAD
         description: `Compra de ${product.name} - ${offer.name}`,
-        installments: formData.installments,
-        payment_method_id: formData.payment_method_id,
-        issuer_id: formData.issuer_id,
         payer: {
+          ...formData?.payer,
           email: buyerData.email, // Use validated email from our form
           identification: {
             type: 'CPF',

@@ -38,6 +38,12 @@ export const createMPPayment = async (data: any) => {
       external_reference: String(data.metadata?.courseId || data.metadata?.course_id || '')
     };
 
+    // Proteção Adicional: Validação de segurança para transaction_amount
+    if (!paymentBody.transaction_amount || isNaN(paymentBody.transaction_amount)) {
+      console.error("❌ MP Falha: transaction_amount inválido no payload:", data.transaction_amount);
+      throw new Error("Falha interna: transaction_amount inválido ou ausente no payload.");
+    }
+
     // Lógica condicional por método de pagamento
     if (data.payment_method_id === 'pix') {
       paymentBody.installments = 1;
