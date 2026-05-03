@@ -6,6 +6,7 @@ import { fetchPandaVideoTranscription } from './src/backend/services/pandaVideoS
 import { generateStudyMaterial } from './src/backend/services/geminiService.js';
 import { getAdminConfig } from './src/backend/services/firebaseAdmin.js';
 import { provisionTictoPurchase, revokeTictoPurchase } from './src/backend/services/provisioningService.js';
+import { createMPPayment, handleMPWebhook } from './src/backend/services/mercadoPagoService.js';
 
 // const __filename = fileURLToPath(import.meta.url);
 // __dirname is not used in this file, but kept for reference if needed
@@ -471,6 +472,32 @@ async function startServer() {
     } catch (error) {
       console.error("Webhook Error:", error);
       return res.status(200).json({ received: true, error: "Internal Error" });
+    }
+  });
+
+  // Rota de Criação de Pagamento Mercado Pago
+  app.post('/api/payments/mercadopago/create', async (req, res) => {
+    try {
+      const response = await createMPPayment(req.body);
+      return res.status(200).json({ success: true, payment: response });
+    } catch (error) {
+      console.error("Erro ao criar pagamento Mercado Pago:", error);
+      return res.status(500).json({ 
+        success: false, 
+        error: error instanceof Error ? error.message : "Erro ao processar pagamento." 
+      });
+    }
+  });
+
+  // Rota de Webhook Mercado Pago
+  app.post('/api/webhooks/mercadopago', async (req, res) => {
+    try {
+      console.log('Webhook Mercado Pago recebido:', req.body);
+      const result = await handleMPWebhook(req.body);
+      return res.status(200).json(result);
+    } catch (error) {
+      console.error("Erro no webhook Mercado Pago:", error);
+      return res.status(200).json({ success: false, error: "Internal error handled" });
     }
   });
 

@@ -20,6 +20,7 @@ export default function ProductFormModal({ product, onClose, onSave }: ProductFo
 
   // Form State
   const [name, setName] = useState(product?.name || '');
+  const [price, setPrice] = useState(product?.price || 0);
   const [tictoId, setTictoId] = useState(product?.tictoId || '');
   const [type, setType] = useState<ProductType>(product?.type || 'COMBO');
   const [accessDays, setAccessDays] = useState(product?.accessDays || 365);
@@ -77,6 +78,7 @@ export default function ProductFormModal({ product, onClose, onSave }: ProductFo
 
     const productData = {
       name,
+      price,
       tictoId,
       type,
       accessDays,
@@ -153,7 +155,23 @@ export default function ProductFormModal({ product, onClose, onSave }: ProductFo
 
               <div>
                 <label className="block text-sm font-medium text-zinc-400 mb-2">
-                  ID do Produto na Ticto *
+                  Preço (R$) *
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={price}
+                  onChange={(e) => setPrice(parseFloat(e.target.value) || 0)}
+                  placeholder="Ex: 297.00"
+                  className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-4 py-2.5 focus:outline-none focus:border-red-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-zinc-400 mb-2">
+                  ID do Produto na Ticto (Webhook) *
                 </label>
                 <input
                   type="text"

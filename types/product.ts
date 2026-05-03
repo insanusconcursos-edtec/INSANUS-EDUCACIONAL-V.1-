@@ -11,6 +11,7 @@ export interface LinkedResources {
 export interface TictoProduct {
   id?: string;
   name: string;
+  price: number; // Novo: Preço do produto para o Mercado Pago
   tictoId: string;
   type: ProductType;
   accessDays: number;

@@ -40,13 +40,12 @@ interface UserAccess {
   revokedAt?: Date;
 }
 
-export const provisionTictoPurchase = async (customerData: CustomerData, tictoProductId: string) => {
+export const provisionPurchase = async (customerData: CustomerData, targetId: string, origin: 'ticto' | 'mp' = 'ticto') => {
   const { dbAdmin, authAdmin } = getAdminConfig();
   try {
-    const safeProductId = String(tictoProductId);
+    const safeTargetId = String(targetId);
     const cpf = customerData.document_number || customerData.cpf || '';
     
-    // Extração robusta do telefone (Contato/WhatsApp)
     const getPhone = (data: CustomerData) => {
       const p = data.phone || data.phone_number || data.cellphone || data.full_phone || 
                 (data.contact && (data.contact.phone || data.contact.phone_number || data.contact.cellphone));
@@ -58,95 +57,102 @@ export const provisionTictoPurchase = async (customerData: CustomerData, tictoPr
     };
     const phone = getPhone(customerData);
 
-    console.log(`Iniciando provisionamento para: ${customerData.email} (CPF: ${cpf}, Phone: ${phone})`);
+    console.log(`Iniciando provisionamento (${origin}) para: ${customerData.email}`);
 
-    // 1. Procurar na coleção ticto_products qual o produto que possui o tictoId correspondente
-    const productsSnapshot = await dbAdmin.collection('ticto_products')
-      .where('tictoId', '==', safeProductId)
-      .limit(1)
-      .get();
-
-    if (productsSnapshot.empty) {
-      throw new Error(`Produto Ticto com ID ${safeProductId} não encontrado.`);
-    }
-
-    console.log(`Produto encontrado. Criando usuário no Auth...`);
-    const productDoc = productsSnapshot.docs[0];
-    const productData = productDoc.data() as { 
-      name: string; 
-      accessDays?: number; 
-      linkedResources?: {
-        plans?: string[];
-        onlineCourses?: string[];
-        presentialClasses?: string[];
-        simulated?: string[];
-        liveEvents?: string[];
-      };
-      liveEventIds?: string[];
-    };
-    const accessDays = productData.accessDays || 365;
-    const linkedResources = productData.linkedResources || {
+    let accessDays = 365;
+    let productName = 'Conteúdo Digital';
+    let linkedResources: any = {
       plans: [],
       onlineCourses: [],
       presentialClasses: [],
       simulated: [],
       liveEvents: []
     };
-    
-    // Merge liveEventIds if present at root
-    if (productData.liveEventIds && Array.isArray(productData.liveEventIds)) {
-      if (!linkedResources.liveEvents) linkedResources.liveEvents = [];
-      productData.liveEventIds.forEach(id => {
-        if (!linkedResources.liveEvents!.includes(id)) {
-          linkedResources.liveEvents!.push(id);
+    let productDocId = '';
+
+    if (origin === 'ticto') {
+      const productsSnapshot = await dbAdmin.collection('ticto_products')
+        .where('tictoId', '==', safeTargetId)
+        .limit(1)
+        .get();
+
+      if (productsSnapshot.empty) {
+        throw new Error(`Produto Ticto com ID ${safeTargetId} não encontrado.`);
+      }
+
+      const productDoc = productsSnapshot.docs[0];
+      productDocId = productDoc.id;
+      const productData = productDoc.data();
+      productName = productData.name;
+      accessDays = productData.accessDays || 365;
+      linkedResources = productData.linkedResources || linkedResources;
+      
+      if (productData.liveEventIds && Array.isArray(productData.liveEventIds)) {
+        if (!linkedResources.liveEvents) linkedResources.liveEvents = [];
+        productData.liveEventIds.forEach((id: string) => {
+          if (!linkedResources.liveEvents.includes(id)) linkedResources.liveEvents.push(id);
+        });
+      }
+    } else {
+      // Mercado Pago: targetId is usually the ONLINE COURSE ID or a PRODUCT ID
+      // Let's assume for now it's a direct course if it's not found in ticto_products (or we can have a generic products collection)
+      // For now, let's look in online_courses if it's a courseId
+      const courseSnap = await dbAdmin.collection('online_courses').doc(safeTargetId).get();
+      if (courseSnap.exists) {
+        const courseData = courseSnap.data();
+        productName = courseData?.title || 'Curso Online';
+        linkedResources.onlineCourses.push(safeTargetId);
+      } else {
+        // Look if it's a ticto product being sold via MP (reusing the same mapping)
+        const productsSnapshot = await dbAdmin.collection('ticto_products').doc(safeTargetId).get();
+        if (productsSnapshot.exists) {
+          const productData = productsSnapshot.data();
+          productName = productData?.name || 'Produto';
+          accessDays = productData?.accessDays || 365;
+          linkedResources = productData?.linkedResources || linkedResources;
+        } else {
+          console.warn(`Aviso: Alvo de provisionamento ${safeTargetId} não encontrado em coleções conhecidas.`);
         }
-      });
+      }
     }
 
     // Calcular data de expiração
     const expirationDate = new Date();
     expirationDate.setDate(expirationDate.getDate() + accessDays);
 
-    // 2. Preparar array de acessos (Flattening)
+    // Preparar array de acessos
     const accessesToGrant: UserAccess[] = [];
 
-    // Inserir o Produto (Combo)
-    const productAccess: UserAccess = {
-      id: crypto.randomUUID(),
-      type: 'product',
-      targetId: productDoc.id,
-      tictoId: safeProductId,
-      title: productData.name,
-      days: accessDays,
-      startDate: Timestamp.now(),
-      endDate: Timestamp.fromDate(expirationDate),
-      isActive: true,
-      resources: linkedResources
-    };
-    accessesToGrant.push(productAccess);
-
-    // Inserir Recursos Vinculados Individualmente (Achatamento)
-    let resourcesArray: { id: string; type: string; name?: string; title?: string }[] = [];
-    if (Array.isArray(linkedResources)) {
-      resourcesArray = linkedResources;
-    } else if (linkedResources && typeof linkedResources === 'object') {
-      if (linkedResources.plans) linkedResources.plans.forEach((id: string) => resourcesArray.push({ id, type: 'plan' }));
-      if (linkedResources.onlineCourses) linkedResources.onlineCourses.forEach((id: string) => resourcesArray.push({ id, type: 'course' }));
-      if (linkedResources.simulated) linkedResources.simulated.forEach((id: string) => resourcesArray.push({ id, type: 'simulated_class' }));
-      if (linkedResources.presentialClasses) linkedResources.presentialClasses.forEach((id: string) => resourcesArray.push({ id, type: 'presential_class' }));
-      if (linkedResources.liveEvents) linkedResources.liveEvents.forEach((id: string) => resourcesArray.push({ id, type: 'live_event' }));
+    // Se for um produto (combo), adiciona o cabeçalho do produto
+    if (origin === 'ticto' || productDocId) {
+      accessesToGrant.push({
+        id: crypto.randomUUID(),
+        type: 'product',
+        targetId: productDocId || safeTargetId,
+        tictoId: origin === 'ticto' ? safeTargetId : '',
+        title: productName,
+        days: accessDays,
+        startDate: Timestamp.now(),
+        endDate: Timestamp.fromDate(expirationDate),
+        isActive: true,
+        resources: linkedResources
+      });
     }
+
+    // ACHATAMENTO (Flattening)
+    const resourcesArray: { id: string; type: string }[] = [];
+    if (linkedResources.plans) linkedResources.plans.forEach((id: string) => resourcesArray.push({ id, type: 'plan' }));
+    if (linkedResources.onlineCourses) linkedResources.onlineCourses.forEach((id: string) => resourcesArray.push({ id, type: 'course' }));
+    if (linkedResources.simulated) linkedResources.simulated.forEach((id: string) => resourcesArray.push({ id, type: 'simulated_class' }));
+    if (linkedResources.presentialClasses) linkedResources.presentialClasses.forEach((id: string) => resourcesArray.push({ id, type: 'presential_class' }));
+    if (linkedResources.liveEvents) linkedResources.liveEvents.forEach((id: string) => resourcesArray.push({ id, type: 'live_event' }));
 
     for (let index = 0; index < resourcesArray.length; index++) {
       const res = resourcesArray[index];
-      let mappedType = res.type || 'unknown';
-      if (mappedType === 'simulated') mappedType = 'simulated_class';
-      if (mappedType === 'presential') mappedType = 'presential_class';
-
-      let realName = res.name || res.title || 'Recurso Vinculado';
+      let realName = 'Acesso Liberado';
       let collectionName = '';
       
-      switch(mappedType) {
+      switch(res.type) {
         case 'course': collectionName = 'online_courses'; break;
         case 'plan': collectionName = 'plans'; break;
         case 'simulated_class': collectionName = 'simulatedClasses'; break;
@@ -154,151 +160,91 @@ export const provisionTictoPurchase = async (customerData: CustomerData, tictoPr
         case 'live_event': collectionName = 'live_events'; break;
       }
 
-      if (collectionName && res.id) {
+      if (collectionName) {
         try {
           const docSnap = await dbAdmin.collection(collectionName).doc(res.id).get();
           if (docSnap.exists) {
             const data = docSnap.data();
             realName = data?.title || data?.name || realName;
           }
-        } catch (error) {
-          console.error(`Erro ao buscar nome do recurso ${res.id} na coleção ${collectionName}:`, error);
+        } catch (err) {
+          console.error(`Erro ao buscar nome do recurso:`, err);
         }
       }
 
       accessesToGrant.push({
         id: crypto.randomUUID(),
         targetId: res.id,
-        type: mappedType,
+        type: res.type,
         title: realName,
         days: accessDays,
         isActive: true,
-        tictoId: safeProductId,
+        tictoId: origin === 'ticto' ? safeTargetId : '',
         startDate: Timestamp.now(),
         endDate: Timestamp.fromDate(expirationDate),
         orderIndex: index
       });
     }
 
-    // 3. Verificar se o e-mail do cliente já existe
+    // Lógica de usuário (Novo vs Existente) - REAPROVEITADA
     let userRecord;
     let isNewUser = false;
 
     try {
       userRecord = await authAdmin.getUserByEmail(customerData.email);
-    } catch (error: unknown) {
-      const authError = error as { code: string };
-      if (authError.code === 'auth/user-not-found') {
-        isNewUser = true;
-      } else {
-        throw error;
-      }
+    } catch (error: any) {
+      if (error.code === 'auth/user-not-found') isNewUser = true;
+      else throw error;
     }
 
     if (isNewUser) {
-      // 3. SE FOR ALUNO NOVO
-      // Gerar senha aleatória de 8 caracteres
-      const generatePassword = () => {
-        const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
-        let password = '';
-        for (let i = 0; i < 8; i++) {
-          password += chars.charAt(Math.floor(Math.random() * chars.length));
-        }
-        return password;
-      };
-      const generatedPassword = generatePassword();
-
-      // Criar usuário no Auth
+      const generatedPassword = crypto.randomBytes(4).toString('hex'); // 8 chars
       userRecord = await authAdmin.createUser({
         email: customerData.email,
         password: generatedPassword,
         displayName: customerData.name,
       });
 
-      // Criar documento na coleção users
       const newUserDoc = {
         uid: userRecord.uid,
         name: customerData.name,
         email: customerData.email,
         cpf: cpf,
         contact: phone,
-        whatsapp: phone,
         role: 'student',
         status: 'active',
         createdAt: FieldValue.serverTimestamp(),
         access: accessesToGrant,
-        products: accessesToGrant.filter((a: UserAccess) => a.type === 'product')
       };
 
       await dbAdmin.collection('users').doc(userRecord.uid).set(newUserDoc);
-
-      // Enviar e-mail de boas-vindas real
-      console.log(`Usuário criado. Enviando e-mail de boas-vindas...`);
       await sendWelcomeEmail(customerData.name, customerData.email, generatedPassword);
-      console.log(`✉️ E-mail de primeiro acesso enviado para ${customerData.email}`);
-
     } else {
-      // 4. SE FOR ALUNO EXISTENTE
       const userRef = dbAdmin.collection('users').doc(userRecord.uid);
       const userDoc = await userRef.get();
+      const userData = userDoc.data() || {};
+      
+      const updateData: any = { 
+        status: 'active',
+        access: FieldValue.arrayUnion(...accessesToGrant)
+      };
+      
+      if (!userData.cpf && cpf) updateData.cpf = cpf;
+      if (!userData.contact && phone) updateData.contact = phone;
 
-      if (!userDoc.exists) {
-        // Caso o usuário exista no Auth mas não no Firestore, cria o documento
-        const newUserDoc = {
-          name: customerData.name || userRecord.displayName || '',
-          email: customerData.email,
-          cpf: cpf,
-          contact: phone || userRecord.phoneNumber || '',
-          whatsapp: phone || userRecord.phoneNumber || '',
-          role: 'student',
-          status: 'active',
-          createdAt: FieldValue.serverTimestamp(),
-          access: accessesToGrant,
-          products: accessesToGrant.filter(a => a.type === 'product')
-        };
-        await userRef.set(newUserDoc);
-      } else {
-        // Atualiza o documento adicionando os novos acessos
-        const userData = userDoc.data() || {};
-        const currentAccess = (userData.access || []) as UserAccess[];
-
-        const updateData: { status: string; cpf?: string; whatsapp?: string; contact?: string; access?: FieldValue; products?: FieldValue } = { status: 'active' };
-        
-        // Atualização defensiva de CPF e telefone (Contato/WhatsApp)
-        if (!userData.cpf && cpf) updateData.cpf = cpf;
-        if (!userData.whatsapp && phone) updateData.whatsapp = phone;
-        if (!userData.contact && phone) updateData.contact = phone;
-
-        // Verifica se já possui o acesso ativo para não duplicar
-        const hasActiveAccess = currentAccess.some((acc: UserAccess) => 
-          acc.tictoId === safeProductId && 
-          acc.endDate && 
-          (acc.endDate as Timestamp).toDate() > new Date()
-        );
-
-        if (!hasActiveAccess) {
-          updateData.access = FieldValue.arrayUnion(...accessesToGrant);
-          updateData.products = FieldValue.arrayUnion(...accessesToGrant.filter(a => a.type === 'product'));
-          await userRef.update(updateData);
-          console.log(`[PROVISIONAMENTO] Novos acessos adicionados para o usuário existente ${customerData.email}`);
-        } else {
-          await userRef.update(updateData);
-          console.log(`[PROVISIONAMENTO] Usuário ${customerData.email} já possui acesso ativo ao produto ${safeProductId}. Reenviando instruções...`);
-        }
-
-        // FORÇAR DISPARO DE E-MAIL MESMO PARA USUÁRIO EXISTENTE
-        await sendAccessNotificationEmail(userData.name || customerData.name, customerData.email, productData.name);
-        console.log(`✉️ E-mail de reforço enviado para ${customerData.email}`);
-      }
+      await userRef.update(updateData);
+      await sendAccessNotificationEmail(userData.name || customerData.name, customerData.email, productName);
     }
 
-    console.log(`Provisionamento concluído com sucesso para ${customerData.email}`);
-    return { success: true, message: 'Provisionamento concluído com sucesso.' };
-
+    return { success: true };
   } catch (error) {
-    console.error('Erro no provisionamento:', error);
+    console.error('Erro no provisionamento geral:', error);
     throw error;
   }
+};
+
+export const provisionTictoPurchase = async (customerData: CustomerData, tictoProductId: string) => {
+  return provisionPurchase(customerData, tictoProductId, 'ticto');
 };
 
 export const revokeTictoPurchase = async (email: string, tictoProductId: string) => {

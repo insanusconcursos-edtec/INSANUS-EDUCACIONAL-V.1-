@@ -4,9 +4,12 @@ import { Search, Filter, Loader2, PlayCircle } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { courseService } from '../../../services/courseService';
 import { getCategories, Category } from '../../../services/planService';
+import { getProducts } from '../../../services/productService';
 import { OnlineCourse } from '../../../types/course';
+import { TictoProduct } from '../../../types/product';
 import { StudentCourseCard } from './StudentCourseCard';
 import { CourseDetails } from './CourseDetails';
+import CheckoutModal from '../checkout/CheckoutModal';
 
 export function StudentCoursesTab() {
   const { courseId } = useParams<{ courseId: string }>();
@@ -15,12 +18,14 @@ export function StudentCoursesTab() {
   
   // Estados de Dados
   const [myCourses, setMyCourses] = useState<OnlineCourse[]>([]);
+  const [availableProducts, setAvailableProducts] = useState<TictoProduct[]>([]);
   const [filteredCourses, setFilteredCourses] = useState<OnlineCourse[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Navegação
+  // Navegação e Checkout
   const [selectedCourse, setSelectedCourse] = useState<OnlineCourse | null>(null);
+  const [checkoutProduct, setCheckoutProduct] = useState<TictoProduct | null>(null);
 
   // Estados de Filtro
   const [searchTerm, setSearchTerm] = useState('');
@@ -37,22 +42,20 @@ export function StudentCoursesTab() {
 
         try {
             // Busca dados do sistema
-            const [allCourses, allCategories] = await Promise.all([
+            const [allCourses, allCategories, allProducts] = await Promise.all([
                 courseService.getCourses(),
-                getCategories()
+                getCategories(),
+                getProducts()
             ]);
 
             // LÓGICA CRUCIAL: Filtrar apenas cursos que o usuário tem acesso
-            // O user.access contém itens { type: 'course', targetId: '...', isActive: true }
-            const myAccess = userData.access
-                .filter((a: any) => a.type === 'course' && a.isActive);
-            
-            const myAccessIds = myAccess.map((a: any) => a.targetId);
+            const myAccessIds = (userData.access || [])
+                .filter((a: any) => a.type === 'course' && a.isActive)
+                .map((a: any) => a.targetId);
 
             const allowedCourses = allCourses
                 .filter(course => myAccessIds.includes(course.id))
                 .map(course => {
-                    // Descobre o índice original no array de acessos do aluno para espelhar a ordem de cadastro
                     const accessIndex = userData.access.findIndex((a: any) => 
                         a.targetId === course.id && a.type === 'course' && a.isActive
                     );
@@ -68,7 +71,15 @@ export function StudentCoursesTab() {
                 })
                 .sort((a, b) => a.accessIndex - b.accessIndex);
 
+            // Filtrar produtos que o usuário ainda NÃO tem e que dão acesso a cursos
+            const unownedProducts = allProducts.filter(product => {
+                // Se algum curso do produto não está nos acessos do usuário
+                const productCourseIds = product.linkedResources.onlineCourses || [];
+                return productCourseIds.length > 0 && productCourseIds.some(cid => !myAccessIds.includes(cid));
+            });
+
             setMyCourses(allowedCourses);
+            setAvailableProducts(unownedProducts);
             setFilteredCourses(allowedCourses);
             setCategories(allCategories);
         } catch (error) {
@@ -256,7 +267,46 @@ export function StudentCoursesTab() {
                     </div>
                 </div>
             )}
+
+            {/* SEÇÃO DA LOJA (Produtos não adquiridos) */}
+            {availableProducts.length > 0 && (
+                <div className="space-y-6 pt-12 border-t border-zinc-900">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="h-8 w-1 bg-gradient-to-b from-yellow-500 to-amber-600 rounded-full shadow-[0_0_15px_rgba(245,158,11,0.4)]"></div>
+                            <h3 className="text-xl font-black text-white uppercase tracking-tight">Expandir <span className="text-amber-500">Biblioteca</span></h3>
+                        </div>
+                        <span className="text-[10px] font-black text-amber-500 bg-amber-500/10 px-3 py-1 rounded border border-amber-500/20 uppercase tracking-widest">
+                            {availableProducts.length} pacotes disponíveis
+                        </span>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+                        {availableProducts.map(product => (
+                            <StudentCourseCard 
+                                key={product.id} 
+                                course={product} 
+                                isLocked={true}
+                                price={product.price}
+                                onClick={(p) => setCheckoutProduct(p)}
+                            />
+                        ))}
+                    </div>
+                </div>
+            )}
         </div>
+      )}
+
+      {/* MODAL DE CHECKOUT */}
+      {checkoutProduct && (
+          <CheckoutModal 
+              product={checkoutProduct}
+              onClose={() => setCheckoutProduct(null)}
+              onSuccess={() => {
+                  // O webhook vai liberar, mas podemos dar um feedback ou refresh
+                  window.location.reload();
+              }}
+          />
       )}
     </div>
   );

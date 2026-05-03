@@ -127,6 +127,7 @@ export default function ProductsManager() {
             <thead className="bg-zinc-800/50 text-xs uppercase text-zinc-400">
               <tr>
                 <th className="px-6 py-4 font-medium">Nome do Produto</th>
+                <th className="px-6 py-4 font-medium">Preço</th>
                 <th className="px-6 py-4 font-medium">ID Ticto</th>
                 <th className="px-6 py-4 font-medium">Tipo</th>
                 <th className="px-6 py-4 font-medium">Acesso (Dias)</th>
@@ -166,6 +167,9 @@ export default function ProductsManager() {
                           {product.name}
                         </span>
                       </div>
+                    </td>
+                    <td className="px-6 py-4 font-bold text-white">
+                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(product.price || 0)}
                     </td>
                     <td className="px-6 py-4 font-mono text-sm">{product.tictoId}</td>
                     <td className="px-6 py-4">
