@@ -198,7 +198,13 @@ export const provisionPurchase = async (customerData: CustomerData, targetId: st
     }
 
     if (isNewUser) {
-      const generatedPassword = crypto.randomBytes(4).toString('hex'); // 8 chars
+      // Gerar senha temporária alfanumérica de 8 caracteres
+      const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+      let generatedPassword = '';
+      for (let i = 0; i < 8; i++) {
+        generatedPassword += charset.charAt(Math.floor(Math.random() * charset.length));
+      }
+
       userRecord = await authAdmin.createUser({
         email: customerData.email,
         password: generatedPassword,
@@ -218,7 +224,7 @@ export const provisionPurchase = async (customerData: CustomerData, targetId: st
       };
 
       await dbAdmin.collection('users').doc(userRecord.uid).set(newUserDoc);
-      await sendWelcomeEmail(customerData.name, customerData.email, generatedPassword);
+      await sendWelcomeEmail(customerData.name, customerData.email, generatedPassword, productName);
     } else {
       const userRef = dbAdmin.collection('users').doc(userRecord.uid);
       const userDoc = await userRef.get();

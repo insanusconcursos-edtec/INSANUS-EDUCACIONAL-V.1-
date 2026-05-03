@@ -26,21 +26,38 @@ const getTransporter = () => {
   return transporter;
 };
 
-export const sendWelcomeEmail = async (name: string, email: string, password: string) => {
+export const sendWelcomeEmail = async (name: string, email: string, password: string, productName: string) => {
   const mailOptions = {
-    from: `"Insanus Educacional" <${process.env.SMTP_USER || 'seu-email@gmail.com'}>`,
+    from: `"Insanus Educacional" <${process.env.SMTP_USER || 'contato@portal-insanus.com'}>`,
     to: email,
-    subject: 'Seus acessos chegaram! Bem-vindo(a) à Insanus',
+    subject: 'Parabéns pela compra! Sua conta foi criada 🚀',
     html: `
-      <div style="font-family: Arial, sans-serif; background-color: #111; color: #fff; padding: 20px; border-radius: 8px;">
-        <h2 style="color: #e53e3e;">Olá, ${name}!</h2>
-        <p>Seu pagamento foi aprovado e seus acessos foram liberados com sucesso.</p>
-        <p>Acesse a plataforma através do link abaixo:</p>
-        <p><strong>URL:</strong> <a href="https://www.portal-insanus.com/login" style="color: #60a5fa;">Acessar Plataforma</a></p>
-        <p><strong>E-mail:</strong> ${email}</p>
-        <p><strong>Senha Provisória:</strong> ${password}</p>
-        <hr style="border-color: #333; margin: 20px 0;" />
-        <p style="font-size: 12px; color: #888;">Por segurança, recomendamos que você altere esta senha imediatamente após o seu primeiro login, acessando a aba "Editar Perfil" na tela inicial.</p>
+      <div style="font-family: Arial, sans-serif; background-color: #f4f4f5; padding: 40px; color: #18181b;">
+        <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 24px; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);">
+          <div style="background: #e11d48; padding: 40px; text-align: center;">
+            <h1 style="color: white; margin: 0; font-size: 24px; text-transform: uppercase; letter-spacing: 2px; font-weight: 900;">Bem-vindo à Insanus!</h1>
+          </div>
+          <div style="padding: 40px;">
+            <p style="font-size: 18px; font-weight: bold; margin-top: 0;">Olá, ${name}!</p>
+            <p style="line-height: 1.6; color: #52525b;">Parabéns pela sua compra do produto <strong>${productName}</strong>! Sua jornada rumo à aprovação começa agora.</p>
+            <p style="line-height: 1.6; color: #52525b;">Informamos que sua conta foi criada automaticamente em nossa plataforma. Seguem seus dados de acesso exclusivos:</p>
+            
+            <div style="background: #f4f4f5; padding: 24px; border-radius: 16px; margin: 24px 0;">
+              <p style="margin: 0 0 8px 0;"><strong>Link de Acesso:</strong> <a href="https://www.portal-insanus.com/login" style="color: #e11d48; text-decoration: none; font-weight: bold;">www.portal-insanus.com/login</a></p>
+              <p style="margin: 0 0 8px 0;"><strong>E-mail de Login:</strong> ${email}</p>
+              <p style="margin: 0;"><strong>Senha Temporária:</strong> <span style="background: #fde68a; padding: 2px 6px; border-radius: 4px;">${password}</span></p>
+            </div>
+
+            <p style="line-height: 1.6; color: #52525b; font-size: 14px; font-style: italic;">* Por segurança, recomendamos a troca da sua senha no primeiro acesso através da sua área do aluno.</p>
+
+            <div style="text-align: center; margin-top: 32px;">
+              <a href="https://www.portal-insanus.com/login" style="background: #18181b; color: white; padding: 16px 32px; text-decoration: none; border-radius: 12px; font-weight: 900; text-transform: uppercase; font-size: 14px; letter-spacing: 1px; display: inline-block;">Fazer Primeiro Acesso</a>
+            </div>
+          </div>
+          <div style="background: #fafafa; padding: 20px; text-align: center; border-top: 1px solid #f4f4f5;">
+            <p style="font-size: 12px; color: #a1a1aa; margin: 0;">Equipe Insanus Educacional - Foca na farda!</p>
+          </div>
+        </div>
       </div>
     `
   };
@@ -56,23 +73,36 @@ export const sendWelcomeEmail = async (name: string, email: string, password: st
 
 export const sendAccessNotificationEmail = async (name: string, email: string, productName: string) => {
   const mailOptions = {
-    from: `"Insanus Educacional" <${process.env.SMTP_USER || 'seu-email@gmail.com'}>`,
+    from: `"Insanus Educacional" <${process.env.SMTP_USER || 'contato@portal-insanus.com'}>`,
     to: email,
-    subject: '🚀 Seu acesso à Mentoria Insanus foi liberado!',
+    subject: 'Parabéns pela compra! Seu acesso já está liberado 🚀',
     html: `
-      <div style="font-family: Arial, sans-serif; background-color: #111; color: #fff; padding: 20px; border-radius: 8px;">
-        <h1 style="color: #e53e3e;">Olá, combatente!</h1>
-        <p>Seu acesso ao produto <strong>${productName}</strong> foi confirmado com sucesso.</p>
-        <p>Como você já possui cadastro em nossa plataforma, basta acessar com seu e-mail e senha habitual.</p>
-        <br>
-        <a href="https://www.portal-insanus.com" style="background:#00d2ff; color:#fff; padding:15px 25px; text-decoration:none; border-radius:5px; font-weight:bold; display: inline-block;">
-            ACESSAR MEU PORTAL AGORA
-        </a>
-        <br><br>
-        <p>Caso não lembre sua senha, utilize a opção "Esqueci minha senha" na tela de login.</p>
-        <p><strong>Bons estudos, foca na farda!</strong></p>
-        <hr style="border-color: #333; margin: 20px 0;" />
-        <p style="font-size: 12px; color: #888;">Equipe Insanus Educacional</p>
+      <div style="font-family: Arial, sans-serif; background-color: #f4f4f5; padding: 40px; color: #18181b;">
+        <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 24px; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);">
+          <div style="background: #059669; padding: 40px; text-align: center;">
+            <h1 style="color: white; margin: 0; font-size: 24px; text-transform: uppercase; letter-spacing: 2px; font-weight: 900;">Acesso Liberado!</h1>
+          </div>
+          <div style="padding: 40px;">
+            <p style="font-size: 18px; font-weight: bold; margin-top: 0;">Olá again, ${name}!</p>
+            <p style="line-height: 1.6; color: #52525b;">Parabéns pela sua nova compra: <strong>${productName}</strong>!</p>
+            <p style="line-height: 1.6; color: #52525b;">O produto <strong>JÁ ESTÁ LIBERADO</strong> na sua conta atual. Você não precisa criar uma nova senha, basta entrar com seus dados de sempre.</p>
+            
+            <div style="background: #f0fdf4; padding: 24px; border-radius: 16px; margin: 24px 0; border: 1px solid #dcfce7;">
+              <p style="margin: 0; text-align: center;"><strong>Link de Acesso Direto:</strong><br><br>
+                <a href="https://www.portal-insanus.com/login" style="color: #059669; text-decoration: none; font-weight: bold; font-size: 18px;">www.portal-insanus.com/login</a>
+              </p>
+            </div>
+
+            <p style="line-height: 1.6; color: #52525b;">Basta logar e o novo conteúdo aparecerá automaticamente na sua área do aluno.</p>
+
+            <div style="text-align: center; margin-top: 32px;">
+              <a href="https://www.portal-insanus.com/login" style="background: #18181b; color: white; padding: 16px 32px; text-decoration: none; border-radius: 12px; font-weight: 900; text-transform: uppercase; font-size: 14px; letter-spacing: 1px; display: inline-block;">Acessar Meus Cursos</a>
+            </div>
+          </div>
+          <div style="background: #fafafa; padding: 20px; text-align: center; border-top: 1px solid #f4f4f5;">
+            <p style="font-size: 12px; color: #a1a1aa; margin: 0;">Equipe Insanus Educacional - Bons estudos!</p>
+          </div>
+        </div>
       </div>
     `
   };

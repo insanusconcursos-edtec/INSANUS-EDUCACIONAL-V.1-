@@ -20,6 +20,17 @@ export default function StandaloneCheckout() {
   const [offer, setOffer] = useState<ProductOffer | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isMpReady, setIsMpReady] = useState(false);
+  
+  // Buyer Data Steps
+  const [currentStep, setCurrentStep] = useState(1);
+  const [buyerData, setBuyerData] = useState({
+    name: '',
+    email: currentUser?.email || '',
+    emailConfirm: currentUser?.email || '',
+    cpf: '',
+    phone: ''
+  });
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (MP_PUBLIC_KEY) {
@@ -31,6 +42,58 @@ export default function StandaloneCheckout() {
       }
     }
   }, []);
+
+  useEffect(() => {
+    if (currentUser?.email) {
+      setBuyerData(prev => ({
+        ...prev,
+        email: currentUser.email || '',
+        emailConfirm: currentUser.email || ''
+      }));
+    }
+  }, [currentUser]);
+
+  const validateStep1 = () => {
+    const errors: Record<string, string> = {};
+    if (!buyerData.name.trim()) errors.name = 'Nome completo é obrigatório';
+    if (!buyerData.email.trim()) errors.email = 'E-mail é obrigatório';
+    if (buyerData.email !== buyerData.emailConfirm) errors.emailConfirm = 'Os e-mails não coincidem';
+    
+    const cleanCpf = buyerData.cpf.replace(/\D/g, '');
+    if (cleanCpf.length !== 11) errors.cpf = 'CPF inválido (11 dígitos)';
+    
+    const cleanPhone = buyerData.phone.replace(/\D/g, '');
+    if (cleanPhone.length < 10) errors.phone = 'WhatsApp inválido';
+
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleNextStep = () => {
+    if (validateStep1()) {
+      setCurrentStep(2);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      toast.error("Por favor, preencha todos os campos corretamente.");
+    }
+  };
+
+  const maskCpf = (value: string) => {
+    return value
+      .replace(/\D/g, '')
+      .replace(/(\d{3})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d{1,2})/, '$1-$2')
+      .replace(/(-\d{2})\d+?$/, '$1');
+  };
+
+  const maskPhone = (value: string) => {
+    return value
+      .replace(/\D/g, '')
+      .replace(/(\d{2})(\d)/, '($1) $2')
+      .replace(/(\d{5})(\d)/, '$1-$2')
+      .replace(/(-\d{4})\d+?$/, '$1');
+  };
 
   useEffect(() => {
     async function loadData() {
@@ -58,10 +121,10 @@ export default function StandaloneCheckout() {
     return {
       amount: Number(offer.price),
       payer: {
-        email: currentUser?.email || '',
+        email: buyerData.email || currentUser?.email || '',
       },
     };
-  }, [offer, currentUser?.email]);
+  }, [offer, currentUser?.email, buyerData.email]);
 
   const customization = React.useMemo(() => ({
     paymentMethods: {
@@ -88,13 +151,19 @@ export default function StandaloneCheckout() {
         payment_method_id: formData.payment_method_id,
         issuer_id: formData.issuer_id,
         payer: {
-          email: formData.payer.email,
-          identification: formData.payer.identification,
+          email: buyerData.email, // Use validated email from our form
+          identification: {
+            type: 'CPF',
+            number: buyerData.cpf.replace(/\D/g, '')
+          }
         },
         metadata: {
           courseId: product.id!,
           offerId: offer.id,
-          userName: currentUser?.displayName || 'Aluno',
+          userName: buyerData.name,
+          userEmail: buyerData.email,
+          userPhone: buyerData.phone,
+          userCpf: buyerData.cpf.replace(/\D/g, ''),
           isStandalone: "true"
         },
       };
@@ -210,55 +279,148 @@ export default function StandaloneCheckout() {
             </div>
           </div>
 
-          {/* Coluna Direita: Checkout Brick */}
+          {/* Coluna Direita: Step Selector */}
           <div className="bg-white rounded-3xl p-4 md:p-8 shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
-            <div className="mb-6 flex items-center justify-between text-zinc-900">
-                <div>
-                   <h3 className="text-xl font-black uppercase tracking-tight">Dados de Pagamento</h3>
-                   <p className="text-sm text-zinc-500 font-medium tracking-tight">Escolha como prefere pagar agora.</p>
+            <div className="mb-8 flex items-center justify-between text-zinc-900 border-b border-zinc-100 pb-6">
+                <div className="flex items-center gap-4">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-sm transition-all ${currentStep === 1 ? 'bg-red-600 text-white shadow-lg shadow-red-200' : 'bg-emerald-50 text-emerald-600'}`}>
+                    {currentStep === 1 ? '01' : <ShieldCheck size={20} />}
+                  </div>
+                  <div className="h-px w-8 bg-zinc-100" />
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-sm transition-all ${currentStep === 2 ? 'bg-red-600 text-white shadow-lg shadow-red-200' : 'bg-zinc-50 text-zinc-400'}`}>
+                    02
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                   <QrCode className="text-emerald-500" size={24} />
-                   <CreditCard className="text-zinc-400" size={24} />
+                <div className="text-right">
+                   <h3 className="text-xl font-black uppercase tracking-tight leading-none mb-1">
+                     {currentStep === 1 ? 'Dados Pessoais' : 'Pagamento'}
+                   </h3>
+                   <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest">Passo {currentStep} de 2</p>
                 </div>
             </div>
 
-            <div className="payment-brick-container">
-              {MP_PUBLIC_KEY && offer && isMpReady ? (
-                <Payment
-                  initialization={initialization}
-                  customization={customization}
-                  onSubmit={onSubmit}
-                  onReady={() => console.log('Payment Brick logic ready')}
-                  onError={(error) => {
-                    console.error('Mercado Pago SDK Error Details:', JSON.stringify(error, null, 2));
-                    toast.error("Erro no carregamento do checkout. Verifique os dados.");
-                  }}
-                />
-              ) : !MP_PUBLIC_KEY ? (
-                <div className="p-8 text-center bg-red-50 rounded-3xl border border-red-200 flex flex-col items-center gap-4">
-                   <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center">
-                      <ShieldCheck size={32} />
-                   </div>
-                   <div className="space-y-2">
-                      <h4 className="text-red-900 font-black uppercase tracking-tight text-lg">Erro de Integração</h4>
-                      <p className="text-red-700 text-sm leading-relaxed">
-                         A chave pública do Mercado Pago (VITE_MP_PUBLIC_KEY) não foi detectada no ambiente. 
-                         <span className="block mt-2 font-bold">Verifique o painel Secrets.</span>
-                      </p>
-                   </div>
+            {currentStep === 1 ? (
+              <div className="space-y-6">
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-black text-zinc-500 uppercase tracking-widest ml-1">Nome Completo</label>
+                    <input 
+                      type="text"
+                      className={`w-full bg-zinc-50 border ${formErrors.name ? 'border-red-500' : 'border-zinc-200'} rounded-xl px-4 py-3.5 text-zinc-900 font-semibold focus:outline-none focus:ring-2 focus:ring-red-600/20 transition-all`}
+                      placeholder="Como no seu documento"
+                      value={buyerData.name}
+                      onChange={(e) => setBuyerData({...buyerData, name: e.target.value})}
+                    />
+                    {formErrors.name && <p className="text-[10px] text-red-500 font-bold ml-1">{formErrors.name}</p>}
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-black text-zinc-500 uppercase tracking-widest ml-1">Seu melhor E-mail</label>
+                      <input 
+                        type="email"
+                        className={`w-full bg-zinc-50 border ${formErrors.email ? 'border-red-500' : 'border-zinc-200'} rounded-xl px-4 py-3.5 text-zinc-900 font-semibold focus:outline-none focus:ring-2 focus:ring-red-600/20 transition-all`}
+                        placeholder="exemplo@email.com"
+                        value={buyerData.email}
+                        onChange={(e) => setBuyerData({...buyerData, email: e.target.value})}
+                      />
+                      {formErrors.email && <p className="text-[10px] text-red-500 font-bold ml-1">{formErrors.email}</p>}
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-black text-zinc-500 uppercase tracking-widest ml-1">Confirme seu E-mail</label>
+                      <input 
+                        type="email"
+                        className={`w-full bg-zinc-50 border ${formErrors.emailConfirm ? 'border-red-500' : 'border-zinc-200'} rounded-xl px-4 py-3.5 text-zinc-900 font-semibold focus:outline-none focus:ring-2 focus:ring-red-600/20 transition-all`}
+                        placeholder="Repita o e-mail"
+                        value={buyerData.emailConfirm}
+                        onChange={(e) => setBuyerData({...buyerData, emailConfirm: e.target.value})}
+                      />
+                      {formErrors.emailConfirm && <p className="text-[10px] text-red-500 font-bold ml-1">{formErrors.emailConfirm}</p>}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-black text-zinc-500 uppercase tracking-widest ml-1">CPF</label>
+                      <input 
+                        type="text"
+                        className={`w-full bg-zinc-50 border ${formErrors.cpf ? 'border-red-500' : 'border-zinc-200'} rounded-xl px-4 py-3.5 text-zinc-900 font-semibold focus:outline-none focus:ring-2 focus:ring-red-600/20 transition-all`}
+                        placeholder="000.000.000-00"
+                        value={buyerData.cpf}
+                        onChange={(e) => setBuyerData({...buyerData, cpf: maskCpf(e.target.value)})}
+                      />
+                      {formErrors.cpf && <p className="text-[10px] text-red-500 font-bold ml-1">{formErrors.cpf}</p>}
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-black text-zinc-500 uppercase tracking-widest ml-1">WhatsApp</label>
+                      <input 
+                        type="text"
+                        className={`w-full bg-zinc-50 border ${formErrors.phone ? 'border-red-500' : 'border-zinc-200'} rounded-xl px-4 py-3.5 text-zinc-900 font-semibold focus:outline-none focus:ring-2 focus:ring-red-600/20 transition-all`}
+                        placeholder="(00) 00000-0000"
+                        value={buyerData.phone}
+                        onChange={(e) => setBuyerData({...buyerData, phone: maskPhone(e.target.value)})}
+                      />
+                      {formErrors.phone && <p className="text-[10px] text-red-500 font-bold ml-1">{formErrors.phone}</p>}
+                    </div>
+                  </div>
                 </div>
-              ) : !isMpReady || !offer ? (
-                <div className="p-12 flex flex-col items-center justify-center gap-4">
-                  <Loader2 className="w-8 h-8 text-red-600 animate-spin" />
-                  <p className="text-zinc-400 text-xs font-bold uppercase tracking-widest">Preparando Checkout...</p>
+
+                <button 
+                  onClick={handleNextStep}
+                  className="w-full bg-zinc-900 hover:bg-zinc-800 text-white font-black py-4 rounded-2xl transition-all flex items-center justify-center gap-2 group uppercase tracking-widest text-sm"
+                >
+                  Continuar para Pagamento
+                </button>
+                
+                <div className="flex items-center justify-center gap-2 text-[10px] text-zinc-400 font-bold uppercase py-2">
+                  <ShieldCheck size={14} className="text-emerald-500" />
+                  Seus dados estão protegidos e criptografados
                 </div>
-              ) : (
-                <div className="p-12 text-center bg-zinc-50 rounded-3xl border border-dotted border-zinc-200">
-                  <p className="text-zinc-400 text-sm italic">Ocorreu um erro inesperado ao carregar o pagamento.</p>
-                </div>
-              )}
-            </div>
+              </div>
+            ) : (
+              <div className="payment-brick-container">
+                <button 
+                  onClick={() => setCurrentStep(1)}
+                  className="mb-4 text-[11px] font-black text-red-600 uppercase tracking-widest flex items-center gap-1 hover:underline underline-offset-4 decoration-2"
+                >
+                  ← Alterar dados pessoais
+                </button>
+                {MP_PUBLIC_KEY && offer && isMpReady ? (
+                  <Payment
+                    initialization={initialization}
+                    customization={customization}
+                    onSubmit={onSubmit}
+                    onReady={() => console.log('Payment Brick logic ready')}
+                    onError={(error) => {
+                      console.error('Mercado Pago SDK Error Details:', JSON.stringify(error, null, 2));
+                      toast.error("Erro no carregamento do checkout. Verifique os dados.");
+                    }}
+                  />
+                ) : !MP_PUBLIC_KEY ? (
+                  <div className="p-8 text-center bg-red-50 rounded-3xl border border-red-200 flex flex-col items-center gap-4">
+                     <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center">
+                        <ShieldCheck size={32} />
+                     </div>
+                     <div className="space-y-2">
+                        <h4 className="text-red-900 font-black uppercase tracking-tight text-lg">Erro de Integração</h4>
+                        <p className="text-red-700 text-sm leading-relaxed">
+                           A chave pública do Mercado Pago (VITE_MP_PUBLIC_KEY) não foi detectada no ambiente. 
+                           <span className="block mt-2 font-bold">Verifique o painel Secrets.</span>
+                        </p>
+                     </div>
+                  </div>
+                ) : !isMpReady || !offer ? (
+                  <div className="p-12 flex flex-col items-center justify-center gap-4">
+                    <Loader2 className="w-8 h-8 text-red-600 animate-spin" />
+                    <p className="text-zinc-400 text-xs font-bold uppercase tracking-widest">Preparando Checkout...</p>
+                  </div>
+                ) : (
+                  <div className="p-12 text-center bg-zinc-50 rounded-3xl border border-dotted border-zinc-200">
+                    <p className="text-zinc-400 text-sm italic">Ocorreu um erro inesperado ao carregar o pagamento.</p>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="mt-8 pt-6 border-t border-zinc-100 flex items-center justify-center gap-6 grayscale opacity-50">
                <img src="https://logodownload.org/wp-content/uploads/2019/06/mercado-pago-logo-0.png" alt="Mercado Pago" className="h-6" />

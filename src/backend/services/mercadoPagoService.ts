@@ -34,8 +34,6 @@ export const createMPPayment = async (data: any) => {
 };
 
 export const handleMPWebhook = async (payload: any) => {
-  const { dbAdmin } = getAdminConfig();
-  
   try {
     // Mercado Pago provides action and data.id for notifications
     if (payload.action === 'payment.created' || payload.action === 'payment.updated' || payload.type === 'payment') {
@@ -47,25 +45,27 @@ export const handleMPWebhook = async (payload: any) => {
       const paymentData = await payment.get({ id: paymentId });
 
       if (paymentData.status === 'approved') {
-        const { metadata, payer } = paymentData;
-        const courseId = metadata?.course_id || metadata?.courseId;
-        const email = payer?.email;
+        const { metadata, payer, external_reference } = paymentData;
+        const courseId = metadata?.course_id || metadata?.courseId || external_reference;
+        const email = metadata?.user_email || metadata?.userEmail || payer?.email;
         const name = metadata?.user_name || metadata?.userName || 'Aluno';
         const phone = metadata?.user_phone || metadata?.userPhone || '';
+        const cpf = metadata?.user_cpf || metadata?.userCpf || '';
 
         if (email && courseId) {
-          console.log(`Liberando acesso via Mercado Pago para ${email} no curso ${courseId}`);
+          console.log(`[MP] Pagamento Aprovado. Providenciando acesso para ${email} (Produto: ${courseId})`);
           
-          // We need a customer data object for the provisioner
           const customerData = {
             email,
             name,
-            phone: phone
+            phone: phone,
+            cpf: cpf
           };
 
-          // We'll use a modified provisioner or ensure it handles course IDs directly
-          await provisionPurchase(customerData, courseId, 'mp');
+          await provisionPurchase(customerData, String(courseId), 'mp');
           return { success: true };
+        } else {
+          console.warn('[MP] Pagamento aprovado mas faltam dados (email ou courseId):', { email, courseId });
         }
       }
     }
