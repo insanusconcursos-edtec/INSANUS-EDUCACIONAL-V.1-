@@ -12,15 +12,24 @@ export default function ProductsManager() {
   const [selectedProduct, setSelectedProduct] = useState<TictoProduct | null>(null);
   const [productToDelete, setProductToDelete] = useState<any | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [copied, setCopied] = useState(false);
+  // Pega o domínio atual do site dinamicamente
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  const tictoWebhookUrl = `${origin}/api/webhooks/ticto`;
+  const mpWebhookUrl = `${origin}/api/webhooks/mercadopago`;
 
-  // Pega o domínio atual do site dinamicamente e adiciona a rota da API
-  const webhookUrl = typeof window !== 'undefined' ? `${window.location.origin}/api/webhooks/ticto` : '';
+  const [copiedTicto, setCopiedTicto] = useState(false);
+  const [copiedMP, setCopiedMP] = useState(false);
 
-  const handleCopyWebhook = () => {
-    navigator.clipboard.writeText(webhookUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const handleCopyTicto = () => {
+    navigator.clipboard.writeText(tictoWebhookUrl);
+    setCopiedTicto(true);
+    setTimeout(() => setCopiedTicto(false), 2000);
+  };
+
+  const handleCopyMP = () => {
+    navigator.clipboard.writeText(mpWebhookUrl);
+    setCopiedMP(true);
+    setTimeout(() => setCopiedMP(false), 2000);
   };
 
   const loadProducts = async () => {
@@ -68,7 +77,7 @@ export default function ProductsManager() {
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-white">Produtos Ticto</h1>
+        <h1 className="text-2xl font-bold text-white uppercase tracking-tighter">Produtos</h1>
         <button
           onClick={() => {
             setSelectedProduct(null);
@@ -81,30 +90,60 @@ export default function ProductsManager() {
         </button>
       </div>
 
-      {/* Card da URL do Webhook */}
-      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 mb-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
-        <div>
-          <h3 className="text-sm font-bold text-zinc-300 flex items-center gap-2">
-            🔗 URL do Webhook (Integração Ticto)
-          </h3>
-          <p className="text-xs text-zinc-500 mt-1">
-            Copie a URL abaixo e cole no painel da Ticto para ativar a liberação e cancelamento automático de acessos.
-          </p>
+      {/* Cards de Integração de Webhook */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        {/* Card Ticto */}
+        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 flex flex-col justify-between gap-4 shadow-sm">
+          <div>
+            <h3 className="text-sm font-bold text-zinc-300 flex items-center gap-2 uppercase tracking-tight">
+              🔗 URL do Webhook (Integração Ticto)
+            </h3>
+            <p className="text-[10px] text-zinc-500 mt-1 uppercase font-bold">
+              Copie a URL abaixo e cole no painel da Ticto para ativar a liberação automática.
+            </p>
+          </div>
+          
+          <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-lg p-1.5 overflow-hidden">
+            <code className="text-xs text-zinc-400 px-2 truncate flex-1 select-all font-mono">
+              {tictoWebhookUrl}
+            </code>
+            <button
+              onClick={handleCopyTicto}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-black uppercase rounded-md transition shrink-0 ${
+                copiedTicto ? 'bg-green-600/20 text-green-500' : 'bg-zinc-800 hover:bg-zinc-700 text-white'
+              }`}
+            >
+              {copiedTicto ? <Check size={14} /> : <Copy size={14} />}
+              {copiedTicto ? 'Copiado!' : 'Copiar'}
+            </button>
+          </div>
         </div>
-        
-        <div className="flex items-center gap-2 w-full md:w-auto bg-zinc-950 border border-zinc-800 rounded-lg p-1.5 overflow-hidden">
-          <code className="text-xs text-zinc-400 px-2 truncate max-w-[200px] md:max-w-[300px] select-all">
-            {webhookUrl}
-          </code>
-          <button
-            onClick={handleCopyWebhook}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-md transition ${
-              copied ? 'bg-green-600/20 text-green-500' : 'bg-zinc-800 hover:bg-zinc-700 text-white'
-            }`}
-          >
-            {copied ? <Check size={14} /> : <Copy size={14} />}
-            {copied ? 'Copiado!' : 'Copiar'}
-          </button>
+
+        {/* Card Mercado Pago */}
+        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 flex flex-col justify-between gap-4 shadow-sm">
+          <div>
+            <h3 className="text-sm font-bold text-zinc-300 flex items-center gap-2 uppercase tracking-tight">
+              🔗 URL do Webhook (Mercado Pago)
+            </h3>
+            <p className="text-[10px] text-zinc-500 mt-1 uppercase font-bold">
+              Copie a URL abaixo e cole nas configurações de Notificações do Mercado Pago.
+            </p>
+          </div>
+          
+          <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-lg p-1.5 overflow-hidden">
+            <code className="text-xs text-zinc-400 px-2 truncate flex-1 select-all font-mono">
+              {mpWebhookUrl}
+            </code>
+            <button
+              onClick={handleCopyMP}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-black uppercase rounded-md transition shrink-0 ${
+                copiedMP ? 'bg-green-600/20 text-green-500' : 'bg-zinc-800 hover:bg-zinc-700 text-white'
+              }`}
+            >
+              {copiedMP ? <Check size={14} /> : <Copy size={14} />}
+              {copiedMP ? 'Copiado!' : 'Copiar'}
+            </button>
+          </div>
         </div>
       </div>
 
