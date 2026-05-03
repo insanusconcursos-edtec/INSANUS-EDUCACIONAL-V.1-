@@ -11,10 +11,6 @@ import { Loader2, ShieldCheck, CreditCard, QrCode } from 'lucide-react';
 
 const MP_PUBLIC_KEY = import.meta.env.VITE_MP_PUBLIC_KEY || (typeof process !== 'undefined' ? process.env.NEXT_PUBLIC_MP_PUBLIC_KEY : undefined);
 
-if (MP_PUBLIC_KEY) {
-  initMercadoPago(MP_PUBLIC_KEY);
-}
-
 export default function StandaloneCheckout() {
   const { offerId } = useParams<{ offerId: string }>();
   const { currentUser } = useAuth();
@@ -23,6 +19,18 @@ export default function StandaloneCheckout() {
   const [product, setProduct] = useState<TictoProduct | null>(null);
   const [offer, setOffer] = useState<ProductOffer | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isMpReady, setIsMpReady] = useState(false);
+
+  useEffect(() => {
+    if (MP_PUBLIC_KEY) {
+      try {
+        initMercadoPago(MP_PUBLIC_KEY);
+        setIsMpReady(true);
+      } catch (err) {
+        console.error('Failed to initialize Mercado Pago:', err);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     async function loadData() {
@@ -74,28 +82,28 @@ export default function StandaloneCheckout() {
     );
   }
 
-  const initialization = {
+  const initialization = React.useMemo(() => ({
     amount: Number(offer.price),
     payer: {
       email: currentUser?.email || '',
     },
-  };
+  }), [offer.price, currentUser?.email]);
 
-  const customization = {
+  const customization = React.useMemo(() => ({
     paymentMethods: {
-      ticket: 'all',
-      bankTransfer: ['pix'],
-      creditCard: 'all',
-      debitCard: 'all',
+      ticket: 'all' as const,
+      bankTransfer: ['pix'] as const,
+      creditCard: 'all' as const,
+      debitCard: 'all' as const,
     },
     visual: {
         style: {
             theme: 'dark' as const
         }
     }
-  };
+  }), []);
 
-  const onSubmit = async (formData: any) => {
+  const onSubmit = React.useCallback(async (formData: any) => {
     try {
       const paymentData = {
         transaction_amount: formData.transaction_amount,
@@ -131,7 +139,7 @@ export default function StandaloneCheckout() {
       console.error(err);
       toast.error("Erro ao processar o pagamento. Tente novamente.");
     }
-  };
+  }, [product, offer, currentUser]);
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white font-sans selection:bg-red-600/30">
@@ -212,7 +220,7 @@ export default function StandaloneCheckout() {
             </div>
 
             <div className="payment-brick-container">
-              {MP_PUBLIC_KEY && offer ? (
+              {MP_PUBLIC_KEY && offer && isMpReady ? (
                 <Payment
                   initialization={initialization}
                   customization={customization}
@@ -236,10 +244,14 @@ export default function StandaloneCheckout() {
                       </p>
                    </div>
                 </div>
-              ) : (
+              ) : !isMpReady || !offer ? (
                 <div className="p-12 flex flex-col items-center justify-center gap-4">
                   <Loader2 className="w-8 h-8 text-red-600 animate-spin" />
                   <p className="text-zinc-400 text-xs font-bold uppercase tracking-widest">Preparando Checkout...</p>
+                </div>
+              ) : (
+                <div className="p-12 text-center bg-zinc-50 rounded-3xl border border-dotted border-zinc-200">
+                  <p className="text-zinc-400 text-sm italic">Ocorreu um erro inesperado ao carregar o pagamento.</p>
                 </div>
               )}
             </div>
