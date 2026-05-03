@@ -9,7 +9,7 @@ import toast from 'react-hot-toast';
 
 // Initialize MP with public key
 // Using generic PUBLIC_KEY name as per prompt summary
-const MP_PUBLIC_KEY = import.meta.env.VITE_MP_PUBLIC_KEY || import.meta.env.NEXT_PUBLIC_MP_PUBLIC_KEY;
+const MP_PUBLIC_KEY = import.meta.env.VITE_MP_PUBLIC_KEY;
 if (MP_PUBLIC_KEY) {
   initMercadoPago(MP_PUBLIC_KEY, { locale: 'pt-BR' });
 }

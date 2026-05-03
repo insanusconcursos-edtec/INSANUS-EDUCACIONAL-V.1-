@@ -9,7 +9,7 @@ import { toast } from 'react-hot-toast';
 import { createMercadoPagoPayment } from '../../services/paymentService';
 import { Loader2, ShieldCheck, CreditCard, QrCode } from 'lucide-react';
 
-const MP_PUBLIC_KEY = import.meta.env.VITE_MP_PUBLIC_KEY || (typeof process !== 'undefined' ? process.env.NEXT_PUBLIC_MP_PUBLIC_KEY : undefined);
+const MP_PUBLIC_KEY = import.meta.env.VITE_MP_PUBLIC_KEY;
 
 export default function StandaloneCheckout() {
   const { offerId } = useParams<{ offerId: string }>();
@@ -236,15 +236,15 @@ export default function StandaloneCheckout() {
                   }}
                 />
               ) : !MP_PUBLIC_KEY ? (
-                <div className="p-12 text-center bg-zinc-50 rounded-3xl border border-zinc-100 flex flex-col items-center gap-4">
-                   <div className="w-16 h-16 bg-red-50 text-red-600 rounded-full flex items-center justify-center animate-pulse">
+                <div className="p-8 text-center bg-red-50 rounded-3xl border border-red-200 flex flex-col items-center gap-4">
+                   <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center">
                       <ShieldCheck size={32} />
                    </div>
                    <div className="space-y-2">
-                      <h4 className="text-zinc-900 font-black uppercase tracking-tight text-lg">Checkout em Manutenção</h4>
-                      <p className="text-zinc-500 text-sm max-w-xs mx-auto leading-relaxed">
-                         Estamos realizando ajustes técnicos em nossos gateways de pagamento para sua maior segurança. 
-                         <span className="block mt-2 font-bold text-zinc-800">Tente atualizar a página em alguns instantes.</span>
+                      <h4 className="text-red-900 font-black uppercase tracking-tight text-lg">Erro de Integração</h4>
+                      <p className="text-red-700 text-sm leading-relaxed">
+                         A chave pública do Mercado Pago (VITE_MP_PUBLIC_KEY) não foi detectada no ambiente. 
+                         <span className="block mt-2 font-bold">Verifique o painel Secrets.</span>
                       </p>
                    </div>
                 </div>
