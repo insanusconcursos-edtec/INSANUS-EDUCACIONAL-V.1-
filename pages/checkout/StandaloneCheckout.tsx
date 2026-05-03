@@ -75,7 +75,7 @@ export default function StandaloneCheckout() {
   }
 
   const initialization = {
-    amount: offer.price,
+    amount: Number(offer.price),
     payer: {
       email: currentUser?.email || '',
     },
@@ -168,7 +168,7 @@ export default function StandaloneCheckout() {
                 <div className="flex items-baseline gap-1 mt-1">
                   <span className="text-xl font-bold text-zinc-400">R$</span>
                   <span className="text-5xl font-black text-white tracking-tighter">
-                    {offer.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    {Number(offer.price).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                   </span>
                 </div>
               </div>
@@ -212,18 +212,18 @@ export default function StandaloneCheckout() {
             </div>
 
             <div className="payment-brick-container">
-              {MP_PUBLIC_KEY ? (
+              {MP_PUBLIC_KEY && offer ? (
                 <Payment
                   initialization={initialization}
                   customization={customization}
                   onSubmit={onSubmit}
                   onReady={() => console.log('Payment Brick logic ready')}
                   onError={(error) => {
-                    console.error('Mercado Pago Error:', error);
-                    toast.error("Erro no carregamento do checkout.");
+                    console.error('Mercado Pago SDK Error Details:', JSON.stringify(error, null, 2));
+                    toast.error("Erro no carregamento do checkout. Verifique os dados.");
                   }}
                 />
-              ) : (
+              ) : !MP_PUBLIC_KEY ? (
                 <div className="p-12 text-center bg-zinc-50 rounded-3xl border border-zinc-100 flex flex-col items-center gap-4">
                    <div className="w-16 h-16 bg-red-50 text-red-600 rounded-full flex items-center justify-center animate-pulse">
                       <ShieldCheck size={32} />
@@ -235,6 +235,11 @@ export default function StandaloneCheckout() {
                          <span className="block mt-2 font-bold text-zinc-800">Tente atualizar a página em alguns instantes.</span>
                       </p>
                    </div>
+                </div>
+              ) : (
+                <div className="p-12 flex flex-col items-center justify-center gap-4">
+                  <Loader2 className="w-8 h-8 text-red-600 animate-spin" />
+                  <p className="text-zinc-400 text-xs font-bold uppercase tracking-widest">Preparando Checkout...</p>
                 </div>
               )}
             </div>
