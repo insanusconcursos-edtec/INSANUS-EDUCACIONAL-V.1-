@@ -8,68 +8,78 @@ const AdminLayout: React.FC = () => {
   const location = useLocation();
   
   const adminNav = useMemo(() => {
-    const items = [];
-    const perms = userData?.permissions || {};
+    const perms = userData?.permissions || {} as any;
     const isAdmin = userRole === 'ADMIN';
 
-    // 1. PLANOS
+    const groups = [
+      {
+        id: 'pedagogico',
+        label: 'PEDAGÓGICO',
+        items: [] as { label: string; path: string }[]
+      },
+      {
+        id: 'comercial',
+        label: 'COMERCIAL',
+        items: [] as { label: string; path: string }[]
+      },
+      {
+        id: 'administrativo',
+        label: 'ADMINISTRATIVO',
+        items: [] as { label: string; path: string }[]
+      }
+    ];
+
+    // PEDAGÓGICO Group
     if (isAdmin || perms.planos) {
-        items.push({ label: 'PLANOS', path: '/admin/planos' });
+      groups[0].items.push({ label: 'PLANOS', path: '/admin/planos' });
     }
-
-    // 1.5 PRODUTOS (Integração Ticto)
-    if (isAdmin || perms.produtos) {
-        items.push({ label: 'PRODUTOS', path: '/admin/products' });
-    }
-
-    // 2. CURSOS ONLINE (Novo)
     if (isAdmin || perms.cursos_online) {
-        items.push({ label: 'CURSOS ONLINE', path: '/admin/cursos' });
+      groups[0].items.push({ label: 'CURSOS ONLINE', path: '/admin/cursos' });
     }
-
-    // 3. TURMAS PRESENCIAIS (Novo)
     if (isAdmin || perms.turmas_presenciais) {
-        items.push({ label: 'TURMAS PRESENCIAIS', path: '/admin/presencial' });
+      groups[0].items.push({ label: 'TURMAS PRESENCIAIS', path: '/admin/presencial' });
     }
-
-    // 4. SIMULADOS
     if (isAdmin || perms.simulados) {
-        items.push({ label: 'SIMULADOS', path: '/admin/simulados' });
+      groups[0].items.push({ label: 'SIMULADOS', path: '/admin/simulados' });
     }
-
-    // 4.1 EVENTOS AO VIVO
     if (isAdmin || perms.eventos_ao_vivo) {
-        items.push({ label: 'EVENTOS AO VIVO', path: '/admin/eventos-ao-vivo' });
+      groups[0].items.push({ label: 'EVENTOS AO VIVO', path: '/admin/eventos-ao-vivo' });
     }
-
-    // 5. EQUIPE
-    if (isAdmin || perms.equipe) {
-        items.push({ label: 'EQUIPE', path: '/admin/equipe' });
-    }
-
-    // 6. ALUNOS
-    if (isAdmin || perms.alunos) {
-        items.push({ label: 'ALUNOS', path: '/admin/alunos' });
-    }
-
-    // 6.5 SUPORTE
     if (isAdmin || perms.suporte) {
-        items.push({ label: 'SUPORTE', path: '/admin/suporte' });
+      groups[0].items.push({ label: 'SUPORTE', path: '/admin/suporte' });
+    }
+    if (isAdmin || perms.alunos) {
+      groups[0].items.push({ label: 'ALUNOS', path: '/admin/alunos' });
     }
 
-    // 7. MANUTENÇÃO (Admin Only)
+    // COMERCIAL Group
+    if (isAdmin || perms.produtos) {
+      groups[1].items.push({ label: 'PRODUTOS', path: '/admin/products' });
+    }
+    if (isAdmin || perms.vendas) {
+      groups[1].items.push({ label: 'VENDAS', path: '/admin/vendas' });
+    }
+
+    // ADMINISTRATIVO Group
+    if (isAdmin || perms.equipe) {
+      groups[2].items.push({ label: 'EQUIPE', path: '/admin/equipe' });
+    }
     if (isAdmin) {
-        items.push({ label: 'MANUTENÇÃO', path: '/admin/manutencao' });
+      groups[2].items.push({ label: 'FINANCEIRO', path: '/admin/financeiro' });
+    }
+    if (isAdmin) {
+      groups[2].items.push({ label: 'MANUTENÇÃO', path: '/admin/manutencao' });
     }
 
-    return items;
+    // Filter out groups with no items
+    return groups.filter(group => group.items.length > 0);
   }, [userRole, userData]);
 
   return (
     <div className="flex flex-col h-screen bg-brand-black text-white font-sans overflow-hidden">
       <Topbar 
-        navItems={adminNav} 
-        roleLabel={userRole === 'ADMIN' ? 'Administrador' : 'Colaborador'}
+        navGroups={adminNav} 
+        roleLabel={userRole === 'ADMIN' ? 'Administrador' : (userRole === 'SELLER' ? 'Vendedor' : 'Colaborador')}
         dashboardLabel="Painel de Controle"
         userEmail={currentUser?.email || 'Admin'}
       />

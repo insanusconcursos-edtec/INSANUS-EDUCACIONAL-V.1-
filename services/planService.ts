@@ -11,12 +11,13 @@ import {
   serverTimestamp,
   writeBatch,
   WriteBatch,
-  DocumentReference
+  DocumentReference,
+  Firestore
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from './firebase';
 import { sanitizeData as cleanObject } from './firestoreUtils';
-import { Plan, Folder, Cycle, CycleItem, CycleSystem } from '../types/plan';
+import { Plan } from '../types/plan';
 
 // Interfaces
 export interface Category {
@@ -30,21 +31,21 @@ export interface Category {
 class BatchHandler {
   private batch: WriteBatch;
   private count: number;
-  private dbInstance: any;
+  private dbInstance: Firestore;
 
-  constructor(dbInstance: any) {
+  constructor(dbInstance: Firestore) {
     this.dbInstance = dbInstance;
     this.batch = writeBatch(dbInstance);
     this.count = 0;
   }
 
-  async set(ref: DocumentReference, data: any) {
+  async set(ref: DocumentReference, data: object) {
     this.batch.set(ref, cleanObject(data));
     this.count++;
     if (this.count >= 450) await this.flush();
   }
 
-  async update(ref: DocumentReference, data: any) {
+  async update(ref: DocumentReference, data: object) {
     this.batch.update(ref, cleanObject(data));
     this.count++;
     if (this.count >= 450) await this.flush();
@@ -259,7 +260,7 @@ export const duplicatePlan = async (originalPlanId: string) => {
     const oldEdictData = oldEdictSnap.data();
     
     // Recursive function to traverse edict tree and replace Meta IDs in linkedGoals
-    const replaceMetaIdsInGoals = (linkedGoals: any) => {
+    const replaceMetaIdsInGoals = (linkedGoals: Record<string, string[]>) => {
       if (!linkedGoals) return;
       const types = ['lesson', 'material', 'questions', 'law', 'summary', 'review'];
       
@@ -268,13 +269,13 @@ export const duplicatePlan = async (originalPlanId: string) => {
           // Replace old IDs with new IDs from metaMap
           linkedGoals[type] = linkedGoals[type]
             .map((oldId: string) => metaMap.get(oldId))
-            .filter((newId: string | undefined) => newId !== undefined); // Remove if not found
+            .filter((newId: string | undefined): newId is string => newId !== undefined); // Remove if not found
         }
       });
     };
 
     // Deep clone to avoid mutating original data (using cleanObject to be safe with Firestore objects)
-    const newEdictData = cleanObject(oldEdictData);
+    const newEdictData = cleanObject(oldEdictData) as any;
 
     // Traverse Structure
     if (newEdictData.disciplines) {

@@ -16,12 +16,24 @@ import PresentialClassManager from './pages/admin/PresentialClassManager';
 import { AdminLiveEvents } from './pages/admin/AdminLiveEvents'; // Nova Importação Eventos ao Vivo
 import { AdminLiveEventDetails } from './pages/admin/AdminLiveEventDetails'; // Nova Importação Gerenciar Evento
 import { AdminLiveRoom } from './pages/admin/AdminLiveRoom'; // Nova Importação Sala de Transmissão
+import CoproducersPage from './pages/admin/CoproducersPage';
+import FinancePage from './pages/admin/FinancePage';
+import SalesPage from './pages/admin/SalesPage';
 import { StudentCoursesTab } from './components/student/courses/StudentCoursesTab'; // Nova Importação Student
 import { StudentPresentialTab } from './components/student/presential/StudentPresentialTab'; // Nova Importação Presential
 import { StudentPresentialDetails } from './pages/student/presential/StudentPresentialDetails'; // Nova Importação Detalhes Presencial
 import { StudentLiveEvents } from './pages/student/liveEvents/StudentLiveEvents';
 import { StudentLiveEventRoom } from './pages/student/liveEvents/StudentLiveEventRoom';
 import { VideoRoom } from './components/video/VideoRoom';
+import { 
+  getCollaborators, 
+  createCollaborator, 
+  updateCollaborator,
+  deleteCollaborator, 
+  Collaborator, 
+  CreateCollaboratorData,
+  CollaboratorPermissions 
+} from './services/collaboratorService';
 import AdminLayout from './components/Layout/AdminLayout';
 import StudentLayout from './components/Layout/StudentLayout';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -43,13 +55,47 @@ import { SupportManager } from './pages/admin/SupportManager';
 
 // Wrapper to handle root redirection based on role
 const RootRedirect = () => {
-    const { userRole, currentUser, loading } = useAuth();
+    const { userRole, currentUser, loading, userData } = useAuth();
     
     if (loading) return null;
     if (!currentUser) return <Navigate to="/login" replace />;
     
-    if (userRole === 'ADMIN' || userRole === 'COLLABORATOR') return <Navigate to="/admin/planos" replace />;
+    if (userRole === 'ADMIN' || userRole === 'COLLABORATOR' || userRole === 'SELLER') {
+        const perms = userData?.permissions || {};
+        if (userRole === 'ADMIN' || perms.planos) return <Navigate to="/admin/planos" replace />;
+        if (perms.vendas) return <Navigate to="/admin/vendas" replace />;
+        return <Navigate to="/admin/alunos" replace />;
+    }
     return <Navigate to="/app/home" replace />;
+};
+
+// Helper component to restrict access within Admin area
+const AdminRoleGuard = ({ children, permission }: { children: React.ReactNode, permission?: keyof CollaboratorPermissions }) => {
+    const { userRole, userData } = useAuth();
+    if (userRole === 'ADMIN') return <>{children}</>;
+    
+    const perms = userData?.permissions || {};
+    
+    if (permission && !perms[permission]) {
+        return <Navigate to="/admin" replace />;
+    }
+
+    return <>{children}</>;
+};
+
+// Helper to determine the first accessible admin route
+const AdminIndexRedirect = () => {
+    const { userRole, userData } = useAuth();
+    if (userRole === 'ADMIN') return <Navigate to="planos" replace />;
+    
+    const perms = userData?.permissions || {};
+    if (perms.vendas) return <Navigate to="vendas" replace />;
+    if (perms.planos) return <Navigate to="planos" replace />;
+    if (perms.produtos) return <Navigate to="products" replace />;
+    if (perms.cursos_online) return <Navigate to="cursos" replace />;
+    if (perms.alunos) return <Navigate to="alunos" replace />;
+    
+    return <Navigate to="alunos" replace />; // Default fallback
 };
 
 const App: React.FC = () => {
@@ -81,28 +127,30 @@ const App: React.FC = () => {
                   <AdminLayout />
               </PrivateRoute>
           }>
-              <Route index element={<Navigate to="planos" replace />} />
-              <Route path="planos" element={<PlansPage />} />
-              <Route path="plans/:planId" element={<PlanEditor />} />
+              <Route index element={<AdminIndexRedirect />} />
+              <Route path="vendas" element={<AdminRoleGuard permission="vendas"><SalesPage /></AdminRoleGuard>} />
+              <Route path="planos" element={<AdminRoleGuard permission="planos"><PlansPage /></AdminRoleGuard>} />
+              <Route path="plans/:planId" element={<AdminRoleGuard permission="planos"><PlanEditor /></AdminRoleGuard>} />
               
-              <Route path="products" element={<ProductsManager />} />
+              <Route path="products" element={<AdminRoleGuard permission="produtos"><ProductsManager /></AdminRoleGuard>} />
+              <Route path="financeiro" element={<FinancePage />} />
 
-              <Route path="cursos" element={<AdminCoursesTab />} /> {/* Nova Rota */}
+              <Route path="cursos" element={<AdminRoleGuard permission="cursos_online"><AdminCoursesTab /></AdminRoleGuard>} /> {/* Nova Rota */}
 
-              <Route path="presencial" element={<PresentialClassesPage />} /> {/* Nova Rota Presencial */}
-              <Route path="presencial/:classId" element={<PresentialClassManager />} />
+              <Route path="presencial" element={<AdminRoleGuard permission="turmas_presenciais"><PresentialClassesPage /></AdminRoleGuard>} /> {/* Nova Rota Presencial */}
+              <Route path="presencial/:classId" element={<AdminRoleGuard permission="turmas_presenciais"><PresentialClassManager /></AdminRoleGuard>} />
 
-              <Route path="alunos" element={<StudentManager />} />
+              <Route path="alunos" element={<AdminRoleGuard permission="alunos"><StudentManager /></AdminRoleGuard>} />
               
-              <Route path="simulados" element={<SimulatedExamsManager />} />
-              <Route path="simulados/:classId" element={<SimulatedClassDetails />} />
+              <Route path="simulados" element={<AdminRoleGuard permission="simulados"><SimulatedExamsManager /></AdminRoleGuard>} />
+              <Route path="simulados/:classId" element={<AdminRoleGuard permission="simulados"><SimulatedClassDetails /></AdminRoleGuard>} />
               
-              <Route path="eventos-ao-vivo" element={<AdminLiveEvents />} />
-              <Route path="eventos-ao-vivo/:eventId" element={<AdminLiveEventDetails />} />
+              <Route path="eventos-ao-vivo" element={<AdminRoleGuard permission="eventos_ao_vivo"><AdminLiveEvents /></AdminRoleGuard>} />
+              <Route path="eventos-ao-vivo/:eventId" element={<AdminRoleGuard permission="eventos_ao_vivo"><AdminLiveEventDetails /></AdminRoleGuard>} />
               
-              <Route path="equipe" element={<TeamManager />} />
+              <Route path="equipe" element={<AdminRoleGuard permission="equipe"><TeamManager /></AdminRoleGuard>} />
               
-              <Route path="suporte" element={<SupportManager />} />
+              <Route path="suporte" element={<AdminRoleGuard permission="suporte"><SupportManager /></AdminRoleGuard>} />
               
               <Route path="manutencao" element={<Maintenance />} />
           </Route>

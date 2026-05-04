@@ -34,6 +34,7 @@ export interface CollaboratorPermissions {
   turmas_presenciais: boolean;
   eventos_ao_vivo: boolean;
   suporte: boolean;
+  vendas: boolean;
 }
 
 export interface Collaborator {
@@ -41,7 +42,8 @@ export interface Collaborator {
   name: string;
   username: string;
   email: string; // The constructed internal email
-  role: 'collaborator';
+  role: 'collaborator' | 'seller';
+  mpCollectorId?: string; // Optional for collaborator, required for seller
   permissions: CollaboratorPermissions;
   createdAt?: any;
 }
@@ -50,6 +52,8 @@ export interface CreateCollaboratorData {
   name: string;
   username: string;
   password: string;
+  role: 'collaborator' | 'seller';
+  mpCollectorId?: string;
   permissions: CollaboratorPermissions;
 }
 
@@ -80,10 +84,14 @@ export const createCollaborator = async (data: CreateCollaboratorData): Promise<
       name: data.name.toUpperCase(),
       username: data.username.toLowerCase().trim(),
       email: internalEmail,
-      role: 'collaborator',
+      role: data.role,
       permissions: data.permissions,
       createdAt: serverTimestamp()
     };
+
+    if (data.mpCollectorId) {
+      newCollaborator.mpCollectorId = data.mpCollectorId;
+    }
 
     await setDoc(doc(db, 'users', uid), newCollaborator);
 
@@ -107,12 +115,12 @@ export const createCollaborator = async (data: CreateCollaboratorData): Promise<
 };
 
 /**
- * Fetches all users with role 'collaborator'.
+ * Fetches all users with role 'collaborator' or 'seller'.
  */
 export const getCollaborators = async (): Promise<Collaborator[]> => {
   const q = query(
     collection(db, 'users'), 
-    where('role', '==', 'collaborator'),
+    where('role', 'in', ['collaborator', 'seller']),
     orderBy('createdAt', 'desc')
   );
 

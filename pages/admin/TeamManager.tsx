@@ -78,6 +78,8 @@ const CreateCollaboratorModal = ({
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [role, setRole] = useState<'collaborator' | 'seller'>('collaborator');
+  const [mpCollectorId, setMpCollectorId] = useState('');
   const [permissions, setPermissions] = useState<CollaboratorPermissions>({
     planos: false,
     simulados: false,
@@ -87,20 +89,32 @@ const CreateCollaboratorModal = ({
     cursos_online: false,
     turmas_presenciais: false,
     eventos_ao_vivo: false,
-    suporte: false
+    suporte: false,
+    vendas: false
   });
   const [loading, setLoading] = useState(false);
+
+  // UX Auto-Enable Sales for Sellers
+  useEffect(() => {
+    if (role === 'seller') {
+      setPermissions(prev => ({ ...prev, vendas: true }));
+    }
+  }, [role]);
 
   useEffect(() => {
     if (editingCollaborator) {
       setName(editingCollaborator.name);
       setUsername(editingCollaborator.username);
       setPassword(''); // Don't show password
+      setRole(editingCollaborator.role || 'collaborator');
+      setMpCollectorId(editingCollaborator.mpCollectorId || '');
       setPermissions(editingCollaborator.permissions);
     } else {
       setName('');
       setUsername('');
       setPassword('');
+      setRole('collaborator');
+      setMpCollectorId('');
       setPermissions({
         planos: false,
         simulados: false,
@@ -110,7 +124,8 @@ const CreateCollaboratorModal = ({
         cursos_online: false,
         turmas_presenciais: false,
         eventos_ao_vivo: false,
-        suporte: false
+        suporte: false,
+        vendas: false
       });
     }
   }, [editingCollaborator, isOpen]);
@@ -121,10 +136,17 @@ const CreateCollaboratorModal = ({
     e.preventDefault();
     if (!name || !username || (!editingCollaborator && !password)) return alert("Preencha todos os campos.");
     if (!editingCollaborator && password.length < 6) return alert("A senha deve ter no mínimo 6 caracteres.");
+    if (role === 'seller' && !mpCollectorId) return alert("Sellers devem ter um ID do Mercado Pago.");
 
     setLoading(true);
     try {
-      const data: Partial<CreateCollaboratorData> = { name, username, permissions };
+      const data: Partial<CreateCollaboratorData> = { 
+        name, 
+        username, 
+        role, 
+        mpCollectorId: role === 'seller' ? mpCollectorId : '',
+        permissions 
+      };
       if (password) data.password = password;
       
       await onSave(data);
@@ -153,12 +175,39 @@ const CreateCollaboratorModal = ({
 
         <form onSubmit={handleSubmit} className="p-6 overflow-y-auto custom-scrollbar space-y-6">
           
-          {/* Credentials */}
-          <div className="space-y-4">
-            <h3 className="text-[10px] font-black text-zinc-500 uppercase tracking-widest border-b border-zinc-900 pb-2 mb-2">Credenciais</h3>
-            
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-zinc-400 uppercase">Nome Completo</label>
+            {/* Credentials */}
+            <div className="space-y-4">
+              <h3 className="text-[10px] font-black text-zinc-500 uppercase tracking-widest border-b border-zinc-900 pb-2 mb-2">Credenciais</h3>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-zinc-400 uppercase">Cargo / Role</label>
+                  <select
+                    value={role}
+                    onChange={e => setRole(e.target.value as 'collaborator' | 'seller')}
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl py-2.5 px-3 text-xs text-white focus:border-brand-red focus:outline-none font-bold uppercase cursor-pointer"
+                  >
+                    <option value="collaborator">Colaborador (Admin)</option>
+                    <option value="seller">Vendedor (Afiliado)</option>
+                  </select>
+                </div>
+                {role === 'seller' && (
+                  <div className="space-y-1 animate-in zoom-in duration-200">
+                    <label className="text-[10px] font-bold text-zinc-400 uppercase flex items-center gap-1">
+                      MP Collector ID <span className="text-brand-red">*</span>
+                    </label>
+                    <input 
+                      value={mpCollectorId}
+                      onChange={e => setMpCollectorId(e.target.value)}
+                      placeholder="123456789"
+                      className="w-full bg-zinc-900 border border-zinc-800 rounded-xl py-2.5 px-4 text-xs text-white placeholder-zinc-700 focus:border-emerald-500 focus:outline-none font-bold"
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-zinc-400 uppercase">Nome Completo</label>
               <div className="relative">
                 <User size={14} className="absolute left-3 top-3 text-zinc-600" />
                 <input 
@@ -269,6 +318,13 @@ const CreateCollaboratorModal = ({
                 checked={permissions.suporte} 
                 onChange={() => togglePerm('suporte')} 
                 colorClass="sky-500" 
+              />
+              <PermissionToggle 
+                label="Acesso a Vendas" 
+                icon={Radio} 
+                checked={permissions.vendas} 
+                onChange={() => togglePerm('vendas')} 
+                colorClass="brand-red" 
               />
             </div>
           </div>
@@ -416,8 +472,20 @@ const TeamManager: React.FC = () => {
                            {getInitials(collab.name)}
                         </div>
                         <div>
-                           <h3 className="text-sm font-black text-white uppercase tracking-tight">{collab.name}</h3>
-                           <span className="text-[10px] text-zinc-500 font-mono">@{collab.username}</span>
+                           <div className="flex items-center gap-2">
+                               <h3 className="text-sm font-black text-white uppercase tracking-tight">{collab.name}</h3>
+                               <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-widest ${collab.role === 'seller' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-red-500/20 text-brand-red'}`}>
+                                  {collab.role === 'seller' ? 'VENDEDOR' : 'EQUIPE'}
+                               </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                               <span className="text-[10px] text-zinc-500 font-mono">@{collab.username}</span>
+                               {collab.role === 'seller' && (
+                                 <span className="text-[9px] text-zinc-600 bg-zinc-900 px-1 rounded border border-zinc-800">
+                                   MP: {collab.mpCollectorId}
+                                 </span>
+                               )}
+                            </div>
                         </div>
                      </div>
                      
@@ -450,6 +518,7 @@ const TeamManager: React.FC = () => {
                      <PermissionBadge label="PRESENCIAL" active={collab.permissions.turmas_presenciais} color="text-yellow-500" />
                      <PermissionBadge label="EVENTOS" active={collab.permissions.eventos_ao_vivo} color="text-red-500" />
                      <PermissionBadge label="SUPORTE" active={collab.permissions.suporte} color="text-sky-500" />
+                     <PermissionBadge label="VENDAS" active={collab.permissions.vendas} color="text-red-500" />
                   </div>
 
                </div>

@@ -27,8 +27,8 @@ const PrivateRoute: React.FC<PrivateRouteProps> = ({ children, requiredRole }) =
   // Check for role authorization if strictly required
   if (requiredRole) {
     if (requiredRole === 'ADMIN') {
-        // Admin routes are accessible by ADMIN and COLLABORATOR
-        if (userRole !== 'ADMIN' && userRole !== 'COLLABORATOR') {
+        // Admin routes are accessible by ADMIN, COLLABORATOR and SELLER
+        if (userRole !== 'ADMIN' && userRole !== 'COLLABORATOR' && userRole !== 'SELLER') {
             return <Navigate to="/app/metas" replace />;
         }
     } else if (requiredRole === 'STUDENT') {

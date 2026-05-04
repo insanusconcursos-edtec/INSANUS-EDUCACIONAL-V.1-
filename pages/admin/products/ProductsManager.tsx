@@ -8,10 +8,11 @@ export default function ProductsManager() {
   const [products, setProducts] = useState<TictoProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isFormView, setIsFormView] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<TictoProduct | null>(null);
   const [productToDelete, setProductToDelete] = useState<any | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  
   // Pega o domínio atual do site dinamicamente
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const tictoWebhookUrl = `${origin}/api/webhooks/ticto`;
@@ -50,7 +51,7 @@ export default function ProductsManager() {
 
   const handleEdit = (product: TictoProduct) => {
     setSelectedProduct(product);
-    setIsModalOpen(true);
+    setIsFormView(true);
   };
 
   const confirmDelete = async () => {
@@ -58,7 +59,6 @@ export default function ProductsManager() {
     setIsDeleting(true);
     try {
       await deleteProduct(productToDelete.id);
-      // Atualiza a lista na tela removendo o produto deletado
       setProducts(products.filter(p => p.id !== productToDelete.id));
       setProductToDelete(null);
     } catch (error) {
@@ -74,6 +74,19 @@ export default function ProductsManager() {
     product.tictoId.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  if (isFormView) {
+    return (
+      <ProductFormModal
+        product={selectedProduct}
+        onClose={() => setIsFormView(false)}
+        onSave={() => {
+          setIsFormView(false);
+          loadProducts();
+        }}
+      />
+    );
+  }
+
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
@@ -81,7 +94,7 @@ export default function ProductsManager() {
         <button
           onClick={() => {
             setSelectedProduct(null);
-            setIsModalOpen(true);
+            setIsFormView(true);
           }}
           className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors"
         >
@@ -89,6 +102,7 @@ export default function ProductsManager() {
           NOVO PRODUTO
         </button>
       </div>
+
 
       {/* Cards de Integração de Webhook */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
@@ -244,14 +258,6 @@ export default function ProductsManager() {
           </table>
         </div>
       </div>
-
-      {isModalOpen && (
-        <ProductFormModal
-          product={selectedProduct}
-          onClose={() => setIsModalOpen(false)}
-          onSave={loadProducts}
-        />
-      )}
 
       {/* Modal de Confirmação de Exclusão */}
       {productToDelete && (

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { Payment, initMercadoPago } from '@mercadopago/sdk-react';
 import { getProductByOfferId } from '../../services/productService';
 import { TictoProduct, ProductOffer } from '../../types/product';
@@ -13,6 +13,8 @@ const MP_PUBLIC_KEY = import.meta.env.VITE_MP_PUBLIC_KEY;
 
 export default function StandaloneCheckout() {
   const { offerId } = useParams<{ offerId: string }>();
+  const [searchParams] = useSearchParams();
+  const refId = searchParams.get('ref');
   const { currentUser } = useAuth();
   
   const [loading, setLoading] = useState(true);
@@ -154,9 +156,11 @@ export default function StandaloneCheckout() {
 
       const paymentData = {
         ...formData, // Preserva campos gerados pelo Brick
+        productId: product.id, // Passa o ID do produto para cálculo de split no backend
         payment_method_id: capturedPaymentMethodId, // GARANTE O VALOR EXTRAÍDO
         transaction_amount: Number(offer.price), // FORÇA O PREÇO NO PAYLOAD
         description: `Compra de ${product.name} - ${offer.name}`,
+        affiliateId: refId || null, // Injeção direta para o backend processar split
         payer: {
           ...formData?.payer,
           email: buyerData.email, // Use validated email from our form
@@ -172,7 +176,8 @@ export default function StandaloneCheckout() {
           userEmail: buyerData.email,
           userPhone: buyerData.phone,
           userCpf: buyerData.cpf.replace(/\D/g, ''),
-          isStandalone: "true"
+          isStandalone: "true",
+          refId: refId || '' // Tracking do vendedor/afiliado
         },
       };
 
@@ -264,11 +269,32 @@ export default function StandaloneCheckout() {
               
               <div>
                 <span className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em]">{offer.name}</span>
-                <div className="flex items-baseline gap-1 mt-1">
-                  <span className="text-xl font-bold text-zinc-400">R$</span>
-                  <span className="text-5xl font-black text-white tracking-tighter">
-                    {Number(offer.price).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </span>
+                <div className="mt-1">
+                  {offer.originalPrice && offer.originalPrice > offer.price ? (
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-3">
+                        <span className="text-zinc-500 line-through text-sm font-bold">
+                          De R$ {Number(offer.originalPrice).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </span>
+                        <span className="bg-emerald-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest shadow-lg shadow-emerald-500/20">
+                          -{Math.round(((offer.originalPrice - offer.price) / offer.originalPrice) * 100)}% OFF
+                        </span>
+                      </div>
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-xl font-bold text-zinc-400">por R$</span>
+                        <span className="text-5xl font-black text-white tracking-tighter">
+                          {Number(offer.price).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-xl font-bold text-zinc-400">R$</span>
+                      <span className="text-5xl font-black text-white tracking-tighter">
+                        {Number(offer.price).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 

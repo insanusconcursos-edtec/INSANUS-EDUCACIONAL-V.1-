@@ -83,7 +83,7 @@ export const sendAccessNotificationEmail = async (name: string, email: string, p
             <h1 style="color: white; margin: 0; font-size: 24px; text-transform: uppercase; letter-spacing: 2px; font-weight: 900;">Acesso Liberado!</h1>
           </div>
           <div style="padding: 40px;">
-            <p style="font-size: 18px; font-weight: bold; margin-top: 0;">Olá again, ${name}!</p>
+            <p style="font-size: 18px; font-weight: bold; margin-top: 0;">Olá novamente, ${name}!</p>
             <p style="line-height: 1.6; color: #52525b;">Parabéns pela sua nova compra: <strong>${productName}</strong>!</p>
             <p style="line-height: 1.6; color: #52525b;">O produto <strong>JÁ ESTÁ LIBERADO</strong> na sua conta atual. Você não precisa criar uma nova senha, basta entrar com seus dados de sempre.</p>
             

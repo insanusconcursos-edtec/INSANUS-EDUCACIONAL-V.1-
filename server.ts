@@ -1,7 +1,6 @@
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { fetchPandaVideoTranscription } from './src/backend/services/pandaVideoService.js';
 import { generateStudyMaterial } from './src/backend/services/geminiService.js';
 import { getAdminConfig } from './src/backend/services/firebaseAdmin.js';
@@ -38,8 +37,8 @@ interface UserAccess {
   targetId: string;
   isActive: boolean;
   id?: string | number;
-  endDate?: any;
-  startDate?: any;
+  endDate?: unknown;
+  startDate?: unknown;
 }
 
 interface StudentProfile {
@@ -55,7 +54,7 @@ interface StudentProfile {
   expiresAt?: string | null;
   releasedAt?: string | null;
   active?: boolean;
-  createdAt?: any;
+  createdAt?: unknown;
 }
 
 async function startServer() {
@@ -173,12 +172,12 @@ async function startServer() {
       const videos = data.videos || data || [];
       
       // Retorna ID, Título e URL de Embed se disponível
-      const cleanVideos = Array.isArray(videos) ? videos.map((v: any) => ({
+      const cleanVideos = Array.isArray(videos) ? videos.map((v: PandaVideo) => ({
         id: v.id,
         video_id: v.video_id || v.id,
         panda_id: v.video_id || v.id,
-        external_id: v.external_id || null,
-        playback_id: v.playback_id || null,
+        external_id: (v as any).external_id || null,
+        playback_id: (v as any).playback_id || null,
         title: v.title || v.name || 'Sem título',
         video_player_url: v.video_player_url || v.embed_url || null,
         length: v.length || 0,
@@ -318,17 +317,17 @@ async function startServer() {
         if (userProfile) {
           const enrollmentData = enrollment as { 
             enrollmentType?: string; 
-            expiresAt?: any; 
-            releasedAt?: any; 
-            createdAt?: any; 
+            expiresAt?: { toDate?: () => Date }; 
+            releasedAt?: { toDate?: () => Date }; 
+            createdAt?: { toDate?: () => Date }; 
             active?: boolean; 
           };
           studentMap.set(userId, {
             ...userProfile,
             enrollmentType: enrollmentData.enrollmentType || 'REGULAR',
             accessOrigin: 'DIRECT',
-            expiresAt: enrollmentData.expiresAt ? (enrollmentData.expiresAt.toDate ? enrollmentData.expiresAt.toDate().toISOString() : enrollmentData.expiresAt) : null,
-            releasedAt: enrollmentData.releasedAt ? (enrollmentData.releasedAt.toDate ? enrollmentData.releasedAt.toDate().toISOString() : enrollmentData.releasedAt) : (enrollmentData.createdAt ? (enrollmentData.createdAt.toDate ? enrollmentData.createdAt.toDate().toISOString() : enrollmentData.createdAt) : (userProfile.createdAt?.toDate ? userProfile.createdAt.toDate().toISOString() : userProfile.createdAt)),
+            expiresAt: enrollmentData.expiresAt ? (enrollmentData.expiresAt.toDate ? (enrollmentData.expiresAt.toDate() as Date).toISOString() : enrollmentData.expiresAt) : null,
+            releasedAt: enrollmentData.releasedAt ? (enrollmentData.releasedAt.toDate ? (enrollmentData.releasedAt.toDate() as Date).toISOString() : enrollmentData.releasedAt) : (enrollmentData.createdAt ? (enrollmentData.createdAt.toDate ? (enrollmentData.createdAt.toDate() as Date).toISOString() : enrollmentData.createdAt) : (userProfile.createdAt && (userProfile.createdAt as any).toDate ? (userProfile.createdAt as any).toDate().toISOString() : userProfile.createdAt)),
             active: enrollmentData.active !== false
           });
         }
@@ -340,6 +339,69 @@ async function startServer() {
     } catch (error) {
       console.error("Erro ao buscar alunos do curso:", error);
       return res.status(500).json({ success: false, error: "Erro ao buscar alunos." });
+    }
+  });
+
+  // Rota de Coprodutores (Admin)
+  app.get('/api/admin/coproducers', async (req, res) => {
+    try {
+      const { dbAdmin } = getAdminConfig();
+      const snapshot = await dbAdmin.collection('coproducers').orderBy('name', 'asc').get();
+      const coproducers = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+      return res.status(200).json({ success: true, coproducers });
+    } catch (error) {
+      console.error("Erro ao listar coprodutores:", error);
+      return res.status(500).json({ success: false, error: "Erro ao listar coprodutores." });
+    }
+  });
+
+  app.post('/api/admin/coproducers', async (req, res) => {
+    try {
+      const { dbAdmin } = getAdminConfig();
+      const data = req.body;
+      const now = new Date().toISOString();
+      
+      const newDoc = await dbAdmin.collection('coproducers').add({
+        ...data,
+        createdAt: now,
+        updatedAt: now,
+        isActive: true
+      });
+
+      return res.status(201).json({ success: true, id: newDoc.id });
+    } catch (error) {
+      console.error("Erro ao criar coprodutor:", error);
+      return res.status(500).json({ success: false, error: "Erro ao criar coprodutor." });
+    }
+  });
+
+  app.put('/api/admin/coproducers/:id', async (req, res) => {
+    try {
+      const { dbAdmin } = getAdminConfig();
+      const { id } = req.params;
+      const data = req.body;
+      
+      await dbAdmin.collection('coproducers').doc(id).update({
+        ...data,
+        updatedAt: new Date().toISOString()
+      });
+
+      return res.status(200).json({ success: true });
+    } catch (error) {
+      console.error("Erro ao atualizar coprodutor:", error);
+      return res.status(500).json({ success: false, error: "Erro ao atualizar coprodutor." });
+    }
+  });
+
+  app.delete('/api/admin/coproducers/:id', async (req, res) => {
+    try {
+      const { dbAdmin } = getAdminConfig();
+      const { id } = req.params;
+      await dbAdmin.collection('coproducers').doc(id).delete();
+      return res.status(200).json({ success: true });
+    } catch (error) {
+      console.error("Erro ao excluir coprodutor:", error);
+      return res.status(500).json({ success: false, error: "Erro ao excluir coprodutor." });
     }
   });
 
@@ -422,12 +484,12 @@ async function startServer() {
       // Ordenação alfabética dos vídeos
       strictVideos.sort((a, b) => (a.title || a.name || '').localeCompare(b.title || b.name || ''));
 
-      const videos = strictVideos.map((v: any) => ({
+      const videos = strictVideos.map((v: PandaVideo) => ({
         id: v.id,
         video_id: v.video_id || v.id,
         panda_id: v.video_id || v.id,
-        external_id: v.external_id || null,
-        playback_id: v.playback_id || null,
+        external_id: (v as any).external_id || null,
+        playback_id: (v as any).playback_id || null,
         title: v.title || v.name || 'Sem título',
         video_player_url: v.video_player_url || v.embed_url || null,
         length: v.length || 0,
@@ -520,7 +582,7 @@ async function startServer() {
       }
       
       return pathParts[pathParts.length - 1] || url;
-    } catch (_) {
+    } catch {
       return url;
     }
   }

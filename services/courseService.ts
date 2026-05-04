@@ -183,11 +183,11 @@ export const courseService = {
   duplicateCourse: async (originalCourse: OnlineCourse) => {
     try {
       console.log(`[DUPLICATE] Iniciando duplicação do curso: ${originalCourse.title}`);
-      const operations: { ref: any, data: any }[] = [];
+      const operations: { ref: DocumentReference, data: object }[] = [];
 
       // 1. Criar novo curso (Metadata)
       const newCourseRef = doc(collection(db, COLLECTION_NAME));
-      const newCourseData = {
+      const newCourseData: any = {
         ...originalCourse,
         title: `${originalCourse.title} - Cópia`,
         createdAt: new Date().toISOString(),
@@ -198,7 +198,7 @@ export const courseService = {
         enrolledStudents: [],
         studentsCount: 0
       };
-      delete (newCourseData as any).id;
+      delete newCourseData.id;
       operations.push({ ref: newCourseRef, data: newCourseData });
 
       // Mapeamentos para manter integridade referencial
@@ -215,11 +215,11 @@ export const courseService = {
         const newModRef = doc(collection(db, MODULES_COLLECTION));
         moduleMapping[mod.id] = newModRef.id;
         
-        const newModData = {
+        const newModData: any = {
           ...mod,
           courseId: newCourseRef.id
         };
-        delete (newModData as any).id;
+        delete newModData.id;
         operations.push({ ref: newModRef, data: newModData });
 
         // 3. Submódulos (Pastas) e Aulas em paralelo
@@ -233,11 +233,11 @@ export const courseService = {
           const newSubRef = doc(collection(db, SUBMODULES_COLLECTION));
           subModuleMapping[sub.id] = newSubRef.id;
           
-          const newSubData = {
+          const newSubData: any = {
             ...sub,
             moduleId: newModRef.id
           };
-          delete (newSubData as any).id;
+          delete newSubData.id;
           operations.push({ ref: newSubRef, data: newSubData });
         });
 
@@ -246,25 +246,25 @@ export const courseService = {
           const newLessonRef = doc(collection(db, LESSONS_COLLECTION));
           lessonMapping[lesson.id] = newLessonRef.id;
           
-          const newLessonData = {
+          const newLessonData: any = {
             ...lesson,
             moduleId: newModRef.id,
             // O subModuleId será atualizado depois se necessário, ou aqui se já tivermos o mapeamento
             // Como estamos processando subModules de forma síncrona acima, o mapeamento já existe
             subModuleId: lesson.subModuleId ? subModuleMapping[lesson.subModuleId] : null
           };
-          delete (newLessonData as any).id;
+          delete newLessonData.id;
           operations.push({ ref: newLessonRef, data: newLessonData });
 
           // 5. Conteúdos da Aula
           const contents = await courseService.getContents(lesson.id);
           contents.forEach(content => {
             const newContentRef = doc(collection(db, CONTENTS_COLLECTION));
-            const newContentData = {
+            const newContentData: any = {
               ...content,
               lessonId: newLessonRef.id
             };
-            delete (newContentData as any).id;
+            delete newContentData.id;
             operations.push({ ref: newContentRef, data: newContentData });
           });
         }));
@@ -285,7 +285,7 @@ export const courseService = {
         const updateTopics = (topics: any[]) => {
           topics.forEach(topic => {
             if (topic.linkedLessons) {
-              topic.linkedLessons = topic.linkedLessons.map((ll: any) => ({
+              topic.linkedLessons = topic.linkedLessons.map((ll: { id: string, moduleId: string }) => ({
                 ...ll,
                 id: lessonMapping[ll.id] || ll.id,
                 moduleId: moduleMapping[ll.moduleId] || ll.moduleId
@@ -725,7 +725,7 @@ export const courseService = {
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) return docSnap.data().completedLessons || [];
         return [];
-    } catch (_error) {
+    } catch {
         return [];
     }
   },
@@ -748,7 +748,7 @@ export const courseService = {
             }
         }
         return {};
-    } catch (_error) {
+    } catch {
         return {};
     }
   },
@@ -799,7 +799,7 @@ export const courseService = {
           totalLessons += snapshot.data().count;
       }
       return { totalLessons };
-    } catch (_error) {
+    } catch {
       return { totalLessons: 0 };
     }
   },
@@ -814,7 +814,7 @@ export const courseService = {
         return docSnap.data() as CourseEditalStructure;
       }
       return null;
-    } catch (_error) {
+    } catch {
       return null;
     }
   },

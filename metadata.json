@@ -1,6 +1,6 @@
 {
   "name": "INSANUS EDUCACIONAL - V1",
-  "description": "Uma plataforma futurista de gestão de estudos para concursos, com foco em gamificação e ciclos de estudo inteligentes.",
+  "description": "Uma plataforma futurista de gestão de estudos para concursos, com foco em gamificação, ciclos de estudo inteligentes e gestão financeira de coprodutores.",
   "requestFramePermissions": [
     "camera",
     "microphone"

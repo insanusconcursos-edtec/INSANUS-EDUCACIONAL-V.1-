@@ -40,6 +40,14 @@ interface UserAccess {
   revokedAt?: Date;
 }
 
+interface Resources {
+  plans?: string[];
+  onlineCourses?: string[];
+  presentialClasses?: string[];
+  simulated?: string[];
+  liveEvents?: string[];
+}
+
 export const provisionPurchase = async (customerData: CustomerData, targetId: string, origin: 'ticto' | 'mp' = 'ticto') => {
   const { dbAdmin, authAdmin } = getAdminConfig();
   try {
@@ -61,7 +69,7 @@ export const provisionPurchase = async (customerData: CustomerData, targetId: st
 
     let accessDays = 365;
     let productName = 'Conteúdo Digital';
-    let linkedResources: any = {
+    let linkedResources: Resources = {
       plans: [],
       onlineCourses: [],
       presentialClasses: [],
@@ -192,8 +200,9 @@ export const provisionPurchase = async (customerData: CustomerData, targetId: st
 
     try {
       userRecord = await authAdmin.getUserByEmail(customerData.email);
-    } catch (error: any) {
-      if (error.code === 'auth/user-not-found') isNewUser = true;
+    } catch (error: unknown) {
+      const err = error as { code?: string };
+      if (err.code === 'auth/user-not-found') isNewUser = true;
       else throw error;
     }
 
@@ -230,7 +239,7 @@ export const provisionPurchase = async (customerData: CustomerData, targetId: st
       const userDoc = await userRef.get();
       const userData = userDoc.data() || {};
       
-      const updateData: any = { 
+      const updateData: Record<string, any> = { 
         status: 'active',
         access: FieldValue.arrayUnion(...accessesToGrant)
       };

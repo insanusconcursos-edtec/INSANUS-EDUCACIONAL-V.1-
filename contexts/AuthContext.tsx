@@ -18,13 +18,12 @@ interface UserData {
   cpf?: string;
   phone?: string;
   photoURL?: string;
-  access?: any[];
-  [key: string]: any;
+  access?: unknown[];
 }
 
 interface AuthContextType {
   currentUser: User | null;
-  userRole: 'ADMIN' | 'STUDENT' | 'COLLABORATOR' | null;
+  userRole: 'ADMIN' | 'STUDENT' | 'COLLABORATOR' | 'SELLER' | null;
   userData: UserData | null; // Stores full firestore document data (permissions, etc)
   loading: boolean;
   login: (email: string, password: string) => Promise<UserCredential>;
@@ -44,7 +43,7 @@ export const useAuth = () => {
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [userRole, setUserRole] = useState<'ADMIN' | 'STUDENT' | 'COLLABORATOR' | null>(null);
+  const [userRole, setUserRole] = useState<'ADMIN' | 'STUDENT' | 'COLLABORATOR' | 'SELLER' | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -68,6 +67,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 // Determine Role from Firestore Data
                 if (data.role === 'collaborator') {
                     setUserRole('COLLABORATOR');
+                } else if (data.role === 'seller') {
+                    setUserRole('SELLER');
                 } else if (data.role === 'student') {
                     setUserRole('STUDENT');
                 } else if (data.role === 'admin' || user.email === ADMIN_EMAIL) {
