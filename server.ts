@@ -284,8 +284,8 @@ async function setupVite(app: any) {
             userAvatar: userData.photoURL || '',
             enrollmentType: (courseAccess.id && String(courseAccess.id).startsWith('mig_')) ? 'MIGRACAO' : 'REGULAR',
             accessOrigin: (courseAccess.id && String(courseAccess.id).startsWith('mig_')) ? 'MIGRATION' : 'COMBO',
-            expiresAt: courseAccess.endDate ? (courseAccess.endDate.toDate ? courseAccess.endDate.toDate().toISOString() : courseAccess.endDate) : null,
-            releasedAt: courseAccess.startDate ? (courseAccess.startDate.toDate ? courseAccess.startDate.toDate().toISOString() : courseAccess.startDate) : (userData.createdAt?.toDate ? userData.createdAt.toDate().toISOString() : userData.createdAt),
+            expiresAt: courseAccess.endDate ? ((courseAccess.endDate as any).toDate ? (courseAccess.endDate as any).toDate().toISOString() : String(courseAccess.endDate)) : null,
+            releasedAt: courseAccess.startDate ? ((courseAccess.startDate as any).toDate ? (courseAccess.startDate as any).toDate().toISOString() : String(courseAccess.startDate)) : ((userData.createdAt as any)?.toDate ? (userData.createdAt as any).toDate().toISOString() : String(userData.createdAt || '')),
             active: courseAccess.isActive !== false
           });
         }
@@ -331,19 +331,13 @@ async function setupVite(app: any) {
         }
 
         if (userProfile) {
-          const enrollmentData = enrollment as { 
-            enrollmentType?: string; 
-            expiresAt?: { toDate?: () => Date }; 
-            releasedAt?: { toDate?: () => Date }; 
-            createdAt?: { toDate?: () => Date }; 
-            active?: boolean; 
-          };
+          const enrollmentData = enrollment as any;
           studentMap.set(userId, {
             ...userProfile,
             enrollmentType: enrollmentData.enrollmentType || 'REGULAR',
             accessOrigin: 'DIRECT',
-            expiresAt: enrollmentData.expiresAt ? (enrollmentData.expiresAt.toDate ? (enrollmentData.expiresAt.toDate() as Date).toISOString() : enrollmentData.expiresAt) : null,
-            releasedAt: enrollmentData.releasedAt ? (enrollmentData.releasedAt.toDate ? (enrollmentData.releasedAt.toDate() as Date).toISOString() : enrollmentData.releasedAt) : (enrollmentData.createdAt ? (enrollmentData.createdAt.toDate ? (enrollmentData.createdAt.toDate() as Date).toISOString() : enrollmentData.createdAt) : (userProfile.createdAt && (userProfile.createdAt as any).toDate ? (userProfile.createdAt as any).toDate().toISOString() : userProfile.createdAt)),
+            expiresAt: enrollmentData.expiresAt ? (enrollmentData.expiresAt.toDate ? (enrollmentData.expiresAt.toDate() as Date).toISOString() : String(enrollmentData.expiresAt)) : null,
+            releasedAt: enrollmentData.releasedAt ? (enrollmentData.releasedAt.toDate ? (enrollmentData.releasedAt.toDate() as Date).toISOString() : String(enrollmentData.releasedAt)) : (enrollmentData.createdAt ? (enrollmentData.createdAt.toDate ? (enrollmentData.createdAt.toDate() as Date).toISOString() : String(enrollmentData.createdAt)) : (userProfile.createdAt && (userProfile.createdAt as any).toDate ? (userProfile.createdAt as any).toDate().toISOString() : String(userProfile.createdAt || ''))),
             active: enrollmentData.active !== false
           });
         }
