@@ -122,7 +122,7 @@ const StudentManager: React.FC = () => {
 
   const handleDeleteRequest = (student: Student) => {
     // 1. Check for active access
-    const hasActiveAccess = student.access?.some(item => item.isActive);
+    const hasActiveAccess = student.access?.some(item => item.isActive) || student.products?.some(item => item.isActive);
     
     setStudentToDelete(student);
 
@@ -169,7 +169,7 @@ const StudentManager: React.FC = () => {
   };
 
   const isActive = (student: Student) => {
-    return student.access?.some(a => a.isActive);
+    return student.access?.some(a => a.isActive) || student.products?.some(a => a.isActive);
   };
 
   const getInitials = (name: string) => {

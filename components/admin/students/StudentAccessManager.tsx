@@ -203,8 +203,9 @@ const StudentAccessManager: React.FC<StudentAccessManagerProps> = ({ student: in
       const endTimestamp = Timestamp.fromDate(endDate);
 
       // 1. Adiciona o Produto na lista do aluno
+      const productAccessId = crypto.randomUUID();
       const newProductAccess: AccessItem = {
-        id: crypto.randomUUID(),
+        id: productAccessId,
         type: 'product',
         targetId: product.id!,
         title: product.name,
@@ -230,7 +231,8 @@ const StudentAccessManager: React.FC<StudentAccessManagerProps> = ({ student: in
           days: daysInput,
           startDate: startTimestamp,
           endDate: endTimestamp,
-          isActive: true
+          isActive: true,
+          sourceProductId: productAccessId // Vincula ao produto pai
         });
       };
 
@@ -339,7 +341,10 @@ const StudentAccessManager: React.FC<StudentAccessManagerProps> = ({ student: in
   };
 
   // Filtering existing access
-  const productAccess = localStudent.products?.filter(a => a.isActive) || [];
+  const productAccessFromProducts = localStudent.products?.filter(a => a.isActive) || [];
+  const productAccessFromAccess = localStudent.access?.filter(a => a.type === 'product' && a.isActive) || [];
+  const productAccess = [...productAccessFromProducts, ...productAccessFromAccess];
+
   const planAccess = localStudent.access?.filter(a => a.type === 'plan' && a.isActive) || [];
   const simAccess = localStudent.access?.filter(a => a.type === 'simulated_class' && a.isActive) || [];
   const courseAccess = localStudent.access?.filter(a => a.type === 'course' && a.isActive) || [];

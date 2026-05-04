@@ -35,7 +35,7 @@ export interface AccessItem {
   isActive: boolean;
   isScholarship?: boolean;
   tictoId?: string;
-  parentProductId?: string;
+  sourceProductId?: string; // ID do Produto (Combo) que deu origem a este acesso
 }
 
 export interface UserCourseAccess {
@@ -320,17 +320,28 @@ export const revokeStudentAccess = async (uid: string, accessId: string) => {
   }
 
   // 2. Filtro em Cascata (O Expurgo)
-  // Removemos todos os itens cujo targetId esteja na lista de remoção ou compartilhe o mesmo tictoId
-  const updatedAccess = currentAccess.filter(item => {
-    if (idsToRemove.includes(item.targetId)) return false;
-    if (tictoIdToRevoke && item.tictoId === tictoIdToRevoke) return false;
-    return true;
+  // Removemos todos os itens cujo targetId esteja na lista de remoção ou compartilhe o mesmo tictoId,
+  // ou que tenha o itemToRevoke.id como sourceProductId.
+  const updatedAccess = currentAccess.map(item => {
+    const isDirectMatch = idsToRemove.includes(item.targetId);
+    const isSourceMatch = item.sourceProductId === itemToRevoke.id;
+    const isTictoMatch = tictoIdToRevoke && item.tictoId === tictoIdToRevoke;
+
+    if (isDirectMatch || isSourceMatch || isTictoMatch) {
+      return { ...item, isActive: false };
+    }
+    return item;
   });
 
-  const updatedProducts = currentProducts.filter(item => {
-    if (idsToRemove.includes(item.targetId)) return false;
-    if (tictoIdToRevoke && item.tictoId === tictoIdToRevoke) return false;
-    return true;
+  const updatedProducts = currentProducts.map(item => {
+    const isDirectMatch = idsToRemove.includes(item.targetId);
+    const isSourceMatch = item.sourceProductId === itemToRevoke.id;
+    const isTictoMatch = tictoIdToRevoke && item.tictoId === tictoIdToRevoke;
+
+    if (isDirectMatch || isSourceMatch || isTictoMatch) {
+      return { ...item, isActive: false };
+    }
+    return item;
   });
 
   await updateDoc(userRef, { 

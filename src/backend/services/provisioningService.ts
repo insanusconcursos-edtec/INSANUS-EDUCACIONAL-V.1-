@@ -38,6 +38,7 @@ interface UserAccess {
   };
   orderIndex?: number;
   revokedAt?: Date;
+  sourceProductId?: string; // ID do documento de acesso do Produto que gerou estes sub-recursos
 }
 
 interface Resources {
@@ -130,11 +131,13 @@ export const provisionPurchase = async (customerData: CustomerData, targetId: st
 
     // Preparar array de acessos
     const accessesToGrant: UserAccess[] = [];
+    let productAccessId = '';
 
     // Se for um produto (combo), adiciona o cabeçalho do produto
     if (origin === 'ticto' || productDocId) {
+      productAccessId = crypto.randomUUID();
       accessesToGrant.push({
-        id: crypto.randomUUID(),
+        id: productAccessId,
         type: 'product',
         targetId: productDocId || safeTargetId,
         tictoId: origin === 'ticto' ? safeTargetId : '',
@@ -190,7 +193,8 @@ export const provisionPurchase = async (customerData: CustomerData, targetId: st
         tictoId: origin === 'ticto' ? safeTargetId : '',
         startDate: Timestamp.now(),
         endDate: Timestamp.fromDate(expirationDate),
-        orderIndex: index
+        orderIndex: index,
+        sourceProductId: productAccessId // Vincula ao produto pai se existir
       });
     }
 
@@ -302,10 +306,18 @@ export const revokeTictoPurchase = async (email: string, tictoProductId: string)
     // _currentProducts is not used but kept for reference
     // const _currentProducts = userData.products || [];
 
-    // 3. Percorre o array access do utilizador. Para cada item de acesso que corresponda ao produto cancelado, altere a propriedade isActive para false
+    // 3. Percorre o array access do utilizador. Para cada item de acesso que corresponda ao produto cancelado, ou que foi gerado por ele, altere a propriedade isActive para false
     let hasChanges = false;
+    
+    // Primeiro, identificamos o ID do registro de acesso do produto principal
+    const productAccessItems = currentAccess.filter(acc => acc.tictoId === safeProductId && acc.type === 'product');
+    const productAccessIds = productAccessItems.map(p => p.id);
+
     const updatedAccess = currentAccess.map((acc: UserAccess) => {
-      if (acc.tictoId === safeProductId && acc.isActive !== false) {
+      const isDirectMatch = acc.tictoId === safeProductId;
+      const isChildMatch = acc.sourceProductId && productAccessIds.includes(acc.sourceProductId);
+
+      if ((isDirectMatch || isChildMatch) && acc.isActive !== false) {
         hasChanges = true;
         return { ...acc, isActive: false, revokedAt: new Date() };
       }
