@@ -22,7 +22,8 @@ export default function StandaloneCheckout() {
   const [error, setError] = useState<string | null>(null);
   const [isMpReady, setIsMpReady] = useState(false);
   const [pixData, setPixData] = useState<{ qrCode: string; qrCodeBase64: string } | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState<'credit_card' | 'pix'>('credit_card');
+  const [paymentMethod, setPaymentMethod] = useState<'credit_card' | 'pix' | 'ticket'>('credit_card');
+  const [ticketData, setTicketData] = useState<{ barcode: string; externalResourceUrl: string } | null>(null);
   
   // Custom Credit Card State
   const [cardData, setCardData] = useState({
@@ -76,6 +77,8 @@ export default function StandaloneCheckout() {
       }
     } else {
       setCardBin('');
+      setCardBin(''); // Explicit reset
+      setPaymentMethodId(''); // Reset method id if number too short
       setInstallments([]);
     }
   }, [cardData.cardNumber]);
@@ -243,6 +246,31 @@ export default function StandaloneCheckout() {
     }
   };
 
+  const handleBoletoPayment = async () => {
+    if (!product || !offer) return;
+    setIsProcessing(true);
+    try {
+      await processPayment({
+        payment_method_id: 'bolbradesco',
+        transaction_amount: Number(offer.price),
+        payer: {
+          email: buyerData.email,
+          first_name: buyerData.name.split(' ')[0],
+          last_name: buyerData.name.split(' ').slice(1).join(' ') || ' ',
+          identification: {
+            type: 'CPF',
+            number: buyerData.cpf.replace(/\D/g, '')
+          }
+        }
+      });
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || 'Erro ao gerar Boleto');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handlePixPayment = async () => {
     if (!product || !offer) return;
     setIsProcessing(true);
@@ -304,6 +332,16 @@ export default function StandaloneCheckout() {
       } else {
         toast.error("PIX gerado, mas não conseguimos carregar o QR Code.");
       }
+    } else if (result.status === 'pending' && (result.payment_method_id === 'bolbradesco' || result.payment_method_id === 'pec')) {
+       const barcode = result.transaction_details?.barcode?.content || result.barcode;
+       const externalResourceUrl = result.transaction_details?.external_resource_url || result.point_of_interaction?.transaction_data?.ticket_url;
+       
+       if (externalResourceUrl) {
+         setTicketData({ barcode: barcode || '', externalResourceUrl });
+         toast.success("Boleto gerado com sucesso!");
+       } else {
+         toast.error("Boleto gerado, mas link indisponível.");
+       }
     } else {
       toast.error(`Status do Pagamento: ${result.status_detail || result.status || 'Em processamento'}`);
     }
@@ -415,21 +453,21 @@ export default function StandaloneCheckout() {
           
           {/* LADO ESQUERDO: Formulário Multi-etapas (Dark Mode) */}
           <div className="bg-[#121212] border border-zinc-800 rounded-3xl p-6 md:p-10 shadow-2xl order-2 lg:order-1">
-            <div className="mb-10 flex items-center justify-between border-b border-zinc-800 pb-8">
-                <div className="flex items-center gap-4">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-sm transition-all ${currentStep === 1 ? 'bg-red-600 text-white shadow-lg shadow-red-600/20' : 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'}`}>
-                    {currentStep === 1 ? '01' : <ShieldCheck size={20} />}
+              <div className="flex items-center justify-between border-b border-zinc-800 pb-8">
+                <div className="flex items-center gap-2">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs transition-all ${currentStep === 1 ? 'bg-red-600 text-white shadow-lg shadow-red-600/20' : 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'}`}>
+                    {currentStep === 1 ? '01' : <ShieldCheck size={16} />}
                   </div>
-                  <div className="h-px w-8 bg-zinc-800" />
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-sm transition-all ${currentStep === 2 ? 'bg-red-600 text-white shadow-lg shadow-red-600/20' : 'bg-zinc-800 text-zinc-500 border border-zinc-700'}`}>
+                  <div className="h-px w-4 bg-zinc-800" />
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs transition-all ${currentStep === 2 ? 'bg-red-600 text-white shadow-lg shadow-red-600/20' : 'bg-zinc-800 text-zinc-500 border border-zinc-700'}`}>
                     02
                   </div>
                 </div>
                 <div className="text-right">
-                   <h3 className="text-xl font-black uppercase tracking-tight leading-none mb-1 text-white">
-                     {currentStep === 1 ? 'Dados Pessoais' : 'Pagamento'}
+                   <h3 className="text-lg font-black uppercase tracking-tight leading-none mb-1 text-white">
+                     {currentStep === 1 ? 'Dados Pessoais' : (pixData ? 'Pagamento PIX' : ticketData ? 'Boleto Gerado' : 'Pagamento')}
                    </h3>
-                   <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Passo {currentStep} de 2</p>
+                   <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest">Passo {currentStep} de 2</p>
                 </div>
             </div>
 
@@ -575,6 +613,67 @@ export default function StandaloneCheckout() {
                   Tentar outro método de pagamento
                 </button>
               </div>
+            ) : ticketData ? (
+              <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="text-center space-y-2">
+                  <div className="inline-flex items-center gap-2 bg-emerald-500/10 text-emerald-500 px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest border border-emerald-500/20">
+                    <ShieldCheck size={14} /> Boleto Gerado com Sucesso
+                  </div>
+                  <h3 className="text-2xl font-black text-white tracking-tight">Seu boleto está pronto!</h3>
+                  <p className="text-zinc-400 text-sm max-w-xs mx-auto">
+                    O acesso será liberado em até 3 dias úteis após o pagamento ser compensado.
+                  </p>
+                </div>
+
+                <div className="bg-zinc-950 p-8 rounded-3xl border-2 border-zinc-900 flex flex-col items-center gap-6">
+                  <div className="w-20 h-20 bg-emerald-500/10 text-emerald-500 rounded-full flex items-center justify-center">
+                    <ShieldCheck size={40} />
+                  </div>
+                  
+                  <div className="text-center space-y-4 w-full">
+                    <a 
+                      href={ticketData.externalResourceUrl} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="inline-block w-full bg-red-600 hover:bg-red-700 text-white font-black py-4 rounded-xl transition-all uppercase tracking-widest text-sm"
+                    >
+                      Imprimir Boleto
+                    </a>
+                    
+                    {ticketData.barcode && (
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Código de Barras</label>
+                        <div className="relative group">
+                          <input 
+                            readOnly 
+                            value={ticketData.barcode}
+                            className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-zinc-400 text-[10px] font-mono text-center focus:outline-none"
+                          />
+                          <button 
+                            onClick={() => {
+                              navigator.clipboard.writeText(ticketData.barcode);
+                              toast.success("Código copiado!");
+                            }}
+                            className="mt-2 text-red-500 hover:text-red-400 text-[9px] font-black uppercase tracking-widest transition-all"
+                          >
+                            Copiar código
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <button 
+                  onClick={() => {
+                    setTicketData(null);
+                    setCurrentStep(2);
+                  }}
+                  className="w-full text-zinc-500 hover:text-white text-[10px] font-black uppercase tracking-widest transition-all py-2"
+                >
+                  Voltar e escolher outro método
+                </button>
+              </div>
             ) : (
               <div className="space-y-6">
                 <button 
@@ -585,20 +684,27 @@ export default function StandaloneCheckout() {
                 </button>
 
                 {/* Method Selector */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-3">
                   <button
                     onClick={() => setPaymentMethod('credit_card')}
                     className={`flex flex-col items-center gap-3 p-4 rounded-2xl border transition-all ${paymentMethod === 'credit_card' ? 'bg-red-600/10 border-red-600 text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:border-zinc-700'}`}
                   >
-                    <CreditCard size={24} />
-                    <span className="text-[10px] font-black uppercase tracking-widest">Cartão</span>
+                    <CreditCard size={20} />
+                    <span className="text-[9px] font-black uppercase tracking-widest">Cartão</span>
                   </button>
                   <button
                     onClick={() => setPaymentMethod('pix')}
                     className={`flex flex-col items-center gap-3 p-4 rounded-2xl border transition-all ${paymentMethod === 'pix' ? 'bg-red-600/10 border-red-600 text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:border-zinc-700'}`}
                   >
-                    <QrCode size={24} />
-                    <span className="text-[10px] font-black uppercase tracking-widest">PIX</span>
+                    <QrCode size={20} />
+                    <span className="text-[9px] font-black uppercase tracking-widest">PIX</span>
+                  </button>
+                  <button
+                    onClick={() => setPaymentMethod('ticket')}
+                    className={`flex flex-col items-center gap-3 p-4 rounded-2xl border transition-all ${paymentMethod === 'ticket' ? 'bg-red-600/10 border-red-600 text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:border-zinc-700'}`}
+                  >
+                    <ShieldCheck size={20} />
+                    <span className="text-[9px] font-black uppercase tracking-widest">Boleto</span>
                   </button>
                 </div>
 
@@ -624,9 +730,12 @@ export default function StandaloneCheckout() {
                           {paymentMethodId && (
                             <div className="absolute right-4 top-1/2 -translate-y-1/2">
                               <img 
-                                src={`https://http2.mlstatic.com/storage/logos-api-admin/payment-methods/real/ok/${paymentMethodId}.svg`} 
+                                src={`https://www.mercadopago.com/org-img/checkout/v2/assets/logos/payment-methods/svg/${paymentMethodId}.svg`} 
                                 alt={paymentMethodId}
-                                className="h-6 opacity-80"
+                                className="h-4 opacity-80"
+                                onError={(e) => {
+                                  (e.target as any).src = 'https://logospng.org/download/visa/logo-visa-2048.png';
+                                }}
                               />
                             </div>
                           )}
@@ -746,7 +855,7 @@ export default function StandaloneCheckout() {
                       Pagamento processado pelo Mercado Pago
                     </div>
                   </form>
-                ) : (
+                ) : paymentMethod === 'pix' ? (
                   <div className="space-y-6 animate-in fade-in duration-500">
                     <div className="bg-zinc-950 p-6 rounded-3xl border border-zinc-800 flex flex-col items-center text-center gap-4">
                       <div className="w-16 h-16 bg-emerald-500/10 text-emerald-500 rounded-full flex items-center justify-center">
@@ -772,6 +881,35 @@ export default function StandaloneCheckout() {
                         </>
                       ) : (
                         `Gerar QR Code PIX`
+                      )}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-6 animate-in fade-in duration-500">
+                    <div className="bg-zinc-950 p-6 rounded-3xl border border-zinc-800 flex flex-col items-center text-center gap-4">
+                      <div className="w-16 h-16 bg-red-600/10 text-red-600 rounded-full flex items-center justify-center">
+                        <ShieldCheck size={32} />
+                      </div>
+                      <div className="space-y-2">
+                        <h4 className="text-white font-black uppercase tracking-tight">Pagamento via Boleto</h4>
+                        <p className="text-zinc-500 text-xs leading-relaxed">
+                          Gere seu boleto agora. O acesso será enviado para o seu e-mail após a compensação (1 a 3 dias úteis).
+                        </p>
+                      </div>
+                    </div>
+
+                    <button 
+                      onClick={handleBoletoPayment}
+                      disabled={isProcessing}
+                      className="w-full bg-red-600 hover:bg-red-700 disabled:bg-zinc-800 disabled:text-zinc-500 text-white font-black py-5 rounded-2xl transition-all flex items-center justify-center gap-2 group uppercase tracking-widest text-sm shadow-lg shadow-red-600/10 active:scale-[0.98]"
+                    >
+                      {isProcessing ? (
+                        <>
+                          <Loader2 size={18} className="animate-spin" />
+                          Gerando Boleto...
+                        </>
+                      ) : (
+                        `Gerar Boleto Bancário`
                       )}
                     </button>
                   </div>

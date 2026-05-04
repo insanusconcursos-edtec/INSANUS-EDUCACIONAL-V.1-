@@ -165,6 +165,10 @@ export const createMPPayment = async (data: Record<string, any>) => {
     if (data.payment_method_id === 'pix') {
       paymentBody.installments = 1;
       // Pix não aceita token ou issuer_id
+    } else if (data.payment_method_id === 'bolbradesco' || data.payment_method_id === 'pec' || data.selectedPaymentMethod === 'ticket') {
+       // Suporte a Boleto
+       paymentBody.payment_method_id = data.payment_method_id || 'bolbradesco';
+       paymentBody.installments = 1;
     } else {
       // Cartões e outros métodos
       paymentBody.token = data.token;
@@ -174,6 +178,58 @@ export const createMPPayment = async (data: Record<string, any>) => {
       }
     }
 
+    // --- SEÇÃO DE SPLIT (ADVANCED PAYMENTS) ---
+    if (paymentBody.disbursements && paymentBody.disbursements.length > 0) {
+      console.log(`[MP] Utilizando API de Advanced Payments para Split. Destinatários: ${paymentBody.disbursements.length}`);
+      
+      const advancedPaymentBody = {
+        payments: [{
+          transaction_amount: paymentBody.transaction_amount,
+          description: paymentBody.description,
+          payment_method_id: paymentBody.payment_method_id,
+          token: paymentBody.token,
+          installments: paymentBody.installments,
+          issuer_id: paymentBody.issuer_id,
+        }],
+        disbursements: paymentBody.disbursements.map((d: any) => ({
+          collector_id: d.collector_id,
+          amount: d.disbursement_amount || d.amount,
+        })),
+        payer: paymentBody.payer,
+        metadata: paymentBody.metadata,
+        external_reference: paymentBody.external_reference
+      };
+
+      const apResponse = await fetch('https://api.mercadopago.com/v1/advanced_payments', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.MP_ACCESS_TOKEN}`,
+          'Content-Type': 'application/json',
+          'X-Idempotency-Key': `idemp-${Date.now()}`
+        },
+        body: JSON.stringify(advancedPaymentBody)
+      });
+
+      if (!apResponse.ok) {
+        const errorData = await apResponse.json();
+        console.error("❌ MP Advanced Payment Error:", JSON.stringify(errorData, null, 2));
+        throw new Error(errorData.message || 'Erro ao processar pagamento com Split');
+      }
+
+      const response = await apResponse.json();
+      console.log(`[MP] Pagamento Advanced criado com sucesso: ${response.id}`);
+      
+      // Adaptar resposta para manter compatibilidade com o frontend
+      return {
+        ...response,
+        id: response.id,
+        status: response.status || (response.payments?.[0]?.status),
+        status_detail: response.status_detail || (response.payments?.[0]?.status_detail),
+        point_of_interaction: response.payments?.[0]?.point_of_interaction
+      };
+    }
+
+    // --- PAGAMENTO PADRÃO (SEM SPLIT) ---
     const response = await payment.create({
       body: paymentBody
     });
