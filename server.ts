@@ -352,6 +352,58 @@ async function setupVite(app: any) {
     }
   });
 
+  // Rota de Autorização Mercado Pago OAuth
+  app.get('/api/mercadopago/auth-url', async (req, res) => {
+    try {
+      const { coproducerId } = req.query;
+      if (!coproducerId) return res.status(400).json({ success: false, error: 'coproducerId é obrigatório' });
+      
+      const clientId = process.env.MP_CLIENT_ID;
+      const redirectUri = process.env.MP_REDIRECT_URI || `${process.env.VITE_APP_URL || 'http://localhost:3000'}/api/mercadopago/callback`;
+      
+      const authUrl = `https://auth.mercadopago.com/authorization?client_id=${clientId}&response_type=code&platform_id=mp&state=${coproducerId}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+      return res.status(200).json({ success: true, url: authUrl });
+    } catch (error: any) {
+      return res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.get('/api/mercadopago/callback', async (req, res) => {
+    const { code, state, error } = req.query;
+    if (error) return res.redirect(`${process.env.VITE_APP_URL || 'http://localhost:3000'}/admin/coproducers?error=${error}`);
+    if (!code || !state) return res.status(400).send('Código ou estado ausente');
+
+    try {
+      const coproducerId = state as string;
+      const response = await fetch('https://api.mercadopago.com/oauth/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          'client_id': process.env.MP_CLIENT_ID || '',
+          'client_secret': process.env.MP_CLIENT_SECRET || '',
+          'grant_type': 'authorization_code',
+          'code': code as string,
+          'redirect_uri': process.env.MP_REDIRECT_URI || `${process.env.VITE_APP_URL || 'http://localhost:3000'}/api/mercadopago/callback`
+        })
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Erro no token');
+
+      const { dbAdmin } = getAdminConfig();
+      await dbAdmin.collection('coproducers').doc(coproducerId).update({
+        mp_access_token: data.access_token,
+        mp_user_id: data.user_id,
+        mp_connected_at: new Date().toISOString(),
+        mpCollectorId: String(data.user_id)
+      });
+
+      return res.redirect(`${process.env.VITE_APP_URL || 'http://localhost:3000'}/admin/coproducers?connected=true`);
+    } catch (err: any) {
+      return res.redirect(`${process.env.VITE_APP_URL || 'http://localhost:3000'}/admin/coproducers?error=callback_failed`);
+    }
+  });
+
   // Rota de Coprodutores (Admin)
   app.get('/api/admin/coproducers', async (req, res) => {
     try {

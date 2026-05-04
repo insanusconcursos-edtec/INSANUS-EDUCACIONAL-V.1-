@@ -178,27 +178,49 @@ export const createMPPayment = async (data: Record<string, any>) => {
       }
     }
 
-    // --- PROCESSAMENTO FINAL DE PAGAMENTO (Standard API v1) ---
-    // Nota: A API Advanced Payments (v1/advanced_payments) foi descontinuada (Erro 410).
-    // O split de múltiplos recebedores agora requer conta Marketplace certificada.
-    // Como solução de compatibilidade, enviamos o split principal como application_fee
-    // e detalhamos os demais no metadata para processamento posterior ou conciliação.
+    // --- PROCESSAMENTO FINAL DE PAGAMENTO (Marketplace Multi-Receivers) ---
+    // No modelo Marketplace oficial do MP:
+    // 1. O collector_id principal (quem "vende") deve ser um dos coprodutores conectado via OAuth.
+    // 2. A application_fee é a taxa retida pela plataforma (dono do app).
+    // 3. O array disbursements permite dividir o valor entre múltiplos vendedores adicionais.
     
     if (paymentBody.disbursements && paymentBody.disbursements.length > 0) {
-      // Tenta usar application_fee para o primeiro/principal split se suportado
-      // Em contas padrão, isso pode ser ignorado ou retornar erro se não for Marketplace.
-      const totalSplit = paymentBody.disbursements.reduce((acc: number, d: any) => acc + (d.disbursement_amount || 0), 0);
-      paymentBody.application_fee = Number(totalSplit.toFixed(2));
+      const allDisbursements = [...paymentBody.disbursements];
       
-      // Preservamos o histórico no metadata para auditoria
+      // Definimos o primeiro coprodutor como o vendedor principal (collector_id)
+      const primarySeller = allDisbursements[0];
+      paymentBody.collector_id = Number(primarySeller.collector_id);
+      
+      // Os demais são enviados no array de roteamento oficial (disbursements)
+      const secondarySellers = allDisbursements.slice(1);
+      
+      // A application_fee é o valor que fica para a plataforma (Marketplace)
+      // Valor Total - (Soma de todos os repasses aos coprodutores)
+      const totalToCoproducers = allDisbursements.reduce((acc: number, d: any) => acc + d.disbursement_amount, 0);
+      paymentBody.application_fee = Number((paymentBody.transaction_amount - totalToCoproducers).toFixed(2));
+      
+      if (secondarySellers.length > 0) {
+        paymentBody.disbursements = secondarySellers.map((s: any) => ({
+          collector_id: Number(s.collector_id),
+          amount: Number(s.disbursement_amount.toFixed(2))
+        }));
+      } else {
+        delete paymentBody.disbursements;
+      }
+
+      // Metadata para conciliação
       paymentBody.metadata = {
         ...paymentBody.metadata,
-        split_details: JSON.stringify(paymentBody.disbursements),
-        total_split_applied: paymentBody.application_fee
+        marketplace_split: true,
+        primary_seller: paymentBody.collector_id,
+        platform_fee: paymentBody.application_fee
       };
       
-      // Removemos o array disbursements que causava erro 400 na API v1/payments
-      delete paymentBody.disbursements;
+      console.log(`[MP] Marketplace Split: Seller=${paymentBody.collector_id}, Fee=${paymentBody.application_fee}, Others=${secondarySellers.length}`);
+    } else {
+      // Se não houver split, o pagamento vai direto para a conta da plataforma (comportamento padrão)
+      // mas garantimos que não haja collector_id conflitante ou application_fee zerada
+      delete paymentBody.application_fee;
     }
 
     const response = await payment.create({

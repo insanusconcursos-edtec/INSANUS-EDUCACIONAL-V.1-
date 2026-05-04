@@ -10,7 +10,8 @@ import {
   Edit2, 
   AlertCircle,
   X,
-  Check
+  Check,
+  Link
 } from 'lucide-react';
 import { coproducerService } from '../../services/coproducerService';
 import { Coproducer } from '../../types/coproducer';
@@ -31,6 +32,35 @@ const CoproducersPage: React.FC = () => {
     mpCollectorId: '',
     isActive: true
   });
+
+  const handleConnectMP = async (coproducerId: string) => {
+    try {
+      const response = await fetch(`/api/mercadopago/auth-url?coproducerId=${coproducerId}`);
+      const data = await response.json();
+      if (data.success && data.url) {
+        window.location.href = data.url;
+      } else {
+        toast.error('Erro ao gerar link de autorização: ' + data.error);
+      }
+    } catch (error) {
+      console.error('Error connecting to MP:', error);
+      toast.error('Erro ao iniciar conexão com Mercado Pago.');
+    }
+  };
+
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('connected') === 'true') {
+      toast.success('Mercado Pago conectado com sucesso!');
+      // Limpa a URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+      loadCoproducers();
+    }
+    if (urlParams.get('error')) {
+      toast.error('Falha na conexão com Mercado Pago.');
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
 
   useEffect(() => {
     loadCoproducers();
@@ -179,9 +209,23 @@ const CoproducersPage: React.FC = () => {
                       {coproducer.document}
                     </td>
                     <td className="px-6 py-4">
-                      <div className="bg-emerald-500/10 text-emerald-500 px-3 py-1 rounded-md text-[10px] font-black tracking-widest inline-flex items-center gap-1 border border-emerald-500/20 shadow-sm">
-                        <CreditCard size={10} />
-                        {coproducer.mpCollectorId}
+                      <div className="flex flex-col gap-1">
+                        <div className="bg-emerald-500/10 text-emerald-500 px-3 py-1 rounded-md text-[10px] font-black tracking-widest inline-flex items-center gap-1 border border-emerald-500/20 shadow-sm">
+                          <CreditCard size={10} />
+                          {coproducer.mpCollectorId || 'Não definido'}
+                        </div>
+                        {coproducer.mp_access_token ? (
+                          <div className="flex items-center gap-1 text-[10px] text-emerald-400 font-bold uppercase tracking-tighter">
+                            <Check size={10} /> Conectado via OAuth
+                          </div>
+                        ) : (
+                          <button 
+                            onClick={() => handleConnectMP(coproducer.id)}
+                            className="flex items-center gap-1 text-[10px] text-blue-400 hover:text-blue-300 font-bold uppercase tracking-tighter underline"
+                          >
+                            <Link size={10} /> Conectar ao MP
+                          </button>
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4 text-center">
@@ -276,12 +320,15 @@ const CoproducersPage: React.FC = () => {
                   </label>
                   <input 
                     type="text"
-                    required
                     className="w-full px-4 py-2 bg-brand-black border border-white/10 rounded-lg focus:ring-2 focus:ring-emerald-500/50 outline-none transition-all text-white font-mono"
                     value={formData.mpCollectorId}
                     onChange={(e) => setFormData({...formData, mpCollectorId: e.target.value})}
                     placeholder="123456"
+                    disabled={!!(editingCoproducer?.mp_access_token)}
                   />
+                  {editingCoproducer?.mp_access_token && (
+                    <p className="text-[10px] text-emerald-500 mt-1 uppercase font-bold">Bloqueado: Conta conectada via OAuth</p>
+                  )}
                 </div>
               </div>
 
