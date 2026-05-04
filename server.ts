@@ -57,12 +57,28 @@ interface StudentProfile {
   createdAt?: unknown;
 }
 
-async function startServer() {
-  const app = express();
-  const PORT = 3000;
+const app = express();
+const PORT = 3000;
 
-  // Middleware para JSON
-  app.use(express.json());
+// Middleware para JSON
+app.use(express.json());
+
+async function setupVite(app: any) {
+  // Vite middleware para desenvolvimento
+  if (process.env.NODE_ENV !== 'production') {
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: 'spa',
+    });
+    app.use(vite.middlewares);
+  } else {
+    const distPath = path.join(process.cwd(), 'dist');
+    app.use(express.static(distPath));
+    app.get('*', (req, res) => {
+      res.sendFile(path.join(distPath, 'index.html'));
+    });
+  }
+}
 
   // Nota: As rotas /api/generate-material, /api/panda-videos, /api/panda-explorer, /api/webhooks/ticto,
   // /api/webhooks/mercadopago, /api/payments/mercadopago/create
@@ -587,24 +603,21 @@ async function startServer() {
     }
   }
 
-  // Vite middleware para desenvolvimento
-  if (process.env.NODE_ENV !== 'production') {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa',
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+async function startServer() {
+  await setupVite(app);
+
+  // In AI Studio / Local, we want to listen. 
+  // In Vercel, we export the app and don't listen.
+  if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`Server running on http://localhost:${PORT}`);
     });
   }
-
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
 }
 
-startServer();
+// Start the server if we're not being imported as a module (simple check)
+if (!process.env.VERCEL) {
+  startServer();
+}
+
+export default app;
