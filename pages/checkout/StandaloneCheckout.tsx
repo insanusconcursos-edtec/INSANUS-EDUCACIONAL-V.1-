@@ -471,7 +471,7 @@ export default function StandaloneCheckout() {
               {/* Capa Vertical */}
               <div className="relative group overflow-hidden rounded-2xl border border-zinc-800 shadow-xl bg-zinc-950">
                 <img 
-                  src={product.image || product.coverImage || 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?q=80&w=2070&auto=format&fit=crop'} 
+                  src={product.coverUrl || 'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=80&w=2070&auto=format&fit=crop'} 
                   alt={product.name}
                   className="w-full max-w-[200px] aspect-[474/1000] object-cover mx-auto transition-transform duration-700 group-hover:scale-110"
                 />
