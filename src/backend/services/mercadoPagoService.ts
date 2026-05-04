@@ -53,34 +53,31 @@ export const createMPPayment = async (data: Record<string, any>) => {
         if (productDoc.exists) {
           const productData = productDoc.data();
           const disbursements: any[] = [];
-          let totalPercentage = 0;
+          const transactionAmount = Number(data.transaction_amount);
+          const pmId = data.payment_method_id?.toLowerCase() || '';
 
-          // 4.1. Processamento de Coprodução (Vendedor Original)
-          const coproductionSplits = productData?.coproduction || [];
-          if (Array.isArray(coproductionSplits)) {
-            coproductionSplits.forEach((split: any) => {
-              const percentage = Number(split.percentage) || 0;
-              totalPercentage += percentage;
-              
-              const splitAmount = Number(((percentage / 100) * Number(data.transaction_amount)).toFixed(2));
-              if (splitAmount > 0 && split.mpCollectorId) {
-                disbursements.push({
-                  collector_id: Number(split.mpCollectorId),
-                  disbursement_amount: splitAmount,
-                  disbursement_fee: 0
-                });
-              }
-            });
+          // STEP A: Calculate Gateway Fee and ValueAfterGateway
+          let gatewayFee = 0;
+          if (pmId === 'pix') {
+            gatewayFee = transactionAmount * 0.0099; // 0.99%
+          } else if (pmId === 'bolbradesco' || pmId === 'pec') {
+            gatewayFee = transactionAmount > 3.49 ? 3.49 : transactionAmount; // Fixed R$ 3.49
+          } else {
+            gatewayFee = transactionAmount * 0.0498; // 4.98% (Card)
           }
 
-          // 4.2. Processamento de Afiliado (Se habilitado na oferta)
+          const valueAfterGateway = transactionAmount - gatewayFee;
+          let affiliateAmount = 0;
+          let netValueForCoproducers = valueAfterGateway;
+
+          // STEP B: Calculate Affiliate Commission (First in sequence if exists)
           if (offerId && affiliateId && affiliateId.trim()) {
             const offer = productData?.offers?.find((o: any) => o.id === offerId);
             
             if (offer && offer.isAffiliationEnabled) {
               const commission = Number(offer.affiliateCommission) || 0;
               
-              // Busca o vendedor (collaborator) pelo username (refId)
+              // Find affiliate by username
               const affiliateSnapshot = await dbAdmin.collection('users')
                 .where('username', '==', affiliateId.trim().toLowerCase())
                 .where('role', '==', 'seller')
@@ -92,44 +89,52 @@ export const createMPPayment = async (data: Record<string, any>) => {
                 const mpCollectorId = affiliateData.mpCollectorId;
 
                 if (mpCollectorId && commission > 0) {
-                  totalPercentage += commission;
-                  
-                  // LOGIC UPDATE: Calculate net amount based on payment method before fanning out commission
-                  const transactionAmount = Number(data.transaction_amount);
-                  const pmId = data.payment_method_id?.toLowerCase() || '';
-                  
-                  let netAmount = transactionAmount;
-                  if (pmId === 'pix') {
-                    netAmount = transactionAmount * (1 - 0.0099); // -0.99%
-                  } else if (pmId === 'bolbradesco' || pmId === 'pec') {
-                    netAmount = transactionAmount > 3.49 ? transactionAmount - 3.49 : 0; // -R$ 3.49
-                  } else {
-                    // Default to card tax for anything else (visa, master, amex, etc)
-                    netAmount = transactionAmount * (1 - 0.0498); // -4.98%
-                  }
-
-                  const affiliateAmount = Number(((commission / 100) * netAmount).toFixed(2));
+                  affiliateAmount = Number(((commission / 100) * valueAfterGateway).toFixed(2));
                   
                   disbursements.push({
                     collector_id: Number(mpCollectorId),
                     disbursement_amount: affiliateAmount,
                     disbursement_fee: 0
                   });
-                  console.log(`[MP] Split de Afiliado configurado (${affiliateId}): ${commission}% (R$ ${affiliateAmount})`);
+                  console.log(`[MP] Split Afiliado (Waterfall): ${commission}% de R$ ${valueAfterGateway.toFixed(2)} = R$ ${affiliateAmount}`);
                 }
               }
             }
           }
 
-          // Proteção Final: Garante que a soma não ultrapasse 100%
-          if (totalPercentage <= 100) {
-            if (disbursements.length > 0) {
-              paymentBody.disbursements = disbursements;
-              console.log(`[MP] Split Total configurado: ${disbursements.length} destinatários. Total: ${totalPercentage}%`);
-            }
-          } else {
-            console.error(`[MP] Falha Crítica: Soma dos splits (${totalPercentage}%) ultrapassa 100% para o produto ${productId}. Abortando transação.`);
-            throw new Error(`Configuração de split inválida (${totalPercentage}%). A soma dos splits não pode ultrapassar 100%.`);
+          // STEP C: Calculate Liquid Base for Coproducers
+          netValueForCoproducers = valueAfterGateway - affiliateAmount;
+
+          // STEP D: Calculate Coproduction Splits based on netValueForCoproducers
+          const coproductionSplits = productData?.coproduction || [];
+          if (Array.isArray(coproductionSplits)) {
+            coproductionSplits.forEach((split: any) => {
+              const percentage = Number(split.percentage) || 0;
+              
+              if (percentage > 0 && split.mpCollectorId) {
+                const coproducerAmount = Number(((percentage / 100) * netValueForCoproducers).toFixed(2));
+                
+                if (coproducerAmount > 0) {
+                  disbursements.push({
+                    collector_id: Number(split.mpCollectorId),
+                    disbursement_amount: coproducerAmount,
+                    disbursement_fee: 0
+                  });
+                }
+              }
+            });
+          }
+
+          // Protection: Ensure total disbursements don't exceed valueAfterGateway due to rounding
+          const totalDisbursed = disbursements.reduce((acc, d) => acc + d.disbursement_amount, 0);
+          if (totalDisbursed > valueAfterGateway + 0.01) {
+             console.error(`[MP] Falha Crítica: Soma dos splits (R$ ${totalDisbursed}) ultrapassa valor líquido disponível (R$ ${valueAfterGateway.toFixed(2)})`);
+             throw new Error(`Configuração de split inválida: Valor excede o disponível.`);
+          }
+
+          if (disbursements.length > 0) {
+            paymentBody.disbursements = disbursements;
+            console.log(`[MP] Split Total configurado: ${disbursements.length} destinatários. Liquido Final: R$ ${netValueForCoproducers.toFixed(2)}`);
           }
         }
       } catch (dbError: any) {
