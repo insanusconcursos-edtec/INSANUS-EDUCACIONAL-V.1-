@@ -6,7 +6,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (error) {
     console.error('MP OAuth Error:', error);
-    return res.redirect(`${process.env.VITE_APP_URL || 'http://localhost:3000'}/admin/coproducers?error=${error}`);
+    return res.redirect(`${process.env.FRONTEND_URL || 'https://www.portal-insanus.com'}/admin/coproducers?error=${error}`);
   }
 
   if (!code || !state) {
@@ -17,7 +17,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const coproducerId = state as string;
     const clientId = process.env.MP_CLIENT_ID;
     const clientSecret = process.env.MP_CLIENT_SECRET;
-    const redirectUri = process.env.MP_REDIRECT_URI || `${process.env.VITE_APP_URL || 'http://localhost:3000'}/api/mercadopago/callback`;
+    const redirectUri = process.env.MP_REDIRECT_URI || `${process.env.FRONTEND_URL || 'https://www.portal-insanus.com'}/api/mercadopago/callback`;
 
     const response = await fetch('https://api.mercadopago.com/oauth/token', {
       method: 'POST',
@@ -54,9 +54,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
     // Redirecionar de volta para o painel
-    return res.redirect(`${process.env.VITE_APP_URL || 'http://localhost:3000'}/admin/coproducers?connected=true`);
+    return res.redirect(`${process.env.FRONTEND_URL || 'https://www.portal-insanus.com'}/admin/coproducers?connected=true`);
   } catch (error: any) {
     console.error('Callback error:', error);
-    return res.redirect(`${process.env.VITE_APP_URL || 'http://localhost:3000'}/admin/coproducers?error=callback_failed`);
+    return res.redirect(`${process.env.FRONTEND_URL || 'https://www.portal-insanus.com'}/admin/coproducers?error=callback_failed`);
   }
 }

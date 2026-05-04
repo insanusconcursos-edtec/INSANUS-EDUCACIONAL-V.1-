@@ -9,7 +9,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const clientId = process.env.MP_CLIENT_ID;
-    const redirectUri = process.env.MP_REDIRECT_URI || `${process.env.VITE_APP_URL || 'http://localhost:3000'}/api/mercadopago/callback`;
+    const redirectUri = process.env.MP_REDIRECT_URI || `${process.env.FRONTEND_URL || 'https://www.portal-insanus.com'}/api/mercadopago/callback`;
     
     if (!clientId) {
       return res.status(500).json({ success: false, error: 'MP_CLIENT_ID não configurado no servidor' });
