@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { Payment, initMercadoPago } from '@mercadopago/sdk-react';
 import { getProductByOfferId } from '../../services/productService';
 import { TictoProduct, ProductOffer } from '../../types/product';
 import { SystemLogo } from '../../components/common/SystemLogo';
@@ -23,6 +22,24 @@ export default function StandaloneCheckout() {
   const [error, setError] = useState<string | null>(null);
   const [isMpReady, setIsMpReady] = useState(false);
   const [pixData, setPixData] = useState<{ qrCode: string; qrCodeBase64: string } | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<'credit_card' | 'pix'>('credit_card');
+  
+  // Custom Credit Card State
+  const [cardData, setCardData] = useState({
+    cardNumber: '',
+    cardholderName: '',
+    cardExpirationMonth: '',
+    cardExpirationYear: '',
+    securityCode: '',
+    identificationType: 'CPF',
+    identificationNumber: currentUser?.cpf || ''
+  });
+  const [installments, setInstallments] = useState<any[]>([]);
+  const [selectedInstallment, setSelectedInstallment] = useState('1');
+  const [cardBin, setCardBin] = useState('');
+  const [paymentMethodId, setPaymentMethodId] = useState('');
+  const [issuerId, setIssuerId] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
   
   // Buyer Data Steps
   const [currentStep, setCurrentStep] = useState(1);
@@ -30,21 +47,62 @@ export default function StandaloneCheckout() {
     name: '',
     email: currentUser?.email || '',
     emailConfirm: currentUser?.email || '',
-    cpf: '',
+    cpf: currentUser?.cpf || '',
     phone: ''
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
+  const mpRef = React.useRef<any>(null);
+
   useEffect(() => {
-    if (MP_PUBLIC_KEY) {
+    if (MP_PUBLIC_KEY && (window as any).MercadoPago) {
       try {
-        initMercadoPago(MP_PUBLIC_KEY);
+        mpRef.current = new (window as any).MercadoPago(MP_PUBLIC_KEY);
         setIsMpReady(true);
       } catch (err) {
         console.error('Failed to initialize Mercado Pago:', err);
       }
     }
   }, []);
+
+  // Watch for BIN and fetch installments
+  useEffect(() => {
+    const cleanNumber = cardData.cardNumber.replace(/\s/g, '');
+    if (cleanNumber.length >= 6) {
+      const bin = cleanNumber.substring(0, 6);
+      if (bin !== cardBin && mpRef.current) {
+        setCardBin(bin);
+        handleBinChange(bin);
+      }
+    } else {
+      setCardBin('');
+      setInstallments([]);
+    }
+  }, [cardData.cardNumber]);
+
+  const handleBinChange = async (bin: string) => {
+    if (!mpRef.current || !offer) return;
+    try {
+      const paymentMethods = await mpRef.current.getPaymentMethods({ bin });
+      if (paymentMethods.results && paymentMethods.results.length > 0) {
+        const pm = paymentMethods.results[0];
+        setPaymentMethodId(pm.id);
+        
+        const installmentInfo = await mpRef.current.getInstallments({
+          amount: offer.price.toString(),
+          bin: bin,
+          paymentTypeId: 'credit_card'
+        });
+
+        if (installmentInfo && installmentInfo.length > 0) {
+          setInstallments(installmentInfo[0].payer_costs);
+          setIssuerId(installmentInfo[0].issuer.id);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching installments:', err);
+    }
+  };
 
   useEffect(() => {
     if (currentUser?.email) {
@@ -142,6 +200,114 @@ export default function StandaloneCheckout() {
         }
     }
   }), []);
+
+  const handleManualPayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!product || !offer || !mpRef.current) return;
+    
+    setIsProcessing(true);
+    try {
+      // 1. Create Token
+      const tokenResult = await mpRef.current.createCardToken({
+        cardNumber: cardData.cardNumber.replace(/\s/g, ''),
+        cardholderName: cardData.cardholderName,
+        cardExpirationMonth: cardData.cardExpirationMonth,
+        cardExpirationYear: cardData.cardExpirationYear,
+        securityCode: cardData.securityCode,
+        identificationType: cardData.identificationType,
+        identificationNumber: cardData.identificationNumber.replace(/\D/g, ''),
+      });
+
+      if (tokenResult.error) {
+        throw new Error(tokenResult.error.message || 'Erro ao validar cartão');
+      }
+
+      await processPayment({
+        token: tokenResult.id,
+        payment_method_id: paymentMethodId,
+        installments: Number(selectedInstallment),
+        issuer_id: issuerId,
+        payer: {
+          email: buyerData.email,
+          identification: {
+            type: cardData.identificationType,
+            number: cardData.identificationNumber.replace(/\D/g, '')
+          }
+        }
+      });
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || 'Erro ao processar pagamento');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handlePixPayment = async () => {
+    if (!product || !offer) return;
+    setIsProcessing(true);
+    try {
+      await processPayment({
+        payment_method_id: 'pix',
+        transaction_amount: Number(offer.price),
+        payer: {
+          email: buyerData.email,
+          identification: {
+            type: 'CPF',
+            number: buyerData.cpf.replace(/\D/g, '')
+          }
+        }
+      });
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || 'Erro ao gerar PIX');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const processPayment = async (extraData: any) => {
+    if (!product || !offer) return;
+    
+    const paymentData = {
+      ...extraData,
+      productId: product.id,
+      transaction_amount: Number(offer.price),
+      description: `Compra de ${product.name} - ${offer.name}`,
+      affiliateId: refId || null,
+      metadata: {
+        courseId: product.id!,
+        offerId: offer.id,
+        userName: buyerData.name,
+        userEmail: buyerData.email,
+        userPhone: buyerData.phone,
+        userCpf: buyerData.cpf.replace(/\D/g, ''),
+        isStandalone: "true",
+        refId: refId || ''
+      },
+    };
+
+    const result = await createMercadoPagoPayment(paymentData);
+    
+    if (result.status === 'approved') {
+      toast.success("Pagamento aprovado com sucesso!");
+      setTimeout(() => {
+        window.location.href = '/app/home';
+      }, 2000);
+    } else if (result.status === 'pending' && result.payment_method_id === 'pix') {
+      const qrCode = result.point_of_interaction?.transaction_data?.qr_code;
+      const qrCodeBase64 = result.point_of_interaction?.transaction_data?.qr_code_base64;
+      
+      if (qrCode && qrCodeBase64) {
+        setPixData({ qrCode, qrCodeBase64 });
+        toast.success("PIX gerado! Pague agora para liberar o acesso.");
+      } else {
+        toast.error("PIX gerado, mas não conseguimos carregar o QR Code.");
+      }
+    } else {
+      toast.error(`Status do Pagamento: ${result.status_detail || result.status || 'Em processamento'}`);
+    }
+  };
 
   const onSubmit = React.useCallback(async (formData: any) => {
     if (!product || !offer) return;
@@ -410,45 +576,204 @@ export default function StandaloneCheckout() {
                 </button>
               </div>
             ) : (
-              <div className="payment-brick-container">
+              <div className="space-y-6">
                 <button 
                   onClick={() => setCurrentStep(1)}
-                  className="mb-6 text-[11px] font-black text-red-500 uppercase tracking-widest flex items-center gap-1 hover:underline underline-offset-4 decoration-2"
+                  className="mb-2 text-[11px] font-black text-red-500 uppercase tracking-widest flex items-center gap-1 hover:underline underline-offset-4 decoration-2"
                 >
                   ← Alterar dados pessoais
                 </button>
-                {MP_PUBLIC_KEY && offer && isMpReady ? (
-                  <Payment
-                    initialization={initialization}
-                    customization={customization}
-                    onSubmit={onSubmit}
-                    onReady={() => console.log('Payment Brick logic ready')}
-                    onError={(error) => {
-                      console.error('Mercado Pago SDK Error Details:', JSON.stringify(error, null, 2));
-                      toast.error("Erro no carregamento do checkout. Verifique os dados.");
-                    }}
-                  />
-                ) : !MP_PUBLIC_KEY ? (
-                  <div className="p-8 text-center bg-red-600/10 rounded-3xl border border-red-600/20 flex flex-col items-center gap-4">
-                     <div className="w-16 h-16 bg-red-600/10 text-red-500 rounded-full flex items-center justify-center">
-                        <ShieldCheck size={32} />
-                     </div>
-                     <div className="space-y-2">
-                        <h4 className="text-red-500 font-black uppercase tracking-tight text-lg">Erro de Integração</h4>
-                        <p className="text-red-400 text-sm leading-relaxed">
-                           A chave pública do Mercado Pago (VITE_MP_PUBLIC_KEY) não foi detectada no ambiente. 
-                           <span className="block mt-2 font-bold">Verifique o painel Secrets.</span>
-                        </p>
-                     </div>
-                  </div>
-                ) : !isMpReady || !offer ? (
-                  <div className="p-12 flex flex-col items-center justify-center gap-4">
-                    <Loader2 className="w-8 h-8 text-red-600 animate-spin" />
-                    <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest">Preparando Checkout...</p>
-                  </div>
+
+                {/* Method Selector */}
+                <div className="grid grid-cols-2 gap-4">
+                  <button
+                    onClick={() => setPaymentMethod('credit_card')}
+                    className={`flex flex-col items-center gap-3 p-4 rounded-2xl border transition-all ${paymentMethod === 'credit_card' ? 'bg-red-600/10 border-red-600 text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:border-zinc-700'}`}
+                  >
+                    <CreditCard size={24} />
+                    <span className="text-[10px] font-black uppercase tracking-widest">Cartão</span>
+                  </button>
+                  <button
+                    onClick={() => setPaymentMethod('pix')}
+                    className={`flex flex-col items-center gap-3 p-4 rounded-2xl border transition-all ${paymentMethod === 'pix' ? 'bg-red-600/10 border-red-600 text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:border-zinc-700'}`}
+                  >
+                    <QrCode size={24} />
+                    <span className="text-[10px] font-black uppercase tracking-widest">PIX</span>
+                  </button>
+                </div>
+
+                {paymentMethod === 'credit_card' ? (
+                  <form onSubmit={handleManualPayment} className="space-y-4 animate-in fade-in duration-500">
+                    <div className="space-y-4">
+                      {/* Card Number */}
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-black text-zinc-400 uppercase tracking-widest ml-1">Número do Cartão</label>
+                        <div className="relative">
+                          <input 
+                            type="text"
+                            maxLength={19}
+                            className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3.5 text-white font-semibold focus:outline-none focus:ring-2 focus:ring-red-600/20 transition-all placeholder:text-zinc-700"
+                            placeholder="0000 0000 0000 0000"
+                            value={cardData.cardNumber}
+                            onChange={(e) => {
+                              const value = e.target.value.replace(/\D/g, '').replace(/(.{4})/g, '$1 ').trim();
+                              setCardData({...cardData, cardNumber: value});
+                            }}
+                            required
+                          />
+                          {paymentMethodId && (
+                            <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                              <img 
+                                src={`https://http2.mlstatic.com/storage/logos-api-admin/payment-methods/real/ok/${paymentMethodId}.svg`} 
+                                alt={paymentMethodId}
+                                className="h-6 opacity-80"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Cardholder Name */}
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-black text-zinc-400 uppercase tracking-widest ml-1">Nome no Cartão</label>
+                        <input 
+                          type="text"
+                          className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3.5 text-white font-semibold focus:outline-none focus:ring-2 focus:ring-red-600/20 transition-all placeholder:text-zinc-700"
+                          placeholder="Como impresso no cartão"
+                          value={cardData.cardholderName}
+                          onChange={(e) => setCardData({...cardData, cardholderName: e.target.value.toUpperCase()})}
+                          required
+                        />
+                      </div>
+
+                      {/* Expiration and CVV */}
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-black text-zinc-400 uppercase tracking-widest ml-1">Mês</label>
+                          <select 
+                            className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3.5 text-white font-semibold focus:outline-none focus:ring-2 focus:ring-red-600/20 transition-all appearance-none"
+                            value={cardData.cardExpirationMonth}
+                            onChange={(e) => setCardData({...cardData, cardExpirationMonth: e.target.value})}
+                            required
+                          >
+                            <option value="" disabled>MM</option>
+                            {Array.from({length: 12}, (_, i) => (i + 1).toString().padStart(2, '0')).map(m => (
+                              <option key={m} value={m}>{m}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-black text-zinc-400 uppercase tracking-widest ml-1">Ano</label>
+                          <select 
+                            className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3.5 text-white font-semibold focus:outline-none focus:ring-2 focus:ring-red-600/20 transition-all appearance-none"
+                            value={cardData.cardExpirationYear}
+                            onChange={(e) => setCardData({...cardData, cardExpirationYear: e.target.value})}
+                            required
+                          >
+                            <option value="" disabled>AA</option>
+                            {Array.from({length: 15}, (_, i) => (new Date().getFullYear() + i).toString()).map(y => (
+                              <option key={y} value={y}>{y}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="space-y-1.5 col-span-2 md:col-span-1">
+                          <label className="text-[11px] font-black text-zinc-400 uppercase tracking-widest ml-1">CVV</label>
+                          <input 
+                            type="text"
+                            maxLength={4}
+                            className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3.5 text-white font-semibold focus:outline-none focus:ring-2 focus:ring-red-600/20 transition-all placeholder:text-zinc-700"
+                            placeholder="123"
+                            value={cardData.securityCode}
+                            onChange={(e) => setCardData({...cardData, securityCode: e.target.value.replace(/\D/g, '')})}
+                            required
+                          />
+                        </div>
+                      </div>
+
+                      {/* Identification Step (Documento do Titular) */}
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-black text-zinc-400 uppercase tracking-widest ml-1">Documento do Titular (CPF)</label>
+                        <input 
+                          type="text"
+                          className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3.5 text-white font-semibold focus:outline-none focus:ring-2 focus:ring-red-600/20 transition-all placeholder:text-zinc-700"
+                          placeholder="000.000.000-00"
+                          value={cardData.identificationNumber}
+                          onChange={(e) => setCardData({...cardData, identificationNumber: maskCpf(e.target.value)})}
+                          required
+                        />
+                      </div>
+
+                      {/* Installments Selector - TAREFA CIRÚRGICA 1 & 2 */}
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-black text-zinc-400 uppercase tracking-widest ml-1">Parcelas</label>
+                        <select 
+                          className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3.5 text-white font-semibold focus:outline-none focus:ring-2 focus:ring-red-600/20 transition-all appearance-none disabled:opacity-50 disabled:cursor-not-allowed"
+                          value={selectedInstallment}
+                          onChange={(e) => setSelectedInstallment(e.target.value)}
+                          disabled={installments.length === 0}
+                          required
+                        >
+                          {installments.length === 0 ? (
+                            <option value="1">Digite os dados do cartão para ver as parcelas...</option>
+                          ) : (
+                            installments.map((inst) => (
+                              <option key={inst.installments} value={inst.installments}>
+                                {inst.recommended_message}
+                              </option>
+                            ))
+                          )}
+                        </select>
+                      </div>
+                    </div>
+
+                    <button 
+                      type="submit"
+                      disabled={isProcessing}
+                      className="w-full bg-red-600 hover:bg-red-700 disabled:bg-zinc-800 disabled:text-zinc-500 text-white font-black py-5 rounded-2xl transition-all flex items-center justify-center gap-2 group uppercase tracking-widest text-sm shadow-lg shadow-red-600/10 active:scale-[0.98]"
+                    >
+                      {isProcessing ? (
+                        <>
+                          <Loader2 size={18} className="animate-spin" />
+                          Processando...
+                        </>
+                      ) : (
+                        `Pagar R$ ${Number(offer.price).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+                      )}
+                    </button>
+                    
+                    <div className="flex items-center justify-center gap-2 text-[10px] text-zinc-500 font-bold uppercase py-2">
+                      <ShieldCheck size={14} className="text-emerald-500" />
+                      Pagamento processado pelo Mercado Pago
+                    </div>
+                  </form>
                 ) : (
-                  <div className="p-12 text-center bg-zinc-950 rounded-3xl border border-dashed border-zinc-800">
-                    <p className="text-zinc-500 text-sm italic">Ocorreu um erro inesperado ao carregar o pagamento.</p>
+                  <div className="space-y-6 animate-in fade-in duration-500">
+                    <div className="bg-zinc-950 p-6 rounded-3xl border border-zinc-800 flex flex-col items-center text-center gap-4">
+                      <div className="w-16 h-16 bg-emerald-500/10 text-emerald-500 rounded-full flex items-center justify-center">
+                        <QrCode size={32} />
+                      </div>
+                      <div className="space-y-2">
+                        <h4 className="text-white font-black uppercase tracking-tight">Pagamento via PIX</h4>
+                        <p className="text-zinc-500 text-xs leading-relaxed">
+                          O acesso será liberado instantaneamente após o pagamento do QR Code que será gerado a seguir.
+                        </p>
+                      </div>
+                    </div>
+
+                    <button 
+                      onClick={handlePixPayment}
+                      disabled={isProcessing}
+                      className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:bg-zinc-800 disabled:text-zinc-500 text-white font-black py-5 rounded-2xl transition-all flex items-center justify-center gap-2 group uppercase tracking-widest text-sm shadow-lg shadow-emerald-600/10 active:scale-[0.98]"
+                    >
+                      {isProcessing ? (
+                        <>
+                          <Loader2 size={18} className="animate-spin" />
+                          Gerando PIX...
+                        </>
+                      ) : (
+                        `Gerar QR Code PIX`
+                      )}
+                    </button>
                   </div>
                 )}
               </div>
