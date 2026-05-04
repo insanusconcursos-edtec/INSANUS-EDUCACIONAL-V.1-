@@ -93,7 +93,22 @@ export const createMPPayment = async (data: Record<string, any>) => {
 
                 if (mpCollectorId && commission > 0) {
                   totalPercentage += commission;
-                  const affiliateAmount = Number(((commission / 100) * Number(data.transaction_amount)).toFixed(2));
+                  
+                  // LOGIC UPDATE: Calculate net amount based on payment method before fanning out commission
+                  const transactionAmount = Number(data.transaction_amount);
+                  const pmId = data.payment_method_id?.toLowerCase() || '';
+                  
+                  let netAmount = transactionAmount;
+                  if (pmId === 'pix') {
+                    netAmount = transactionAmount * (1 - 0.0099); // -0.99%
+                  } else if (pmId === 'bolbradesco' || pmId === 'pec') {
+                    netAmount = transactionAmount > 3.49 ? transactionAmount - 3.49 : 0; // -R$ 3.49
+                  } else {
+                    // Default to card tax for anything else (visa, master, amex, etc)
+                    netAmount = transactionAmount * (1 - 0.0498); // -4.98%
+                  }
+
+                  const affiliateAmount = Number(((commission / 100) * netAmount).toFixed(2));
                   
                   disbursements.push({
                     collector_id: Number(mpCollectorId),
