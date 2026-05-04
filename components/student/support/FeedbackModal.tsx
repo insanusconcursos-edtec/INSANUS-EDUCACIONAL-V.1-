@@ -109,9 +109,7 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({
 
     setIsSubmitting(true);
     try {
-      const selectedTeacher = teachers.find(t => t.id === teacherId);
-      
-      await feedbackService.submitFeedback({
+      const feedbackPayload: any = {
         userId: user.uid,
         userProfile: {
           name: userProfile?.name || user.displayName || 'Aluno',
@@ -123,11 +121,17 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({
         productName: productInfo.name,
         category,
         message,
-        teacherId: category === 'teacher_evaluation' ? teacherId : undefined,
-        teacherName: category === 'teacher_evaluation' ? selectedTeacher?.name : undefined,
-        teacherPhotoUrl: category === 'teacher_evaluation' ? (selectedTeacher?.photoUrl || null) : undefined,
-        rating: category === 'teacher_evaluation' ? rating : undefined
-      });
+      };
+
+      if (category === 'teacher_evaluation') {
+        const selectedTeacher = teachers.find(t => t.id === teacherId);
+        feedbackPayload.teacherId = teacherId;
+        feedbackPayload.teacherName = selectedTeacher?.name;
+        feedbackPayload.teacherPhotoUrl = selectedTeacher?.photoUrl || null;
+        feedbackPayload.rating = rating;
+      }
+      
+      await feedbackService.submitFeedback(feedbackPayload);
 
       toast.success('Feedback enviado com sucesso! Obrigado por sua contribuição.');
       onClose();

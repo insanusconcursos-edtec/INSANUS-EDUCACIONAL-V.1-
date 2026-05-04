@@ -5,21 +5,22 @@ import {
   where, 
   getDocs, 
   orderBy, 
-  Timestamp,
-  serverTimestamp 
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { Feedback } from '../types/feedback';
+import { sanitizeData } from './firestoreUtils';
 
 const FEEDBACKS_COLLECTION = 'feedbacks';
 
 export const feedbackService = {
   async submitFeedback(feedbackData: Omit<Feedback, 'id' | 'createdAt'>) {
     try {
-      const docRef = await addDoc(collection(db, FEEDBACKS_COLLECTION), {
+      const sanitized = sanitizeData({
         ...feedbackData,
         createdAt: Date.now()
       });
+      
+      const docRef = await addDoc(collection(db, FEEDBACKS_COLLECTION), sanitized);
       return docRef.id;
     } catch (error) {
       console.error('Error submitting feedback:', error);
