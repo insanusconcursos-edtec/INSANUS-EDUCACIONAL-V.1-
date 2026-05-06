@@ -343,6 +343,7 @@ async function setupVite(app: any) {
         }
       }
 
+      const aggregatedStudents = Array.from(studentMap.values());
       return res.status(200).json({ success: true, students: aggregatedStudents });
     } catch (error) {
       console.error("Erro ao buscar alunos do curso:", error);
