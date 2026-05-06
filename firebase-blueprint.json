@@ -71,9 +71,10 @@
         "coproducerName": { "type": "string" },
         "coproducerEmail": { "type": "string" },
         "percentage": { "type": "number" },
-        "mpCollectorId": { "type": "string" }
+        "mpCollectorId": { "type": "string" },
+        "pagarmeRecipientId": { "type": "string" }
       },
-      "required": ["productId", "coproducerId", "percentage", "mpCollectorId"]
+      "required": ["productId", "coproducerId", "percentage"]
     },
     "Coproducer": {
       "title": "Coproducer",
@@ -85,11 +86,12 @@
         "email": { "type": "string" },
         "document": { "type": "string" },
         "mpCollectorId": { "type": "string" },
+        "pagarmeRecipientId": { "type": "string" },
         "isActive": { "type": "boolean" },
         "createdAt": { "type": "string" },
         "updatedAt": { "type": "string" }
       },
-      "required": ["id", "name", "email", "mpCollectorId"]
+      "required": ["id", "name", "email"]
     }
   },
   "firestore": {

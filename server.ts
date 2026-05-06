@@ -4,7 +4,7 @@ import { fetchPandaVideoTranscription } from './src/backend/services/pandaVideoS
 import { generateStudyMaterial } from './src/backend/services/geminiService.js';
 import { getAdminConfig } from './src/backend/services/firebaseAdmin.js';
 import { provisionTictoPurchase, revokeTictoPurchase } from './src/backend/services/provisioningService.js';
-import { createMPPayment, handleMPWebhook } from './src/backend/services/mercadoPagoService.js';
+import { createPagarmeOrder, handlePagarmeWebhook } from './src/backend/services/pagarmeService.js';
 
 // const __filename = fileURLToPath(import.meta.url);
 // __dirname is not used in this file, but kept for reference if needed
@@ -81,7 +81,7 @@ async function setupVite(app: any) {
 }
 
   // Nota: As rotas /api/generate-material, /api/panda-videos, /api/panda-explorer, /api/webhooks/ticto,
-  // /api/webhooks/mercadopago, /api/payments/mercadopago/create
+  // /api/webhooks/pagarme, /api/payments/pagarme/create
   // e /api/admin/courses/:courseId/students foram migradas para Vercel Serverless Functions na pasta /api.
   // Elas são mantidas aqui apenas para compatibilidade com o ambiente de desenvolvimento local.
 
@@ -343,64 +343,10 @@ async function setupVite(app: any) {
         }
       }
 
-      const aggregatedStudents = Array.from(studentMap.values());
-
       return res.status(200).json({ success: true, students: aggregatedStudents });
     } catch (error) {
       console.error("Erro ao buscar alunos do curso:", error);
       return res.status(500).json({ success: false, error: "Erro ao buscar alunos." });
-    }
-  });
-
-  // Rota de Autorização Mercado Pago OAuth
-  app.get('/api/mercadopago/auth-url', async (req, res) => {
-    try {
-      const { coproducerId } = req.query;
-      if (!coproducerId) return res.status(400).json({ success: false, error: 'coproducerId é obrigatório' });
-      
-      const clientId = process.env.MP_CLIENT_ID;
-      const redirectUri = process.env.MP_REDIRECT_URI || `${process.env.VITE_APP_URL || 'http://localhost:3000'}/api/mercadopago/callback`;
-      
-      const authUrl = `https://auth.mercadopago.com/authorization?client_id=${clientId}&response_type=code&platform_id=mp&state=${coproducerId}&redirect_uri=${encodeURIComponent(redirectUri)}`;
-      return res.status(200).json({ success: true, url: authUrl });
-    } catch (error: any) {
-      return res.status(500).json({ success: false, error: error.message });
-    }
-  });
-
-  app.get('/api/mercadopago/callback', async (req, res) => {
-    const { code, state, error } = req.query;
-    if (error) return res.redirect(`${process.env.VITE_APP_URL || 'http://localhost:3000'}/admin/coproducers?error=${error}`);
-    if (!code || !state) return res.status(400).send('Código ou estado ausente');
-
-    try {
-      const coproducerId = state as string;
-      const response = await fetch('https://api.mercadopago.com/oauth/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          'client_id': process.env.MP_CLIENT_ID || '',
-          'client_secret': process.env.MP_CLIENT_SECRET || '',
-          'grant_type': 'authorization_code',
-          'code': code as string,
-          'redirect_uri': process.env.MP_REDIRECT_URI || `${process.env.VITE_APP_URL || 'http://localhost:3000'}/api/mercadopago/callback`
-        })
-      });
-
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Erro no token');
-
-      const { dbAdmin } = getAdminConfig();
-      await dbAdmin.collection('coproducers').doc(coproducerId).update({
-        mp_access_token: data.access_token,
-        mp_user_id: data.user_id,
-        mp_connected_at: new Date().toISOString(),
-        mpCollectorId: String(data.user_id)
-      });
-
-      return res.redirect(`${process.env.VITE_APP_URL || 'http://localhost:3000'}/admin/coproducers?connected=true`);
-    } catch (err: any) {
-      return res.redirect(`${process.env.VITE_APP_URL || 'http://localhost:3000'}/admin/coproducers?error=callback_failed`);
     }
   });
 
@@ -600,29 +546,47 @@ async function setupVite(app: any) {
     }
   });
 
-  // Rota de Criação de Pagamento Mercado Pago
-  app.post('/api/payments/mercadopago/create', async (req, res) => {
+  // Rota de Criação de Pagamento Pagar.me
+  app.post('/api/payments/pagarme/create', async (req, res) => {
     try {
-      const response = await createMPPayment(req.body);
+      const { dbAdmin } = getAdminConfig();
+      const body = req.body;
+      const productId = body.productId || body.metadata?.courseId;
+
+      let coproducers: any[] = [];
+      if (productId) {
+        try {
+          const coproSnap = await dbAdmin.collection('coproducers')
+            .where('courseId', '==', String(productId))
+            .where('isActive', '==', true)
+            .get();
+          
+          coproducers = coproSnap.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+        } catch (err) {
+          console.error('[Server] Erro ao buscar coprodutores para split:', err);
+        }
+      }
+
+      const response = await createPagarmeOrder(body, coproducers);
       return res.status(200).json({ success: true, payment: response });
     } catch (error) {
-      console.error("❌ MP Route Error:", error);
+      console.error("❌ Pagarme Route Error:", error);
       return res.status(400).json({ 
         success: false, 
-        error: "Erro ao processar pagamento no Mercado Pago",
+        error: "Erro ao processar pagamento no Pagar.me",
         message: error instanceof Error ? error.message : "Falha na comunicação com o provedor de pagamentos."
       });
     }
   });
 
-  // Rota de Webhook Mercado Pago
-  app.post('/api/webhooks/mercadopago', async (req, res) => {
+  // Rota de Webhook Pagar.me
+  app.post('/api/webhooks/pagarme', async (req, res) => {
     try {
-      console.log('Webhook Mercado Pago recebido:', req.body);
-      const result = await handleMPWebhook(req.body);
+      console.log('Webhook Pagar.me recebido:', req.body);
+      const result = await handlePagarmeWebhook(req.body);
       return res.status(200).json(result);
     } catch (error) {
-      console.error("Erro no webhook Mercado Pago:", error);
+      console.error("Erro no webhook Pagar.me:", error);
       return res.status(200).json({ success: false, error: "Internal error handled" });
     }
   });

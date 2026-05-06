@@ -1,28 +1,24 @@
 
-export interface MPPaymentData {
+export interface PagarmePaymentData {
   transaction_amount: number;
-  token: string;
+  card_hash?: string;
   description: string;
   installments: number;
-  payment_method_id: string;
-  issuer_id: string;
+  payment_method: string;
   payer: {
     email: string;
-    identification: {
-      type: string;
-      number: string;
-    };
+    document: string;
   };
   metadata: {
     courseId: string;
-    offerId?: string; // Novo: Identificador da oferta
+    offerId?: string;
     userName: string;
     userPhone?: string;
   };
 }
 
-export const createMercadoPagoPayment = async (data: MPPaymentData) => {
-  const response = await fetch('/api/payments/mercadopago/create', {
+export const createPagarmePayment = async (data: any) => {
+  const response = await fetch('/api/payments/pagarme/create', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

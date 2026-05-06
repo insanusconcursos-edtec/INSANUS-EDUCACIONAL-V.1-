@@ -16,10 +16,10 @@ export default function ProductsManager() {
   // Pega o domínio atual do site dinamicamente
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const tictoWebhookUrl = `${origin}/api/webhooks/ticto`;
-  const mpWebhookUrl = `${origin}/api/webhooks/mercadopago`;
+  const pagarmeWebhookUrl = `${origin}/api/webhooks/pagarme`;
 
   const [copiedTicto, setCopiedTicto] = useState(false);
-  const [copiedMP, setCopiedMP] = useState(false);
+  const [copiedPagarme, setCopiedPagarme] = useState(false);
 
   const handleCopyTicto = () => {
     navigator.clipboard.writeText(tictoWebhookUrl);
@@ -27,10 +27,10 @@ export default function ProductsManager() {
     setTimeout(() => setCopiedTicto(false), 2000);
   };
 
-  const handleCopyMP = () => {
-    navigator.clipboard.writeText(mpWebhookUrl);
-    setCopiedMP(true);
-    setTimeout(() => setCopiedMP(false), 2000);
+  const handleCopyPagarme = () => {
+    navigator.clipboard.writeText(pagarmeWebhookUrl);
+    setCopiedPagarme(true);
+    setTimeout(() => setCopiedPagarme(false), 2000);
   };
 
   const loadProducts = async () => {
@@ -133,29 +133,29 @@ export default function ProductsManager() {
           </div>
         </div>
 
-        {/* Card Mercado Pago */}
+        {/* Card Pagar.me */}
         <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 flex flex-col justify-between gap-4 shadow-sm">
           <div>
             <h3 className="text-sm font-bold text-zinc-300 flex items-center gap-2 uppercase tracking-tight">
-              🔗 URL do Webhook (Mercado Pago)
+              🔗 URL do Webhook (Pagar.me)
             </h3>
             <p className="text-[10px] text-zinc-500 mt-1 uppercase font-bold">
-              Copie a URL abaixo e cole nas configurações de Notificações do Mercado Pago.
+              Copie a URL abaixo e cole no painel da Pagar.me para ativar a liberação via cartão e PIX.
             </p>
           </div>
           
           <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-lg p-1.5 overflow-hidden">
             <code className="text-xs text-zinc-400 px-2 truncate flex-1 select-all font-mono">
-              {mpWebhookUrl}
+              {pagarmeWebhookUrl}
             </code>
             <button
-              onClick={handleCopyMP}
+              onClick={handleCopyPagarme}
               className={`flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-black uppercase rounded-md transition shrink-0 ${
-                copiedMP ? 'bg-green-600/20 text-green-500' : 'bg-zinc-800 hover:bg-zinc-700 text-white'
+                copiedPagarme ? 'bg-green-600/20 text-green-500' : 'bg-zinc-800 hover:bg-zinc-700 text-white'
               }`}
             >
-              {copiedMP ? <Check size={14} /> : <Copy size={14} />}
-              {copiedMP ? 'Copiado!' : 'Copiar'}
+              {copiedPagarme ? <Check size={14} /> : <Copy size={14} />}
+              {copiedPagarme ? 'Copiado!' : 'Copiar'}
             </button>
           </div>
         </div>

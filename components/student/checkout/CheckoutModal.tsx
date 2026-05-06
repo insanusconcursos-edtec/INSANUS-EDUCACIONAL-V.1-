@@ -1,18 +1,10 @@
 
-import React, { useEffect, useState } from 'react';
-import { initMercadoPago, Payment } from '@mercadopago/sdk-react';
-import { X, Loader2, ShieldCheck, CreditCard, Landmark } from 'lucide-react';
-import { createMercadoPagoPayment } from '../../../services/paymentService';
+import React, { useState } from 'react';
+import { X, ShieldCheck, CreditCard } from 'lucide-react';
+import { createPagarmePayment } from '../../../services/paymentService';
 import { TictoProduct } from '../../../types/product';
 import { useAuth } from '../../../contexts/AuthContext';
 import toast from 'react-hot-toast';
-
-// Initialize MP with public key
-// Using generic PUBLIC_KEY name as per prompt summary
-const MP_PUBLIC_KEY = import.meta.env.VITE_MP_PUBLIC_KEY;
-if (MP_PUBLIC_KEY) {
-  initMercadoPago(MP_PUBLIC_KEY, { locale: 'pt-BR' });
-}
 
 interface CheckoutModalProps {
   product: TictoProduct;
@@ -31,49 +23,17 @@ export default function CheckoutModal({ product, offerId, onClose, onSuccess }: 
 
   const price = currentOffer?.price || product.price || 0;
 
-  useEffect(() => {
-    if (!MP_PUBLIC_KEY) {
-      console.error("Mercado Pago Public Key is missing!");
-      toast.error("Configuração do Mercado Pago ausente.");
-    }
-  }, []);
-
-  const initialization = {
-    amount: price,
-    preferenceId: undefined, // Baseado em payment brick (API externa)
-    payer: {
-      email: currentUser?.email || '',
-    },
-  };
-
-  const customization = {
-    paymentMethods: {
-      ticket: ['all'],
-      bankTransfer: ['all'],
-      creditCard: ['all'],
-      debitCard: ['all'],
-      mercadoPago: ['all'],
-    },
-    visual: {
-      style: {
-        theme: 'dark' as any,
-      },
-    },
-  };
-
-  const onSubmit = async ({ selectedPaymentMethod, formData }: any) => {
+  const handleSimulatedPayment = async () => {
     setLoading(true);
     try {
       const paymentData = {
-        transaction_amount: formData.transaction_amount,
-        token: formData.token,
+        transaction_amount: price,
         description: `Compra de ${product.name}${currentOffer ? ` - ${currentOffer.name}` : ''}`,
-        installments: formData.installments,
-        payment_method_id: formData.payment_method_id,
-        issuer_id: formData.issuer_id,
+        payment_method: 'credit_card',
         payer: {
-          email: formData.payer.email,
-          identification: formData.payer.identification,
+          name: currentUser?.displayName || 'Aluno',
+          email: currentUser?.email || 'aluno@exemplo.com',
+          document: currentUser?.cpf || '00000000000',
         },
         metadata: {
           courseId: product.id!,
@@ -82,26 +42,17 @@ export default function CheckoutModal({ product, offerId, onClose, onSuccess }: 
         },
       };
 
-      await createMercadoPagoPayment(paymentData);
+      await createPagarmePayment(paymentData);
       
-      toast.success('Pagamento processado com sucesso! Seu acesso está sendo liberado.');
+      toast.success('Solicitação de pagamento enviada! (Integração Pagar.me em andamento)');
       onSuccess();
       onClose();
     } catch (error: any) {
       console.error('Payment error:', error);
-      toast.error(error.message || 'Erro ao processar o pagamento. Tente outro método.');
+      toast.error(error.message || 'Erro ao processar o pagamento.');
     } finally {
       setLoading(false);
     }
-  };
-
-  const onError = (error: any) => {
-    console.error('Mercado Pago Brick error:', error);
-    toast.error('Erro ao carregar o checkout do Mercado Pago.');
-  };
-
-  const onReady = () => {
-    console.log('Mercado Pago Brick is ready');
   };
 
   return (
@@ -115,7 +66,7 @@ export default function CheckoutModal({ product, offerId, onClose, onSuccess }: 
              </div>
              <div>
                 <h2 className="text-xl font-black text-white uppercase tracking-tighter">Checkout Seguro</h2>
-                <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Mercado Pago & Planner Insanus</p>
+                <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Migrando para Pagar.me</p>
              </div>
           </div>
           <button
@@ -147,22 +98,24 @@ export default function CheckoutModal({ product, offerId, onClose, onSuccess }: 
              </div>
 
              <div className="md:col-span-2">
-                {!MP_PUBLIC_KEY ? (
-                   <div className="p-12 text-center bg-zinc-900/50 border border-zinc-800 rounded-2xl">
-                      <Loader2 className="animate-spin text-zinc-500 mx-auto mb-4" size={32} />
-                      <p className="text-sm text-zinc-500 font-bold uppercase tracking-widest">Carregando gateway de pagamento...</p>
+                <div className="p-8 text-center bg-zinc-900/50 border border-zinc-800 rounded-2xl h-full flex flex-col items-center justify-center gap-6">
+                   <div className="w-16 h-16 bg-red-600/10 rounded-full flex items-center justify-center text-red-500">
+                      <CreditCard size={32} />
                    </div>
-                ) : (
-                  <div className="min-h-[400px]">
-                    <Payment
-                      initialization={initialization}
-                      customization={customization}
-                      onSubmit={onSubmit}
-                      onError={onError}
-                      onReady={onReady}
-                    />
-                  </div>
-                )}
+                   <div>
+                      <h3 className="text-white font-black uppercase tracking-tight mb-2">Transição de Gateway</h3>
+                      <p className="text-zinc-500 text-sm">
+                        Estamos migrando nosso processador de pagamentos para a <b>Pagar.me</b> para oferecer uma melhor experiência.
+                      </p>
+                   </div>
+                   <button
+                     onClick={handleSimulatedPayment}
+                     disabled={loading}
+                     className="w-full bg-red-600 hover:bg-red-700 text-white font-black py-4 rounded-xl transition-all uppercase tracking-widest text-sm disabled:opacity-50"
+                   >
+                     {loading ? 'Processando...' : 'Finalizar Pedido (Teste)'}
+                   </button>
+                </div>
              </div>
           </div>
 
@@ -175,18 +128,8 @@ export default function CheckoutModal({ product, offerId, onClose, onSuccess }: 
                    <p className="text-[9px] text-zinc-500 uppercase mt-1">Seus dados estão protegidos por criptografia de ponta a ponta.</p>
                 </div>
              </div>
-             <div className="flex items-center gap-2 grayscale opacity-50">
-                <img src="https://logodownload.org/wp-content/uploads/2019/06/mercado-pago-logo.png" className="h-4" alt="Mercado Pago" />
-             </div>
           </div>
         </div>
-
-        {loading && (
-          <div className="absolute inset-0 z-50 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center gap-4">
-             <div className="w-16 h-16 border-4 border-red-600/20 border-t-red-600 rounded-full animate-spin" />
-             <p className="text-white font-black uppercase tracking-widest text-xs animate-pulse">Processando seu pagamento...</p>
-          </div>
-        )}
       </div>
     </div>
   );

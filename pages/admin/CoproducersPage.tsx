@@ -29,38 +29,9 @@ const CoproducersPage: React.FC = () => {
     name: '',
     email: '',
     document: '',
-    mpCollectorId: '',
+    pagarmeRecipientId: '',
     isActive: true
   });
-
-  const handleConnectMP = async (coproducerId: string) => {
-    try {
-      const response = await fetch(`/api/mercadopago/auth-url?coproducerId=${coproducerId}`);
-      const data = await response.json();
-      if (data.success && data.url) {
-        window.location.href = data.url;
-      } else {
-        toast.error('Erro ao gerar link de autorização: ' + data.error);
-      }
-    } catch (error) {
-      console.error('Error connecting to MP:', error);
-      toast.error('Erro ao iniciar conexão com Mercado Pago.');
-    }
-  };
-
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('connected') === 'true') {
-      toast.success('Mercado Pago conectado com sucesso!');
-      // Limpa a URL
-      window.history.replaceState({}, document.title, window.location.pathname);
-      loadCoproducers();
-    }
-    if (urlParams.get('error')) {
-      toast.error('Falha na conexão com Mercado Pago.');
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
-  }, []);
 
   useEffect(() => {
     loadCoproducers();
@@ -86,7 +57,7 @@ const CoproducersPage: React.FC = () => {
         name: coproducer.name,
         email: coproducer.email,
         document: coproducer.document,
-        mpCollectorId: coproducer.mpCollectorId,
+        pagarmeRecipientId: coproducer.pagarmeRecipientId || '',
         isActive: coproducer.isActive
       });
     } else {
@@ -95,7 +66,7 @@ const CoproducersPage: React.FC = () => {
         name: '',
         email: '',
         document: '',
-        mpCollectorId: '',
+        pagarmeRecipientId: '',
         isActive: true
       });
     }
@@ -145,7 +116,7 @@ const CoproducersPage: React.FC = () => {
             <Users className="w-6 h-6 text-emerald-500" />
             Parceiros de Coprodução
           </h2>
-          <p className="text-gray-400 text-sm">Gerencie parceiros financeiros e IDs do Mercado Pago para Split de Pagamentos.</p>
+          <p className="text-gray-400 text-sm">Gerencie parceiros financeiros e IDs da Pagar.me para Split de Pagamentos.</p>
         </div>
         
         <button 
@@ -179,7 +150,7 @@ const CoproducersPage: React.FC = () => {
               <tr>
                 <th className="px-6 py-4">Nome / Email</th>
                 <th className="px-6 py-4">Documento</th>
-                <th className="px-6 py-4">MP Collector ID</th>
+                <th className="px-6 py-4">Pagar.me Recipient ID</th>
                 <th className="px-6 py-4 text-center">Status</th>
                 <th className="px-6 py-4 text-right">Ações</th>
               </tr>
@@ -212,20 +183,8 @@ const CoproducersPage: React.FC = () => {
                       <div className="flex flex-col gap-1">
                         <div className="bg-emerald-500/10 text-emerald-500 px-3 py-1 rounded-md text-[10px] font-black tracking-widest inline-flex items-center gap-1 border border-emerald-500/20 shadow-sm">
                           <CreditCard size={10} />
-                          {coproducer.mpCollectorId || 'Não definido'}
+                          {coproducer.pagarmeRecipientId || 'Não definido'}
                         </div>
-                        {coproducer.mp_access_token ? (
-                          <div className="flex items-center gap-1 text-[10px] text-emerald-400 font-bold uppercase tracking-tighter">
-                            <Check size={10} /> Conectado via OAuth
-                          </div>
-                        ) : (
-                          <button 
-                            onClick={() => handleConnectMP(coproducer.id)}
-                            className="flex items-center gap-1 text-[10px] text-blue-400 hover:text-blue-300 font-bold uppercase tracking-tighter underline"
-                          >
-                            <Link size={10} /> Conectar ao MP
-                          </button>
-                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4 text-center">
@@ -315,20 +274,16 @@ const CoproducersPage: React.FC = () => {
 
                 <div>
                   <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-1.5 flex items-center gap-1">
-                    MP Collector ID
+                    Pagar.me Recipient ID
                     <AlertCircle size={12} className="text-emerald-500" />
                   </label>
                   <input 
                     type="text"
                     className="w-full px-4 py-2 bg-brand-black border border-white/10 rounded-lg focus:ring-2 focus:ring-emerald-500/50 outline-none transition-all text-white font-mono"
-                    value={formData.mpCollectorId}
-                    onChange={(e) => setFormData({...formData, mpCollectorId: e.target.value})}
-                    placeholder="123456"
-                    disabled={!!(editingCoproducer?.mp_access_token)}
+                    value={formData.pagarmeRecipientId}
+                    onChange={(e) => setFormData({...formData, pagarmeRecipientId: e.target.value})}
+                    placeholder="re_..."
                   />
-                  {editingCoproducer?.mp_access_token && (
-                    <p className="text-[10px] text-emerald-500 mt-1 uppercase font-bold">Bloqueado: Conta conectada via OAuth</p>
-                  )}
                 </div>
               </div>
 
