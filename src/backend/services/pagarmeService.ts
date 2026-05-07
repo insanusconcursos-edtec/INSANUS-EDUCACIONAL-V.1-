@@ -92,12 +92,19 @@ export const createPagarmeOrder = async (orderData: any, coproducers: any[] = []
     },
     payments: [
       {
-        payment_method: orderData.payment_method === 'credit_card' ? 'credit_card' : (orderData.payment_method === 'pix' ? 'pix' : 'boleto'),
-        [orderData.payment_method === 'credit_card' ? 'credit_card' : (orderData.payment_method === 'pix' ? 'pix' : 'boleto')]: orderData.card_token ? {
-            // If credit card, use token or detailed data (V5 standard prefers tokens or complete card objects)
-            card_token: orderData.card_token,
+        payment_method: orderData.payment_method,
+        [orderData.payment_method]: orderData.payment_method === 'credit_card' ? {
             installments: orderData.installments || 1,
-            statement_descriptor: 'VIBECODE'
+            statement_descriptor: 'VIBECODE',
+            card: orderData.card_token ? {
+              token: orderData.card_token
+            } : {
+              number: orderData.card_number,
+              holder_name: orderData.card_holder_name,
+              exp_month: orderData.card_expiration_month,
+              exp_year: orderData.card_expiration_year,
+              cvv: orderData.card_cvv
+            }
         } : (orderData.payment_method === 'pix' ? {
             expires_in: 3600 // 1 hour
         } : {

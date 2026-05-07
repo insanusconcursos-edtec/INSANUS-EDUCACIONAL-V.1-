@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { X, ShieldCheck, CreditCard } from 'lucide-react';
+import { X, ShieldCheck, CreditCard, Lock } from 'lucide-react';
 import { createPagarmePayment } from '../../../services/paymentService';
 import { TictoProduct } from '../../../types/product';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -16,6 +16,30 @@ interface CheckoutModalProps {
 export default function CheckoutModal({ product, offerId, onClose, onSuccess }: CheckoutModalProps) {
   const { currentUser } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [cardData, setCardData] = useState({
+    number: '',
+    holderName: '',
+    expiry: '',
+    cvv: ''
+  });
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    
+    // Masking logic
+    let maskedValue = value;
+    if (name === 'number') {
+      maskedValue = value.replace(/\D/g, '').replace(/(\d{4})(?=\d)/g, '$1 ').substring(0, 19);
+    } else if (name === 'expiry') {
+      maskedValue = value.replace(/\D/g, '').replace(/(\d{2})(?=\d)/g, '$1/').substring(0, 5);
+    } else if (name === 'cvv') {
+      maskedValue = value.replace(/\D/g, '').substring(0, 4);
+    } else if (name === 'holderName') {
+      maskedValue = value.toUpperCase();
+    }
+
+    setCardData(prev => ({ ...prev, [name]: maskedValue }));
+  };
 
   const currentOffer = offerId 
     ? product.offers?.find(o => o.id === offerId) 
@@ -23,28 +47,48 @@ export default function CheckoutModal({ product, offerId, onClose, onSuccess }: 
 
   const price = currentOffer?.price || product.price || 0;
 
-  const handleSimulatedPayment = async () => {
+  const handlePayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!cardData.number || !cardData.holderName || !cardData.expiry || !cardData.cvv) {
+      toast.error('Por favor, preencha todos os campos do cartão.');
+      return;
+    }
+
+    const [exp_month, exp_year] = cardData.expiry.split('/');
+    if (!exp_month || !exp_year || exp_month.length !== 2 || exp_year.length !== 2) {
+      toast.error('Validade inválida. Use o formato MM/AA.');
+      return;
+    }
+
     setLoading(true);
     try {
       const paymentData = {
         transaction_amount: price,
         description: `Compra de ${product.name}${currentOffer ? ` - ${currentOffer.name}` : ''}`,
         payment_method: 'credit_card',
+        card_number: cardData.number.replace(/\s/g, ''),
+        card_holder_name: cardData.holderName,
+        card_expiration_month: exp_month,
+        card_expiration_year: `20${exp_year}`,
+        card_cvv: cardData.cvv,
+        installments: 1,
         payer: {
-          name: currentUser?.displayName || 'Aluno',
+          name: currentUser?.displayName || cardData.holderName,
           email: currentUser?.email || 'aluno@exemplo.com',
           document: currentUser?.cpf || '00000000000',
         },
         metadata: {
           courseId: product.id!,
           offerId: currentOffer?.id || 'default',
-          userName: currentUser?.displayName || 'Aluno',
+          userName: currentUser?.displayName || cardData.holderName,
+          userPhone: (currentUser as any)?.phone || '11999999999',
         },
       };
 
       await createPagarmePayment(paymentData);
       
-      toast.success('Solicitação de pagamento enviada! (Integração Pagar.me em andamento)');
+      toast.success('Pedido processado com sucesso!');
       onSuccess();
       onClose();
     } catch (error: any) {
@@ -66,7 +110,7 @@ export default function CheckoutModal({ product, offerId, onClose, onSuccess }: 
              </div>
              <div>
                 <h2 className="text-xl font-black text-white uppercase tracking-tighter">Checkout Seguro</h2>
-                <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Migrando para Pagar.me</p>
+                <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Pagamento via Pagar.me</p>
              </div>
           </div>
           <button
@@ -98,24 +142,92 @@ export default function CheckoutModal({ product, offerId, onClose, onSuccess }: 
              </div>
 
              <div className="md:col-span-2">
-                <div className="p-8 text-center bg-zinc-900/50 border border-zinc-800 rounded-2xl h-full flex flex-col items-center justify-center gap-6">
-                   <div className="w-16 h-16 bg-red-600/10 rounded-full flex items-center justify-center text-red-500">
-                      <CreditCard size={32} />
-                   </div>
+                <form onSubmit={handlePayment} className="space-y-4">
                    <div>
-                      <h3 className="text-white font-black uppercase tracking-tight mb-2">Transição de Gateway</h3>
-                      <p className="text-zinc-500 text-sm">
-                        Estamos migrando nosso processador de pagamentos para a <b>Pagar.me</b> para oferecer uma melhor experiência.
-                      </p>
+                      <label className="text-[10px] font-black text-zinc-500 uppercase mb-1 block tracking-widest">Número do Cartão</label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          name="number"
+                          value={cardData.number}
+                          onChange={handleInputChange}
+                          placeholder="0000 0000 0000 0000"
+                          className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-red-600 transition-colors"
+                          required
+                        />
+                        <div className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-600">
+                          <CreditCard size={18} />
+                        </div>
+                      </div>
                    </div>
+
+                   <div>
+                      <label className="text-[10px] font-black text-zinc-500 uppercase mb-1 block tracking-widest">Nome do Titular</label>
+                      <input
+                        type="text"
+                        name="holderName"
+                        value={cardData.holderName}
+                        onChange={handleInputChange}
+                        placeholder="NOME COMO NO CARTÃO"
+                        className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-red-600 transition-colors uppercase"
+                        required
+                      />
+                   </div>
+
+                   <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-[10px] font-black text-zinc-500 uppercase mb-1 block tracking-widest">Validade (MM/AA)</label>
+                        <input
+                          type="text"
+                          name="expiry"
+                          value={cardData.expiry}
+                          onChange={handleInputChange}
+                          placeholder="MM/AA"
+                          className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-red-600 transition-colors text-center"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-black text-zinc-500 uppercase mb-1 block tracking-widest">CVV</label>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            name="cvv"
+                            value={cardData.cvv}
+                            onChange={handleInputChange}
+                            placeholder="123"
+                            className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-red-600 transition-colors text-center"
+                            required
+                          />
+                          <div className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-600">
+                            <Lock size={14} />
+                          </div>
+                        </div>
+                      </div>
+                   </div>
+
                    <button
-                     onClick={handleSimulatedPayment}
+                     type="submit"
                      disabled={loading}
-                     className="w-full bg-red-600 hover:bg-red-700 text-white font-black py-4 rounded-xl transition-all uppercase tracking-widest text-sm disabled:opacity-50"
+                     className="w-full mt-4 bg-red-600 hover:bg-red-700 text-white font-black py-4 rounded-xl transition-all uppercase tracking-widest text-sm disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-red-600/20"
                    >
-                     {loading ? 'Processando...' : 'Finalizar Pedido (Teste)'}
+                     {loading ? (
+                       <>
+                         <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                         Processando...
+                       </>
+                     ) : (
+                       <>
+                         <ShieldCheck size={18} />
+                         Finalizar Pagamento
+                       </>
+                     )}
                    </button>
-                </div>
+                   
+                   <p className="text-[9px] text-zinc-600 text-center uppercase font-bold tracking-widest">
+                     Pagamento processado de forma segura via Pagar.me
+                   </p>
+                </form>
              </div>
           </div>
 
