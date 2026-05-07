@@ -1,6 +1,6 @@
 
-import React, { useState } from 'react';
-import { X, ShieldCheck, CreditCard, Lock, QrCode, Copy, Check, CheckCircle2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, ShieldCheck, CreditCard, Lock, QrCode, Copy, Check, CheckCircle2, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { createPagarmePayment } from '../../../services/paymentService';
 import { TictoProduct } from '../../../types/product';
@@ -20,6 +20,8 @@ export default function CheckoutModal({ product, offerId, onClose, onSuccess }: 
   const [paymentMethod, setPaymentMethod] = useState<'credit_card' | 'pix'>('credit_card');
   const [pixData, setPixData] = useState<{ qr_code: string; qr_code_url: string } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(900); // 15 minutes in seconds
+  const [installments, setInstallments] = useState(1);
   const [cardData, setCardData] = useState({
     number: '',
     holderName: '',
@@ -45,6 +47,24 @@ export default function CheckoutModal({ product, offerId, onClose, onSuccess }: 
     }
 
     setCardData(prev => ({ ...prev, [name]: maskedValue }));
+  };
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (pixData && timeLeft > 0) {
+      timer = setInterval(() => {
+        setTimeLeft((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [pixData, timeLeft]);
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
   const currentOffer = offerId 
@@ -73,7 +93,7 @@ export default function CheckoutModal({ product, offerId, onClose, onSuccess }: 
           card_expiration_month: cardData.expiryMonth,
           card_expiration_year: cardData.expiryYear.length === 2 ? `20${cardData.expiryYear}` : cardData.expiryYear,
           card_cvv: cardData.cvv,
-          installments: 1,
+          installments: installments,
         }),
         payer: {
           name: currentUser?.displayName || cardData.holderName || (currentUser as any)?.name || 'Estudante',
@@ -172,6 +192,13 @@ export default function CheckoutModal({ product, offerId, onClose, onSuccess }: 
                           <img src={pixData.qr_code_url} alt="QR Code PIX" className="w-40 h-40" />
                         </div>
                         
+                        <div className="flex items-center justify-center gap-2 text-red-500 bg-red-500/10 py-2 px-4 rounded-full border border-red-500/20 w-fit">
+                          <Loader2 size={12} className="animate-spin" />
+                          <p className="text-[9px] font-black uppercase tracking-widest leading-none">
+                            Expira em: <span className="text-xs ml-1">{formatTime(timeLeft)}</span>
+                          </p>
+                        </div>
+
                         <div className="w-full space-y-3">
                           <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-1">Pix Copia e Cola</label>
                           <div className="relative">
@@ -322,6 +349,25 @@ export default function CheckoutModal({ product, offerId, onClose, onSuccess }: 
                                   </div>
                                 </div>
                               </div>
+                            </div>
+
+                            <div>
+                              <label className="text-[10px] font-black text-zinc-500 uppercase mb-1 block tracking-widest">Parcelas</label>
+                              <select 
+                                value={installments}
+                                onChange={(e) => setInstallments(Number(e.target.value))}
+                                className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-red-600 transition-colors appearance-none cursor-pointer"
+                              >
+                                {[...Array(12)].map((_, i) => {
+                                  const count = i + 1;
+                                  const value = price / count;
+                                  return (
+                                    <option key={count} value={count}>
+                                      {count}x de {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)}
+                                    </option>
+                                  );
+                                })}
+                              </select>
                             </div>
                           </div>
                         ) : (

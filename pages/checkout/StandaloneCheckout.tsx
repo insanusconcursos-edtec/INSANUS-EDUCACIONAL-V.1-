@@ -24,6 +24,8 @@ export default function StandaloneCheckout() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [pixData, setPixData] = useState<{ qr_code: string; qr_code_url: string } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(900); // 15 minutes in seconds
+  const [installments, setInstallments] = useState(1);
   
   // Credit Card States
   const [cardNumber, setCardNumber] = useState('');
@@ -98,6 +100,24 @@ export default function StandaloneCheckout() {
   };
 
   useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (pixData && timeLeft > 0) {
+      timer = setInterval(() => {
+        setTimeLeft((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [pixData, timeLeft]);
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  useEffect(() => {
     async function loadData() {
       if (!offerId) return;
       try {
@@ -143,7 +163,7 @@ export default function StandaloneCheckout() {
           card_expiration_month: cardMonth,
           card_expiration_year: cardYear.length === 2 ? `20${cardYear}` : cardYear,
           card_cvv: cardCVV,
-          installments: 1,
+          installments: installments,
         }),
         payer: {
           email: buyerData.email,
@@ -253,6 +273,12 @@ export default function StandaloneCheckout() {
                     <p className="text-zinc-500 text-sm">
                       Finalize o pagamento via PIX para liberar seu acesso imediatamente.
                     </p>
+                    <div className="flex items-center justify-center gap-2 mt-4 text-red-500 bg-red-500/10 py-2 px-4 rounded-full border border-red-500/20 w-fit mx-auto">
+                      <Loader2 size={14} className="animate-spin" />
+                      <p className="text-[10px] font-black uppercase tracking-widest leading-none">
+                        Expira em: <span className="text-xs ml-1">{formatTime(timeLeft)}</span>
+                      </p>
+                    </div>
                   </div>
 
                   <div className="flex flex-col items-center gap-6 p-6 bg-zinc-950 rounded-2xl border border-zinc-800">
@@ -516,6 +542,25 @@ export default function StandaloneCheckout() {
                               </div>
                             </div>
                           </div>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-black text-zinc-400 uppercase tracking-widest ml-1">Parcelas</label>
+                          <select 
+                            value={installments}
+                            onChange={(e) => setInstallments(Number(e.target.value))}
+                            className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3.5 text-white font-semibold focus:outline-none focus:ring-2 focus:ring-red-600/20 transition-all appearance-none cursor-pointer"
+                          >
+                            {[...Array(12)].map((_, i) => {
+                              const count = i + 1;
+                              const value = offer.price / count;
+                              return (
+                                <option key={count} value={count}>
+                                  {count}x de {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)} (Total: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(offer.price)})
+                                </option>
+                              );
+                            })}
+                          </select>
                         </div>
 
                         <button 
