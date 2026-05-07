@@ -1,5 +1,6 @@
 
 import { provisionPurchase } from './provisioningService.js';
+import { getAdminConfig } from './firebaseAdmin.js';
 
 const PAGARME_API_URL = 'https://api.pagar.me/core/v5/orders';
 
@@ -123,8 +124,64 @@ const getHeaders = () => {
   };
 };
 
-export const createPagarmeOrder = async (orderData: any, coproducers: any[] = []) => {
-  console.log('[Pagarme] Creating order for:', orderData.description);
+export const createPagarmeOrder = async (orderData: any, initialCoproducers: any[] = []) => {
+  console.log('[Pagarme] 🛒 Iniciando criação de pedido para:', orderData.description);
+  const { dbAdmin } = getAdminConfig();
+
+  // 0. Fetch Product/Offer data from Firestore to get Split Rules
+  let coproducers = [...initialCoproducers];
+  let affiliateDataFromDB = null;
+
+  try {
+    const productId = orderData.metadata?.courseId || orderData.metadata?.productId || orderData.productId;
+    const offerId = orderData.metadata?.offerId;
+    
+    // 1. Tentar buscar por Oferta primeiro (regras específicas de preço/split)
+    if (offerId) {
+      console.log(`[Pagarme] Buscando regras na Oferta: ${offerId}`);
+      const offerDoc = await dbAdmin.collection('offers').doc(offerId).get();
+      if (offerDoc.exists) {
+        const data = offerDoc.data();
+        if (data?.coproducers && Array.isArray(data.coproducers) && coproducers.length === 0) {
+          coproducers = data.coproducers;
+          console.log(`[Pagarme] ✅ ${coproducers.length} Coprodutores encontrados na Oferta.`);
+        }
+      }
+    }
+
+    // 2. Se não encontrou coprodutores na oferta, tenta no Curso/Produto base
+    if (coproducers.length === 0 && productId) {
+      console.log(`[Pagarme] Buscando regras no Curso/Produto: ${productId}`);
+      const courseDoc = await dbAdmin.collection('courses').doc(productId).get();
+      if (courseDoc.exists) {
+        const data = courseDoc.data();
+        if (data?.coproducers && Array.isArray(data.coproducers)) {
+          coproducers = data.coproducers;
+          console.log(`[Pagarme] ✅ ${coproducers.length} Coprodutores encontrados no Curso.`);
+        }
+      }
+    }
+        
+    // 3. Buscar dados do Vendedor (Afiliado) se houver ID
+    const affiliateId = orderData.metadata?.affiliateId || orderData.affiliateId;
+    if (affiliateId) {
+      const affDoc = await dbAdmin.collection('users').doc(affiliateId).get();
+      if (affDoc.exists) {
+        const affUser = affDoc.data();
+        if (affUser?.pagarmeRecipientId) {
+          affiliateDataFromDB = {
+            percentage: Number(orderData.metadata?.affiliatePercentage) || Number(orderData.affiliatePercentage) || 0,
+            recipientId: affUser.pagarmeRecipientId
+          };
+          console.log(`[Pagarme] ✅ Vendedor (Afiliado) identificado: ${affUser.name} (${affiliateId}) - ${affiliateDataFromDB.percentage}%`);
+        } else {
+          console.warn(`⚠️ [Pagarme] Vendedor ${affiliateId} não possui pagarmeRecipientId configurado.`);
+        }
+      }
+    }
+  } catch (error) {
+    console.error('[Pagarme] ❌ Erro ao buscar dados de split no Firestore:', error);
+  }
 
   // Recalculate total amount with interest based on installments
   const installments = orderData.installments || 1;
@@ -136,16 +193,16 @@ export const createPagarmeOrder = async (orderData: any, coproducers: any[] = []
   const totalAmountCents = Math.round(totalAmountWithInterest * 100);
   
   // Prepare Cascade Splits
-  const affiliateData = orderData.affiliateId && orderData.affiliateRecipientId ? {
+  const finalAffiliateData = affiliateDataFromDB || (orderData.affiliateId && orderData.affiliateRecipientId ? {
     percentage: Number(orderData.affiliatePercentage) || 0,
     recipientId: orderData.affiliateRecipientId
-  } : null;
+  } : null);
 
   const splits = calculateCascadeSplits(
     totalAmountCents,
     orderData.payment_method,
     installments,
-    affiliateData,
+    finalAffiliateData,
     coproducers
   );
 
