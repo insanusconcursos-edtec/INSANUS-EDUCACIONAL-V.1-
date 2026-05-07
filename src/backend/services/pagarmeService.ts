@@ -198,6 +198,7 @@ export const createPagarmeOrder = async (orderData: any, initialCoproducers: any
 
   // 3. Build Payload (Update: using the new splitArray)
   const payload: any = {
+    antifraud_enabled: false,
     items: [
       {
         amount: totalAmountCents,
