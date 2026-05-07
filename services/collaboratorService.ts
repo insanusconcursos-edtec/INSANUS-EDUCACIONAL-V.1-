@@ -43,7 +43,7 @@ export interface Collaborator {
   username: string;
   email: string; // The constructed internal email
   role: 'collaborator' | 'seller';
-  mpCollectorId?: string; // Optional for collaborator, required for seller
+  pagarmeRecipientId?: string; // Optional for collaborator, required for seller
   permissions: CollaboratorPermissions;
   createdAt?: any;
 }
@@ -53,7 +53,7 @@ export interface CreateCollaboratorData {
   username: string;
   password: string;
   role: 'collaborator' | 'seller';
-  mpCollectorId?: string;
+  pagarmeRecipientId?: string;
   permissions: CollaboratorPermissions;
 }
 
@@ -89,8 +89,8 @@ export const createCollaborator = async (data: CreateCollaboratorData): Promise<
       createdAt: serverTimestamp()
     };
 
-    if (data.mpCollectorId) {
-      newCollaborator.mpCollectorId = data.mpCollectorId;
+    if (data.pagarmeRecipientId) {
+      newCollaborator.pagarmeRecipientId = data.pagarmeRecipientId;
     }
 
     await setDoc(doc(db, 'users', uid), newCollaborator);

@@ -26,7 +26,7 @@ export interface ProductSplit {
   coproducerName: string;
   coproducerEmail: string;
   percentage: number;
-  mpCollectorId: string;
+  pagarmeRecipientId: string;
 }
 
 export interface TictoProduct {

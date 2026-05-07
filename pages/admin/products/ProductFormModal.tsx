@@ -191,7 +191,7 @@ export default function ProductFormModal({ product, onClose, onSave }: ProductFo
       coproducerName: partner.name,
       coproducerEmail: partner.email,
       percentage: 0,
-      mpCollectorId: partner.mpCollectorId // Agora automático
+      pagarmeRecipientId: partner.pagarmeRecipientId || '' // Agora automático
     };
     setCoproduction([...coproduction, newSplit]);
   };
@@ -707,7 +707,7 @@ export default function ProductFormModal({ product, onClose, onSave }: ProductFo
                     <div className="max-w-xl">
                        <h4 className="text-white font-black uppercase tracking-widest mb-2">Divisão de Receitas (Split)</h4>
                        <p className="text-[10px] text-zinc-500 uppercase font-black leading-relaxed">
-                         Adicione parceiros de negócio para que o split ocorra automaticamente no momento da venda. O valor é transferido para a conta do Mercado Pago do parceiro.
+                         Adicione parceiros de negócio para que o split ocorra automaticamente no momento da venda. O valor é transferido para a conta da Pagar.me do parceiro.
                        </p>
                     </div>
                      <div className="w-64">
@@ -765,9 +765,9 @@ export default function ProductFormModal({ product, onClose, onSave }: ProductFo
                             </div>
                             
                             <div className="pt-4 border-t border-zinc-900">
-                               <p className="text-[9px] font-black text-zinc-700 uppercase tracking-widest mb-1">ID Mercado Pago (Collector)</p>
+                               <p className="text-[9px] font-black text-zinc-700 uppercase tracking-widest mb-1">ID Pagar.me (Recipient)</p>
                                <code className="text-[11px] font-mono font-bold text-zinc-500 bg-zinc-900 px-2 py-1 rounded block border border-zinc-900">
-                                 {p.mpCollectorId || 'Não configurado'}
+                                 {p.pagarmeRecipientId || 'Não configurado'}
                                </code>
                             </div>
                          </div>

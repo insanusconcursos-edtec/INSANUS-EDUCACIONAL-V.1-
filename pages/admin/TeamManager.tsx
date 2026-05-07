@@ -79,7 +79,7 @@ const CreateCollaboratorModal = ({
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<'collaborator' | 'seller'>('collaborator');
-  const [mpCollectorId, setMpCollectorId] = useState('');
+  const [pagarmeRecipientId, setPagarmeRecipientId] = useState('');
   const [permissions, setPermissions] = useState<CollaboratorPermissions>({
     planos: false,
     simulados: false,
@@ -107,14 +107,14 @@ const CreateCollaboratorModal = ({
       setUsername(editingCollaborator.username);
       setPassword(''); // Don't show password
       setRole(editingCollaborator.role || 'collaborator');
-      setMpCollectorId(editingCollaborator.mpCollectorId || '');
+      setPagarmeRecipientId(editingCollaborator.pagarmeRecipientId || '');
       setPermissions(editingCollaborator.permissions);
     } else {
       setName('');
       setUsername('');
       setPassword('');
       setRole('collaborator');
-      setMpCollectorId('');
+      setPagarmeRecipientId('');
       setPermissions({
         planos: false,
         simulados: false,
@@ -136,7 +136,7 @@ const CreateCollaboratorModal = ({
     e.preventDefault();
     if (!name || !username || (!editingCollaborator && !password)) return alert("Preencha todos os campos.");
     if (!editingCollaborator && password.length < 6) return alert("A senha deve ter no mínimo 6 caracteres.");
-    if (role === 'seller' && !mpCollectorId) return alert("Sellers devem ter um ID do Mercado Pago.");
+    if (role === 'seller' && !pagarmeRecipientId) return alert("Sellers devem ter um ID da Pagar.me.");
 
     setLoading(true);
     try {
@@ -144,7 +144,7 @@ const CreateCollaboratorModal = ({
         name, 
         username, 
         role, 
-        mpCollectorId: role === 'seller' ? mpCollectorId : '',
+        pagarmeRecipientId: role === 'seller' ? pagarmeRecipientId : '',
         permissions 
       };
       if (password) data.password = password;
@@ -194,12 +194,12 @@ const CreateCollaboratorModal = ({
                 {role === 'seller' && (
                   <div className="space-y-1 animate-in zoom-in duration-200">
                     <label className="text-[10px] font-bold text-zinc-400 uppercase flex items-center gap-1">
-                      MP Collector ID <span className="text-brand-red">*</span>
+                      Pagar.me Recipient ID <span className="text-brand-red">*</span>
                     </label>
                     <input 
-                      value={mpCollectorId}
-                      onChange={e => setMpCollectorId(e.target.value)}
-                      placeholder="123456789"
+                      value={pagarmeRecipientId}
+                      onChange={e => setPagarmeRecipientId(e.target.value)}
+                      placeholder="re_..."
                       className="w-full bg-zinc-900 border border-zinc-800 rounded-xl py-2.5 px-4 text-xs text-white placeholder-zinc-700 focus:border-emerald-500 focus:outline-none font-bold"
                     />
                   </div>
@@ -482,7 +482,7 @@ const TeamManager: React.FC = () => {
                                <span className="text-[10px] text-zinc-500 font-mono">@{collab.username}</span>
                                {collab.role === 'seller' && (
                                  <span className="text-[9px] text-zinc-600 bg-zinc-900 px-1 rounded border border-zinc-800">
-                                   MP: {collab.mpCollectorId}
+                                   PG: {collab.pagarmeRecipientId}
                                  </span>
                                )}
                             </div>

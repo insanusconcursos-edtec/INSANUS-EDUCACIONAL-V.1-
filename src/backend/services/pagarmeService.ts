@@ -68,7 +68,11 @@ const calculateCascadeSplits = (
   const remainingAfterAffiliate = postFeeValue - totalDistributed;
   
   for (const copro of coproducers) {
-    if (!copro.pagarmeRecipientId || copro.isActive === false) continue;
+    // Validação rigorosa do ID do recebedor Pagar.me
+    if (!copro.pagarmeRecipientId || !copro.pagarmeRecipientId.startsWith('re_') || copro.isActive === false) {
+      console.warn(`⚠️ [Pagarme] Coprodutor ${copro.coproducerName || 'sem nome'} ignorado no split: ID inválido ou inativo.`);
+      continue;
+    }
     
     const coproPercentage = Number(copro.percentage) || 0;
     const coproAmount = Math.floor(remainingAfterAffiliate * (coproPercentage / 100));

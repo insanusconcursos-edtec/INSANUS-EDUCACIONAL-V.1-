@@ -71,7 +71,6 @@
         "coproducerName": { "type": "string" },
         "coproducerEmail": { "type": "string" },
         "percentage": { "type": "number" },
-        "mpCollectorId": { "type": "string" },
         "pagarmeRecipientId": { "type": "string" }
       },
       "required": ["productId", "coproducerId", "percentage"]
@@ -85,7 +84,6 @@
         "name": { "type": "string" },
         "email": { "type": "string" },
         "document": { "type": "string" },
-        "mpCollectorId": { "type": "string" },
         "pagarmeRecipientId": { "type": "string" },
         "isActive": { "type": "boolean" },
         "createdAt": { "type": "string" },
