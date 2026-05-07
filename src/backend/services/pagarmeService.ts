@@ -226,20 +226,27 @@ export const createPagarmeOrder = async (orderData: any, initialCoproducers: any
             installments: orderData.installments || 1,
             statement_descriptor: 'VIBECODE',
             card: orderData.card_token ? {
-              token: orderData.card_token
+              token: orderData.card_token,
+              billing_address: {
+                line_1: "Rua Ficticia, 123",
+                zip_code: "01001000",
+                city: "São Paulo",
+                state: "SP",
+                country: "BR"
+              }
             } : {
               number: orderData.card_number,
               holder_name: orderData.card_holder_name,
-              exp_month: orderData.card_expiration_month,
-              exp_year: orderData.card_expiration_year,
-              cvv: orderData.card_cvv
-            },
-            billing_address: {
-              line_1: "Rua Ficticia, 123",
-              zip_code: "01001000",
-              city: "São Paulo",
-              state: "SP",
-              country: "BR"
+              exp_month: Number(orderData.card_expiration_month),
+              exp_year: Number(orderData.card_expiration_year),
+              cvv: orderData.card_cvv,
+              billing_address: {
+                line_1: "Rua Ficticia, 123",
+                zip_code: "01001000",
+                city: "São Paulo",
+                state: "SP",
+                country: "BR"
+              }
             }
         } : (orderData.payment_method === 'pix' ? {
             expires_in: 1800 // 30 minutes
