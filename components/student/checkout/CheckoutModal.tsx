@@ -258,10 +258,20 @@ export default function CheckoutModal({ product, offerId, onClose, onSuccess }: 
                 </div>
                 <div className="mt-4 p-4 bg-zinc-900/50 border border-zinc-800 rounded-xl">
                    <p className="text-[10px] font-black text-zinc-500 uppercase mb-1">Total a pagar:</p>
-                   {currentOffer?.originalPrice && currentOffer.originalPrice > 0 && (
-                     <p className="text-[10px] text-zinc-500 line-through decoration-red-600 mb-1">
-                        De {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(currentOffer.originalPrice)}
-                     </p>
+                   {currentOffer?.originalPrice && currentOffer.originalPrice > price && (
+                     <div className="flex items-center justify-between mb-1">
+                        <p className="text-[11px] text-red-500 line-through font-semibold">
+                           {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(currentOffer.originalPrice)}
+                        </p>
+                        {(() => {
+                           const discount = Math.round(((currentOffer.originalPrice - price) / currentOffer.originalPrice) * 100);
+                           return (
+                             <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1 py-0.5 rounded text-[8px] font-black animate-pulse">
+                               {discount}% OFF
+                             </span>
+                           );
+                        })()}
+                     </div>
                    )}
                    <p className="text-2xl font-black text-white tracking-tighter">
                       {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(price)}

@@ -869,23 +869,39 @@ export default function StandaloneCheckout() {
                          <span>Oferta Selecionada</span>
                          <span className="text-white">{offer.name}</span>
                       </div>
-                      {offer.originalPrice && offer.originalPrice > 0 && (
-                        <div className="flex justify-between items-center text-zinc-500 text-[10px] font-bold uppercase tracking-widest">
-                           <span>Valor Original</span>
-                           <span className="line-through decoration-red-600 decoration-2">
+                      {offer.originalPrice && offer.originalPrice > offer.price && (
+                        <div className="flex justify-between items-center pt-2">
+                           <span className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest">Valor Original</span>
+                           <span className="text-red-500 line-through text-lg font-semibold decoration-2">
                              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(offer.originalPrice)}
                            </span>
                         </div>
                       )}
                       <div className="h-px bg-zinc-800/50" />
-                      <div className="flex justify-between items-end">
-                        <div className="space-y-1">
-                           <p className="text-[10px] text-emerald-500 font-black uppercase tracking-widest">Total com Desconto</p>
-                           <p className="text-3xl font-black text-white tracking-tighter">
-                             {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(offer.price)}
-                           </p>
-                        </div>
-                      </div>
+                      
+                      {(() => {
+                        const discountPercentage = offer.originalPrice && offer.originalPrice > offer.price 
+                          ? Math.round(((offer.originalPrice - offer.price) / (offer.originalPrice)) * 100) 
+                          : 0;
+                        
+                        return (
+                          <div className="flex justify-between items-end">
+                            <div className="space-y-1">
+                               <div className="flex items-center gap-2">
+                                 <p className="text-[10px] text-emerald-500 font-black uppercase tracking-widest">Total com Desconto</p>
+                                 {discountPercentage > 0 && (
+                                   <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded text-[9px] font-black animate-pulse">
+                                     {discountPercentage}% OFF
+                                   </span>
+                                 )}
+                               </div>
+                               <p className="text-3xl font-black text-white tracking-tighter">
+                                 {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(offer.price)}
+                               </p>
+                            </div>
+                          </div>
+                        );
+                      })()}
                    </div>
 
                    <div className="pt-6 border-t border-zinc-800 space-y-4">
