@@ -272,8 +272,8 @@ const StudentManager: React.FC = () => {
             className="bg-brand-black border border-zinc-800 rounded-lg text-[10px] font-bold text-white px-4 py-2.5 focus:outline-none focus:border-brand-red transition-all uppercase tracking-tighter min-w-[200px]"
         >
             <option value="">Todos os Planos</option>
-            {availablePlans.map(plan => (
-                <option key={plan.id} value={plan.id} className="text-white">
+            {availablePlans.map((plan, index) => (
+                <option key={`${plan.id}-${index}`} value={plan.id} className="text-white">
                     {plan.title}
                 </option>
             ))}
@@ -286,8 +286,8 @@ const StudentManager: React.FC = () => {
             className="bg-brand-black border border-zinc-800 rounded-lg text-[10px] font-bold text-white px-4 py-2.5 focus:outline-none focus:border-brand-red transition-all uppercase tracking-tighter min-w-[200px]"
         >
             <option value="">Todas as Turmas</option>
-            {availableClasses.map(cls => (
-                <option key={cls.id} value={cls.id} className="text-white">
+            {availableClasses.map((cls, index) => (
+                <option key={`${cls.id}-${index}`} value={cls.id} className="text-white">
                     {cls.title}
                 </option>
             ))}
@@ -300,8 +300,8 @@ const StudentManager: React.FC = () => {
             className="bg-brand-black border border-zinc-800 rounded-lg text-[10px] font-bold text-white px-4 py-2.5 focus:outline-none focus:border-brand-red transition-all uppercase tracking-tighter min-w-[200px]"
         >
             <option value="">Todos os Combos</option>
-            {availableProducts.map(prod => (
-                <option key={prod.id} value={prod.id} className="text-white">
+            {availableProducts.map((prod, index) => (
+                <option key={`${prod.id}-${index}`} value={prod.id} className="text-white">
                     {prod.name}
                 </option>
             ))}
@@ -345,14 +345,14 @@ const StudentManager: React.FC = () => {
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-800/50">
-                    {filteredStudents.map(student => {
+                    {filteredStudents.map((student, index) => {
                         const activeProducts = [
                             ...(student.products?.filter(p => p.isActive) || []),
                             ...(student.access?.filter(a => a.type === 'product' && a.isActive) || [])
                         ];
 
                         return (
-                        <tr key={student.uid} className="hover:bg-zinc-900/40 transition-colors group">
+                        <tr key={`${student.uid}-${index}`} className="hover:bg-zinc-900/40 transition-colors group">
                             {/* Aluno */}
                             <td className="px-6 py-4">
                                 <div className="flex items-center gap-3">
@@ -375,8 +375,8 @@ const StudentManager: React.FC = () => {
                             <td className="px-6 py-4">
                                 <div className="flex flex-wrap gap-1 max-w-[300px]">
                                     {activeProducts.length > 0 ? (
-                                        activeProducts.map(p => (
-                                            <span key={p.id} className="inline-block px-2 py-0.5 bg-purple-900/30 text-purple-400 border border-purple-800/50 rounded text-[9px] font-bold uppercase truncate max-w-[140px]">
+                                        activeProducts.map((p, pIndex) => (
+                                            <span key={`${p.id}-${pIndex}`} className="inline-block px-2 py-0.5 bg-purple-900/30 text-purple-400 border border-purple-800/50 rounded text-[9px] font-bold uppercase truncate max-w-[140px]">
                                                 {p.title}
                                             </span>
                                         ))

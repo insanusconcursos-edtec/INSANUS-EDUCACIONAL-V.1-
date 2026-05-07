@@ -54,7 +54,14 @@ export const createPagarmeOrder = async (orderData: any, initialCoproducers: any
         console.log("🔍 [Pagarme] Dados brutos de Coprodutores da Oferta:", JSON.stringify(data?.coproducers, null, 2));
         
         // Capturar comissão de afiliado configurada na oferta
-        affiliateCommissionPercent = Number(data?.affiliateCommission) || 0;
+        console.log("🔍 [DEBUG AFILIADO] Dados da Oferta lidos:", JSON.stringify({ 
+          isAffiliationEnabled: data?.isAffiliationEnabled, 
+          affiliateCommission: data?.affiliateCommission,
+          commission: data?.commission,
+          affiliateSettingsCommission: data?.affiliateSettings?.commission
+        }));
+
+        affiliateCommissionPercent = Number(data?.affiliateCommission) || Number(data?.commission) || Number(data?.affiliateSettings?.commission) || 0;
 
         if (data?.coproducers && Array.isArray(data.coproducers) && coproducers.length === 0) {
           coproducers = data.coproducers;
