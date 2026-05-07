@@ -28,6 +28,7 @@ export default function CheckoutModal({ product, offerId, onClose, onSuccess }: 
   const [copied, setCopied] = useState(false);
   const [timeLeft, setTimeLeft] = useState(900); // 15 minutes in seconds
   const [installments, setInstallments] = useState(1);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [cardData, setCardData] = useState({
     number: '',
     holderName: '',
@@ -360,25 +361,53 @@ export default function CheckoutModal({ product, offerId, onClose, onSuccess }: 
                             <div>
                               <label className="text-[10px] font-black text-zinc-500 uppercase mb-1 block tracking-widest">Parcelas</label>
                               <div className="relative">
-                                <select 
-                                  value={installments}
-                                  onChange={(e) => setInstallments(Number(e.target.value))}
-                                  className="bg-[#1A1A1A] text-white border border-neutral-700 rounded-md p-3 w-full focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none transition-all appearance-none cursor-pointer pr-10 text-xs"
+                                <button
+                                  type="button"
+                                  onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                                  className={`w-full bg-[#1A1A1A] text-white border ${isDropdownOpen ? 'border-red-500 ring-1 ring-red-500' : 'border-neutral-700'} rounded-md p-3 flex items-center justify-between transition-all cursor-pointer`}
                                 >
-                                  {[...Array(12)].map((_, i) => {
-                                    const count = i + 1;
-                                    const totalWithInterest = price * INSTALLMENT_MULTIPLIERS[count];
-                                    const installmentValue = totalWithInterest / count;
-                                    return (
-                                      <option key={count} value={count}>
-                                        {count}x de {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(installmentValue)} (Total: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalWithInterest)})
-                                      </option>
-                                    );
-                                  })}
-                                </select>
-                                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-500">
-                                  <ChevronDown size={14} />
-                                </div>
+                                  <span className="text-xs font-semibold">
+                                    {installments}x de {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format((price * INSTALLMENT_MULTIPLIERS[installments]) / installments)}
+                                  </span>
+                                  <ChevronDown size={14} className={`text-zinc-500 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+                                </button>
+
+                                <AnimatePresence>
+                                  {isDropdownOpen && (
+                                    <>
+                                      <div 
+                                        className="fixed inset-0 z-40" 
+                                        onClick={() => setIsDropdownOpen(false)} 
+                                      />
+                                      <motion.ul
+                                        initial={{ opacity: 0, y: -10 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: -10 }}
+                                        className="absolute z-50 w-full mt-2 bg-[#1A1A1A] border border-zinc-800 rounded-lg shadow-2xl max-h-48 overflow-y-auto scrollbar-hide py-1"
+                                      >
+                                        {[...Array(12)].map((_, i) => {
+                                          const count = i + 1;
+                                          const totalWithInterest = price * INSTALLMENT_MULTIPLIERS[count];
+                                          const installmentValue = totalWithInterest / count;
+                                          return (
+                                            <li
+                                              key={count}
+                                              onClick={() => {
+                                                setInstallments(count);
+                                                setIsDropdownOpen(false);
+                                              }}
+                                              className={`px-3 py-2 text-xs font-semibold cursor-pointer transition-colors ${
+                                                installments === count ? 'bg-red-600 text-white' : 'text-zinc-300 hover:bg-zinc-800'
+                                              }`}
+                                            >
+                                              {count}x de {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(installmentValue)}
+                                            </li>
+                                          );
+                                        })}
+                                      </motion.ul>
+                                    </>
+                                  )}
+                                </AnimatePresence>
                               </div>
                             </div>
                           </div>
