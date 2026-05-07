@@ -58,31 +58,27 @@ export const createPagarmeOrder = async (orderData: any, initialCoproducers: any
       }
     }
 
-    // 2. Se não encontrou coprodutores na oferta, tenta no Curso/Produto/Combo base
+    // 2. Se não encontrou coprodutores na oferta, tenta no Produto Ticto base
     if (coproducers.length === 0 && productId) {
-      console.log(`[Pagarme] Buscando regras no Curso/Produto/Combo: ${productId}`);
+      console.log(`[Pagarme] Buscando regras na coleção ticto_products: ${productId}`);
       
-      let productData = null;
-      const collectionsToTry = ['products', 'combos', 'courses', 'bundles']; 
+      const docRef = await dbAdmin.collection('ticto_products').doc(productId).get();
       
-      for (const collectionName of collectionsToTry) {
-        const docRef = await dbAdmin.collection(collectionName).doc(productId).get();
-        if (docRef.exists) {
-          productData = docRef.data();
-          console.log(`✅ [DEBUG BD] Produto encontrado com sucesso na coleção: ${collectionName}`);
-          console.log("🚨 [DEBUG DB] Chaves do Produto/Combo:", Object.keys(productData || {}));
-          console.log("🚨 [DEBUG DB] Estrutura do Produto/Combo:", JSON.stringify(productData));
-          break;
-        }
-      }
-
-      if (productData) {
-        if (productData?.coproducers && Array.isArray(productData.coproducers)) {
-          coproducers = productData.coproducers;
-          console.log(`[Pagarme] ✅ ${coproducers.length} Coprodutores encontrados.`);
+      if (docRef.exists) {
+        const productData = docRef.data();
+        console.log(`✅ [DEBUG BD] Produto encontrado com sucesso na coleção: ticto_products`);
+        console.log("🚨 [DEBUG DB] Chaves do Produto:", Object.keys(productData || {}));
+        
+        // O array de divisão no BD se chama 'coproduction'
+        const productCoproduction = productData?.coproduction || [];
+        if (Array.isArray(productCoproduction) && productCoproduction.length > 0) {
+          coproducers = productCoproduction;
+          console.log(`[Pagarme] ✅ ${coproducers.length} Coprodutores encontrados na chave 'coproduction'.`);
+        } else {
+          console.log("⚠️ [Pagarme] Nenhuma regra encontrada na chave 'coproduction'.");
         }
       } else {
-        console.error(`❌ [ERRO CRÍTICO] O ID ${productId} não existe em nenhuma das coleções mapeadas!`);
+        console.error(`❌ [ERRO CRÍTICO] O ID ${productId} não existe na coleção ticto_products!`);
       }
     }
         
