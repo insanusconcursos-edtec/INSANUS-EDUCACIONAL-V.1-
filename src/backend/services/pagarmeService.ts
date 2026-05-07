@@ -49,6 +49,7 @@ export const createPagarmeOrder = async (orderData: any, initialCoproducers: any
       const offerDoc = await dbAdmin.collection('offers').doc(offerId).get();
       if (offerDoc.exists) {
         const data = offerDoc.data();
+        console.log("🚨 [DEBUG DB] Chaves da Oferta:", Object.keys(data || {}));
         console.log("🔍 [Pagarme] Dados brutos de Coprodutores da Oferta:", JSON.stringify(data?.coproducers, null, 2));
         if (data?.coproducers && Array.isArray(data.coproducers) && coproducers.length === 0) {
           coproducers = data.coproducers;
@@ -57,17 +58,35 @@ export const createPagarmeOrder = async (orderData: any, initialCoproducers: any
       }
     }
 
-    // 2. Se não encontrou coprodutores na oferta, tenta no Curso/Produto base
+    // 2. Se não encontrou coprodutores na oferta, tenta no Curso/Produto/Combo base
     if (coproducers.length === 0 && productId) {
-      console.log(`[Pagarme] Buscando regras no Curso/Produto: ${productId}`);
-      const courseDoc = await dbAdmin.collection('courses').doc(productId).get();
-      if (courseDoc.exists) {
-        const data = courseDoc.data();
-        console.log("🔍 [Pagarme] Dados brutos de Coprodutores do Curso:", JSON.stringify(data?.coproducers, null, 2));
-        if (data?.coproducers && Array.isArray(data.coproducers)) {
-          coproducers = data.coproducers;
-          console.log(`[Pagarme] ✅ ${coproducers.length} Coprodutores encontrados no Curso.`);
+      console.log(`[Pagarme] Buscando regras no Curso/Produto/Combo: ${productId}`);
+      
+      let productData = null;
+      let usedCollection = '';
+      
+      // Tenta em múltiplas coleções (cursos, combos ou produtos)
+      const collections = ['courses', 'combos', 'products'];
+      for (const coll of collections) {
+        const doc = await dbAdmin.collection(coll).doc(productId).get();
+        if (doc.exists) {
+          productData = doc.data();
+          usedCollection = coll;
+          break;
         }
+      }
+
+      if (productData) {
+        console.log(`🚨 [DEBUG DB] Encontrado na coleção: ${usedCollection}`);
+        console.log("🚨 [DEBUG DB] Chaves do Produto/Combo:", Object.keys(productData || {}));
+        console.log("🚨 [DEBUG DB] Estrutura do Produto/Combo:", JSON.stringify(productData));
+        
+        if (productData?.coproducers && Array.isArray(productData.coproducers)) {
+          coproducers = productData.coproducers;
+          console.log(`[Pagarme] ✅ ${coproducers.length} Coprodutores encontrados.`);
+        }
+      } else {
+        console.warn(`⚠️ [Pagarme] Produto/Curso/Combo ${productId} não encontrado em nenhuma coleção.`);
       }
     }
         
