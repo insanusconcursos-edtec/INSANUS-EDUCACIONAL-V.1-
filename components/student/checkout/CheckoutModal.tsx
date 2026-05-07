@@ -41,6 +41,7 @@ export default function CheckoutModal({ product, offerId, onClose, onSuccess }: 
     zipCode: '',
     street: '',
     number: '',
+    complement: '',
     neighborhood: '',
     city: '',
     state: ''
@@ -495,27 +496,28 @@ export default function CheckoutModal({ product, offerId, onClose, onSuccess }: 
                             </div>
 
                             <div className="space-y-4 pt-4 border-t border-zinc-800">
-                              <h4 className="text-[10px] font-black text-white uppercase tracking-widest">Endereço de Cobrança</h4>
+                              <div className="flex items-center justify-between">
+                                <h4 className="text-[10px] font-black text-white uppercase tracking-widest">Endereço de Cobrança</h4>
+                                {fetchingCep && (
+                                  <div className="flex items-center gap-2">
+                                    <Loader2 size={12} className="animate-spin text-red-500" />
+                                    <span className="text-[9px] text-zinc-500 font-bold uppercase">Buscando...</span>
+                                  </div>
+                                )}
+                              </div>
                               
                               <div className="grid grid-cols-2 gap-4">
                                 <div>
                                   <label className="text-[10px] font-black text-zinc-500 uppercase mb-1 block tracking-widest">CEP</label>
-                                  <div className="relative">
-                                    <input
-                                      type="text"
-                                      name="zipCode"
-                                      value={billingAddress.zipCode}
-                                      onChange={handleBillingChange}
-                                      placeholder="00000-000"
-                                      className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-red-600 transition-colors"
-                                      required
-                                    />
-                                    {fetchingCep && (
-                                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                                        <Loader2 size={14} className="animate-spin text-red-500" />
-                                      </div>
-                                    )}
-                                  </div>
+                                  <input
+                                    type="text"
+                                    name="zipCode"
+                                    value={billingAddress.zipCode}
+                                    onChange={handleBillingChange}
+                                    placeholder="00000-000"
+                                    className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-red-600 transition-colors"
+                                    required
+                                  />
                                 </div>
                                 <div>
                                   <label className="text-[10px] font-black text-zinc-500 uppercase mb-1 block tracking-widest">Número</label>
@@ -531,17 +533,30 @@ export default function CheckoutModal({ product, offerId, onClose, onSuccess }: 
                                 </div>
                               </div>
 
-                              <div>
-                                <label className="text-[10px] font-black text-zinc-500 uppercase mb-1 block tracking-widest">Rua / Logradouro</label>
-                                <input
-                                  type="text"
-                                  name="street"
-                                  value={billingAddress.street}
-                                  onChange={handleBillingChange}
-                                  placeholder="Nome da Rua"
-                                  className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-red-600 transition-colors"
-                                  required
-                                />
+                              <div className="grid grid-cols-3 gap-4">
+                                <div className="col-span-2">
+                                  <label className="text-[10px] font-black text-zinc-500 uppercase mb-1 block tracking-widest">Rua / Logradouro</label>
+                                  <input
+                                    type="text"
+                                    name="street"
+                                    value={billingAddress.street}
+                                    onChange={handleBillingChange}
+                                    placeholder="Nome da Rua"
+                                    className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-red-600 transition-colors disabled:opacity-50"
+                                    required
+                                    readOnly={!!billingAddress.street && fetchingCep === false && billingAddress.zipCode.length === 9}
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[10px] font-black text-zinc-500 uppercase mb-1 block tracking-widest">Comp.</label>
+                                  <input
+                                    type="text"
+                                    name="complement"
+                                    onChange={handleBillingChange}
+                                    placeholder="Apto/Bl"
+                                    className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-red-600 transition-colors"
+                                  />
+                                </div>
                               </div>
 
                               <div className="grid grid-cols-2 gap-4">
@@ -553,8 +568,9 @@ export default function CheckoutModal({ product, offerId, onClose, onSuccess }: 
                                     value={billingAddress.neighborhood}
                                     onChange={handleBillingChange}
                                     placeholder="Bairro"
-                                    className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-red-600 transition-colors"
+                                    className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-red-600 transition-colors disabled:opacity-50"
                                     required
+                                    readOnly={!!billingAddress.neighborhood && fetchingCep === false && billingAddress.zipCode.length === 9}
                                   />
                                 </div>
                                 <div className="grid grid-cols-3 gap-2">
@@ -566,8 +582,9 @@ export default function CheckoutModal({ product, offerId, onClose, onSuccess }: 
                                       value={billingAddress.city}
                                       onChange={handleBillingChange}
                                       placeholder="Cidade"
-                                      className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-red-600 transition-colors"
+                                      className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-red-600 transition-colors disabled:opacity-50"
                                       required
+                                      readOnly={!!billingAddress.city && fetchingCep === false && billingAddress.zipCode.length === 9}
                                     />
                                   </div>
                                   <div>
@@ -579,8 +596,9 @@ export default function CheckoutModal({ product, offerId, onClose, onSuccess }: 
                                       onChange={handleBillingChange}
                                       placeholder="SP"
                                       maxLength={2}
-                                      className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-2 py-3 text-white text-sm focus:outline-none focus:border-red-600 transition-colors text-center uppercase"
+                                      className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-2 py-3 text-white text-sm focus:outline-none focus:border-red-600 transition-colors text-center uppercase disabled:opacity-50"
                                       required
+                                      readOnly={!!billingAddress.state && fetchingCep === false && billingAddress.zipCode.length === 9}
                                     />
                                   </div>
                                 </div>
