@@ -19,112 +19,6 @@ const INSTALLMENT_MULTIPLIERS: Record<number, number> = {
   9: 1.18081, 10: 1.20090, 11: 1.22100, 12: 1.24109
 };
 
-/**
- * Calculates financial distribution in cascade:
- * Total -> Fees -> Affiliate -> Coproducers -> Master
- */
-const calculateCascadeSplits = (
-  totalAmountCents: number,
-  method: string,
-  installments: number,
-  affiliateData: { percentage: number, recipientId: string } | null,
-  coproducers: any[]
-) => {
-  // 1. Calculate Pagarme Fees
-  let pagarmeFee = GATEWAY_FEE;
-  if (method === 'credit_card') {
-    const rate = CC_RATES[installments] || CC_RATES[1];
-    pagarmeFee += Math.round(totalAmountCents * rate);
-  } else if (method === 'pix') {
-    pagarmeFee += Math.round(totalAmountCents * PIX_RATE);
-  } else if (method === 'ticket') {
-    pagarmeFee += BOLETO_FEE;
-  }
-
-  // 2. Post-Fee Value
-  const postFeeValue = totalAmountCents - pagarmeFee;
-  const splits = [];
-  let totalDistributed = 0;
-
-  // 3. Affiliate Commission (on Post-Fee Value)
-  if (affiliateData && affiliateData.recipientId && affiliateData.percentage > 0) {
-    const affiliateAmount = Math.floor(postFeeValue * (affiliateData.percentage / 100));
-    if (affiliateAmount > 0) {
-      splits.push({
-        amount: affiliateAmount,
-        recipient_id: affiliateData.recipientId,
-        type: 'flat',
-        options: {
-          charge_processing_fee: false,
-          charge_remainder_fee: false,
-          liable: true
-        }
-      });
-      totalDistributed += affiliateAmount;
-    }
-  }
-
-  // 4. Coproducers Commission (on what's left after Affiliate)
-  const remainingAfterAffiliate = postFeeValue - totalDistributed;
-  
-  if (coproducers && coproducers.length > 0) {
-    console.log(`[Pagarme] 🛠️ Processando split para ${coproducers.length} coprodutores. Valor base: ${remainingAfterAffiliate / 100}`);
-  }
-
-  for (const copro of coproducers) {
-    console.log("[Pagarme] 🔍 Analisando coprodutor na iteração:", JSON.stringify(copro, null, 2));
-
-    // Validação rigorosa do ID do recebedor Pagar.me
-    if (!copro.pagarmeRecipientId || !copro.pagarmeRecipientId.startsWith('re_') || copro.isActive === false) {
-      console.warn(`⚠️ [Pagarme] Coprodutor ${copro.coproducerName || 'sem nome'} ignorado no split: ID inválido (${copro.pagarmeRecipientId}), incompleto ou inativo.`);
-      continue;
-    }
-    
-    const coproPercentage = Number(copro.percentage) || 0;
-    const coproAmount = Math.floor(remainingAfterAffiliate * (coproPercentage / 100));
-    
-    if (coproAmount > 0) {
-      console.log(`[Pagarme] ✅ Adicionando split de ${coproPercentage}% (${coproAmount / 100}) para ${copro.coproducerName}`);
-      splits.push({
-        amount: coproAmount,
-        recipient_id: copro.pagarmeRecipientId,
-        type: 'flat',
-        options: {
-          charge_processing_fee: false,
-          charge_remainder_fee: false,
-          liable: true
-        }
-      });
-      totalDistributed += coproAmount;
-    } else {
-      console.warn(`⚠️ [Pagarme] Coprodutor ${copro.coproducerName} resultou em valor R$ 0,00 e foi ignorado.`);
-    }
-  }
-
-  // 5. Master Split (Remainder covering fees)
-  // Master gets: Total - (Affiliate + Coproducers)
-  // Pagar.me will then deduct the real fees from Master's balance because charge_processing_fee: true
-  const masterRecipientId = process.env.PAGARME_MASTER_RECIPIENT_ID;
-  const masterAmount = totalAmountCents - totalDistributed;
-
-  if (masterRecipientId) {
-    splits.push({
-      amount: masterAmount,
-      recipient_id: masterRecipientId,
-      type: 'flat',
-      options: {
-        charge_processing_fee: true,
-        charge_remainder_fee: true,
-        liable: true
-      }
-    });
-  } else {
-    console.error("❌ [Pagarme] PAGARME_MASTER_RECIPIENT_ID não configurado! Split pode falhar.");
-  }
-
-  return splits;
-};
-
 const getHeaders = () => {
   const secretKey = process.env.PAGARME_SECRET_KEY;
   if (!secretKey) throw new Error('PAGARME_SECRET_KEY not found in environment');
@@ -207,26 +101,56 @@ export const createPagarmeOrder = async (orderData: any, initialCoproducers: any
   // Pagar.me works with cents
   const totalAmountCents = Math.round(totalAmountWithInterest * 100);
   
-  // Prepare Cascade Splits
-  const finalAffiliateData = affiliateDataFromDB || (orderData.affiliateId && orderData.affiliateRecipientId ? {
-    percentage: Number(orderData.affiliatePercentage) || 0,
-    recipientId: orderData.affiliateRecipientId
-  } : null);
+  // 🔴 REESCRITA OBRIGATÓRIA (Backend):
+  
+  // 1. Captura e Log Forçado:
+  const coprodutores = coproducers || [];
+  console.log("🚨 [DEBUG SPLIT] Coprodutores encontrados:", JSON.stringify(coprodutores));
 
-  const splits = calculateCascadeSplits(
-    totalAmountCents,
-    orderData.payment_method,
-    installments,
-    finalAffiliateData,
-    coproducers
-  );
+  // 2. Variáveis de Controle:
+  let totalSplitAmount = 0;
+  const splitArray: any[] = [];
+  const totalTransactionAmount = totalAmountCents;
 
-  // Log Split Payload specifically for debugging as requested
-  if (splits.length > 0) {
-    console.log("🚀 Payload de Split preparado:", JSON.stringify(splits, null, 2));
+  // 3. O Loop de Divisão:
+  if (coprodutores.length > 0) {
+    coprodutores.forEach((copro: any) => {
+      // Verifica se tem o ID da Pagar.me e se é válido
+      if (copro.pagarmeRecipientId && copro.pagarmeRecipientId.startsWith('re_')) {
+        const coproFatia = Math.floor(totalTransactionAmount * (Number(copro.percentage) / 100));
+        splitArray.push({
+          amount: coproFatia,
+          recipient_id: copro.pagarmeRecipientId,
+          type: 'flat',
+          options: { charge_processing_fee: false, charge_remainder_fee: false, liable: true }
+        });
+        totalSplitAmount += coproFatia;
+        console.log(`✅ [DEBUG SPLIT] Adicionado ${coproFatia} centavos para ${copro.pagarmeRecipientId}`);
+      } else {
+        console.log(`❌ [DEBUG SPLIT] Coprodutor ignorado. ID Pagar.me inválido ou ausente:`, JSON.stringify(copro));
+      }
+    });
   }
 
-  // 3. Build Payload
+  // 4. O Restante para a Master:
+  const remainderMaster = totalTransactionAmount - totalSplitAmount;
+  const masterRecipientId = process.env.PAGARME_MASTER_RECIPIENT_ID;
+
+  if (masterRecipientId) {
+    splitArray.push({
+      amount: remainderMaster,
+      recipient_id: masterRecipientId,
+      type: 'flat',
+      options: { charge_processing_fee: true, charge_remainder_fee: true, liable: true }
+    });
+    console.log(`✅ [DEBUG SPLIT] Adicionado resto de ${remainderMaster} centavos para a conta Master (${masterRecipientId})`);
+  } else {
+    console.error("❌ [DEBUG SPLIT] PAGARME_MASTER_RECIPIENT_ID não configurado! Split pode falhar.");
+  }
+
+  console.log("🚨 [DEBUG SPLIT] Array Final de Split:", JSON.stringify(splitArray));
+
+  // 3. Build Payload (Update: using the new splitArray)
   const payload: any = {
     items: [
       {
@@ -269,8 +193,8 @@ export const createPagarmeOrder = async (orderData: any, initialCoproducers: any
         } : {
             expires_in: 86400 * 3 // 3 days
         }),
-        split: splits.length > 0 ? splits : undefined,
-        splits: splits.length > 0 ? splits : undefined
+        split: splitArray.length > 0 ? splitArray : undefined,
+        splits: splitArray.length > 0 ? splitArray : undefined
       }
     ],
     metadata: orderData.metadata
