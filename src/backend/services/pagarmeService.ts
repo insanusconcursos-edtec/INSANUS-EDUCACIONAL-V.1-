@@ -233,6 +233,13 @@ export const createPagarmeOrder = async (orderData: any, initialCoproducers: any
               exp_month: orderData.card_expiration_month,
               exp_year: orderData.card_expiration_year,
               cvv: orderData.card_cvv
+            },
+            billing_address: {
+              line_1: "Rua Ficticia, 123",
+              zip_code: "01001000",
+              city: "São Paulo",
+              state: "SP",
+              country: "BR"
             }
         } : (orderData.payment_method === 'pix' ? {
             expires_in: 1800 // 30 minutes
@@ -271,6 +278,9 @@ export const createPagarmeOrder = async (orderData: any, initialCoproducers: any
       const declineReason = charge.last_transaction?.acquirer_message || charge.last_transaction?.status_details || 'Pagamento recusado pelo banco emissor.';
       console.warn('[Pagarme] Payment Refused:', declineReason);
       
+      // Detalhamento do erro conforme solicitado pelo usuário
+      console.error("🚨 [PAGARME CC ERRO DETALHADO]:", JSON.stringify(result.charges, null, 2));
+      
       const error = new Error(declineReason);
       (error as any).status = 'failed';
       (error as any).pagarmeResponse = result;
@@ -302,7 +312,11 @@ export const createPagarmeOrder = async (orderData: any, initialCoproducers: any
 
     return result;
   } catch (error: any) {
-    console.error('[Pagarme] fetch error:', error);
+    console.error('[Pagarme] fetch error details:', {
+      message: error.message,
+      stack: error.stack,
+      pagarmeResponse: error.pagarmeResponse ? JSON.stringify(error.pagarmeResponse.charges, null, 2) : 'N/A'
+    });
     throw error;
   }
 };
