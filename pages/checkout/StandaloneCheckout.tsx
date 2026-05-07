@@ -474,12 +474,14 @@ export default function StandaloneCheckout() {
                          <span>Oferta Selecionada</span>
                          <span className="text-white">{offer.name}</span>
                       </div>
-                      <div className="flex justify-between items-center text-zinc-500 text-[10px] font-bold uppercase tracking-widest">
-                         <span>Valor Original</span>
-                         <span className="line-through decoration-red-600 decoration-2">
-                           {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(offer.price * 1.5)}
-                         </span>
-                      </div>
+                      {offer.originalPrice && offer.originalPrice > 0 && (
+                        <div className="flex justify-between items-center text-zinc-500 text-[10px] font-bold uppercase tracking-widest">
+                           <span>Valor Original</span>
+                           <span className="line-through decoration-red-600 decoration-2">
+                             {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(offer.originalPrice)}
+                           </span>
+                        </div>
+                      )}
                       <div className="h-px bg-zinc-800/50" />
                       <div className="flex justify-between items-end">
                         <div className="space-y-1">

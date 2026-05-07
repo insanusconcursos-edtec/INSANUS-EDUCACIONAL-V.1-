@@ -131,6 +131,11 @@ export default function CheckoutModal({ product, offerId, onClose, onSuccess }: 
                 </div>
                 <div className="mt-4 p-4 bg-zinc-900/50 border border-zinc-800 rounded-xl">
                    <p className="text-[10px] font-black text-zinc-500 uppercase mb-1">Total a pagar:</p>
+                   {currentOffer?.originalPrice && currentOffer.originalPrice > 0 && (
+                     <p className="text-[10px] text-zinc-500 line-through decoration-red-600 mb-1">
+                        De {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(currentOffer.originalPrice)}
+                     </p>
+                   )}
                    <p className="text-2xl font-black text-white tracking-tighter">
                       {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(price)}
                    </p>
