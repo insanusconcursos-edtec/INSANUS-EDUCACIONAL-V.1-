@@ -1,6 +1,106 @@
 
 const PAGARME_API_URL = 'https://api.pagar.me/core/v5/orders';
 
+// Pagar.me Fees (in cents)
+const GATEWAY_FEE = 40; // R$ 0,40
+const BOLETO_FEE = 319; // R$ 3,19
+const PIX_RATE = 0.012; // 1.20%
+const CC_RATES: Record<number, number> = {
+  1: 0.0516, 2: 0.0353, 3: 0.0316, 4: 0.0285, 5: 0.0258, 6: 0.0238,
+  7: 0.0274, 8: 0.0265, 9: 0.0262, 10: 0.0263, 11: 0.0271, 12: 0.0285
+};
+
+/**
+ * Calculates financial distribution in cascade:
+ * Total -> Fees -> Affiliate -> Coproducers -> Master
+ */
+const calculateCascadeSplits = (
+  totalAmountCents: number,
+  method: string,
+  installments: number,
+  affiliateData: { percentage: number, recipientId: string } | null,
+  coproducers: any[]
+) => {
+  // 1. Calculate Pagarme Fees
+  let pagarmeFee = GATEWAY_FEE;
+  if (method === 'credit_card') {
+    const rate = CC_RATES[installments] || CC_RATES[1];
+    pagarmeFee += Math.round(totalAmountCents * rate);
+  } else if (method === 'pix') {
+    pagarmeFee += Math.round(totalAmountCents * PIX_RATE);
+  } else if (method === 'ticket') {
+    pagarmeFee += BOLETO_FEE;
+  }
+
+  // 2. Post-Fee Value
+  const postFeeValue = totalAmountCents - pagarmeFee;
+  const splits = [];
+  let totalDistributed = 0;
+
+  // 3. Affiliate Commission (on Post-Fee Value)
+  if (affiliateData && affiliateData.recipientId && affiliateData.percentage > 0) {
+    const affiliateAmount = Math.floor(postFeeValue * (affiliateData.percentage / 100));
+    if (affiliateAmount > 0) {
+      splits.push({
+        amount: affiliateAmount,
+        recipient_id: affiliateData.recipientId,
+        type: 'flat',
+        options: {
+          charge_processing_fee: false,
+          charge_remainder_fee: false,
+          liable: true
+        }
+      });
+      totalDistributed += affiliateAmount;
+    }
+  }
+
+  // 4. Coproducers Commission (on what's left after Affiliate)
+  const remainingAfterAffiliate = postFeeValue - totalDistributed;
+  
+  for (const copro of coproducers) {
+    if (!copro.pagarmeRecipientId || copro.isActive === false) continue;
+    
+    const coproPercentage = Number(copro.percentage) || 0;
+    const coproAmount = Math.floor(remainingAfterAffiliate * (coproPercentage / 100));
+    
+    if (coproAmount > 0) {
+      splits.push({
+        amount: coproAmount,
+        recipient_id: copro.pagarmeRecipientId,
+        type: 'flat',
+        options: {
+          charge_processing_fee: false,
+          charge_remainder_fee: false,
+          liable: true
+        }
+      });
+      totalDistributed += coproAmount;
+    }
+  }
+
+  // 5. Master Split (Remainder covering fees)
+  // Master gets: Total - (Affiliate + Coproducers)
+  // Pagar.me will then deduct the real fees from Master's balance because charge_processing_fee: true
+  const masterRecipientId = process.env.PAGARME_MASTER_RECIPIENT_ID;
+  const masterAmount = totalAmountCents - totalDistributed;
+
+  if (masterRecipientId) {
+    splits.push({
+      amount: masterAmount,
+      recipient_id: masterRecipientId,
+      type: 'flat',
+      options: {
+        charge_processing_fee: true,
+        charge_remainder_fee: true,
+        liable: true
+      }
+    });
+  }
+
+  return splits;
+};
+
 const getHeaders = () => {
   const secretKey = process.env.PAGARME_SECRET_KEY;
   if (!secretKey) throw new Error('PAGARME_SECRET_KEY not found in environment');
@@ -19,53 +119,19 @@ export const createPagarmeOrder = async (orderData: any, coproducers: any[] = []
   // Pagar.me works with cents
   const totalAmountCents = Math.round(Number(orderData.transaction_amount) * 100);
   
-  // 1. Prepare Split
-  const splits = [];
-  let allocatedAmount = 0;
+  // Prepare Cascade Splits
+  const affiliateData = orderData.affiliateId && orderData.affiliateRecipientId ? {
+    percentage: Number(orderData.affiliatePercentage) || 0,
+    recipientId: orderData.affiliateRecipientId
+  } : null;
 
-  // Filter valid coproducers with Pagar.me Recipient ID
-  const validCoproducers = coproducers.filter(c => c.pagarmeRecipientId && c.isActive !== false);
-
-  for (const copro of validCoproducers) {
-    const sharePercentage = Number(copro.percentage) || 0;
-    const shareAmount = Math.round(totalAmountCents * (sharePercentage / 100));
-    
-    if (shareAmount > 0) {
-      splits.push({
-        amount: shareAmount,
-        recipient_id: copro.pagarmeRecipientId,
-        type: 'flat',
-        options: {
-          charge_processing_fee: true,
-          charge_remainder_fee: true,
-          liable: true
-        }
-      });
-      allocatedAmount += shareAmount;
-    }
-  }
-
-  // 2. Master Split (Remainder)
-  // If there's a remaining amount, it must go to the main recipient (Master)
-  // We assume the Master Recipient ID is provided in orderData or environment
-  const masterRecipientId = process.env.PAGARME_MASTER_RECIPIENT_ID;
-  const remainder = totalAmountCents - allocatedAmount;
-
-  if (remainder > 0 && masterRecipientId) {
-    splits.push({
-      amount: remainder,
-      recipient_id: masterRecipientId,
-      type: 'flat',
-      options: {
-        charge_processing_fee: true,
-        charge_remainder_fee: true,
-        liable: true
-      }
-    });
-  } else if (remainder > 0 && splits.length > 0) {
-    // If no master ID but we have other splits, add remainder to the first one to avoid rounding errors
-    splits[0].amount += remainder;
-  }
+  const splits = calculateCascadeSplits(
+    totalAmountCents,
+    orderData.payment_method,
+    orderData.installments || 1,
+    affiliateData,
+    coproducers
+  );
 
   // 3. Build Payload
   const payload: any = {
