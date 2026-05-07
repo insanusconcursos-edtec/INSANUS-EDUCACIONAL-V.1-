@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
-import { X, ShieldCheck, CreditCard, Lock } from 'lucide-react';
+import { X, ShieldCheck, CreditCard, Lock, QrCode, Copy, Check, CheckCircle2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { createPagarmePayment } from '../../../services/paymentService';
 import { TictoProduct } from '../../../types/product';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -16,6 +17,9 @@ interface CheckoutModalProps {
 export default function CheckoutModal({ product, offerId, onClose, onSuccess }: CheckoutModalProps) {
   const { currentUser } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<'credit_card' | 'pix'>('credit_card');
+  const [pixData, setPixData] = useState<{ qr_code: string; qr_code_url: string } | null>(null);
+  const [copied, setCopied] = useState(false);
   const [cardData, setCardData] = useState({
     number: '',
     holderName: '',
@@ -62,31 +66,43 @@ export default function CheckoutModal({ product, offerId, onClose, onSuccess }: 
       const paymentData = {
         transaction_amount: price,
         description: `Compra de ${product.name}${currentOffer ? ` - ${currentOffer.name}` : ''}`,
-        payment_method: 'credit_card',
-        card_number: cardData.number.replace(/\s/g, ''),
-        card_holder_name: cardData.holderName,
-        card_expiration_month: cardData.expiryMonth,
-        card_expiration_year: cardData.expiryYear.length === 2 ? `20${cardData.expiryYear}` : cardData.expiryYear,
-        card_cvv: cardData.cvv,
-        installments: 1,
+        payment_method: paymentMethod,
+        ...(paymentMethod === 'credit_card' && {
+          card_number: cardData.number.replace(/\s/g, ''),
+          card_holder_name: cardData.holderName,
+          card_expiration_month: cardData.expiryMonth,
+          card_expiration_year: cardData.expiryYear.length === 2 ? `20${cardData.expiryYear}` : cardData.expiryYear,
+          card_cvv: cardData.cvv,
+          installments: 1,
+        }),
         payer: {
-          name: currentUser?.displayName || cardData.holderName,
+          name: currentUser?.displayName || cardData.holderName || (currentUser as any)?.name || 'Estudante',
           email: currentUser?.email || 'aluno@exemplo.com',
           document: currentUser?.cpf || '00000000000',
         },
         metadata: {
           courseId: product.id!,
           offerId: currentOffer?.id || 'default',
-          userName: currentUser?.displayName || cardData.holderName,
+          userName: currentUser?.displayName || cardData.holderName || (currentUser as any)?.name || 'Estudante',
           userPhone: (currentUser as any)?.phone || '11999999999',
+          userCpf: currentUser?.cpf || '',
         },
       };
 
-      await createPagarmePayment(paymentData);
+      const result = await createPagarmePayment(paymentData);
       
-      toast.success('Pedido processado com sucesso!');
-      onSuccess();
-      onClose();
+      if (result.success) {
+        if (paymentMethod === 'pix' && result.pix) {
+          setPixData(result.pix);
+          toast.success('PIX gerado com sucesso!');
+        } else {
+          toast.success('Pedido processado com sucesso!');
+          onSuccess();
+          onClose();
+        }
+      } else {
+        toast.error(result.message || 'Erro ao processar o pagamento.');
+      }
     } catch (error: any) {
       console.error('Payment error:', error);
       toast.error(error.message || 'Erro ao processar o pagamento.');
@@ -143,106 +159,208 @@ export default function CheckoutModal({ product, offerId, onClose, onSuccess }: 
              </div>
 
              <div className="md:col-span-2">
-                <form onSubmit={handlePayment} className="space-y-4">
-                   <div>
-                      <label className="text-[10px] font-black text-zinc-500 uppercase mb-1 block tracking-widest">Número do Cartão</label>
-                      <div className="relative">
-                        <input
-                          type="text"
-                          name="number"
-                          value={cardData.number}
-                          onChange={handleInputChange}
-                          placeholder="0000 0000 0000 0000"
-                          className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-red-600 transition-colors"
-                          required
-                        />
-                        <div className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-600">
-                          <CreditCard size={18} />
+                <AnimatePresence mode="wait">
+                  {pixData ? (
+                    <motion.div
+                      key="pix-screen"
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      className="space-y-6"
+                    >
+                      <div className="flex flex-col items-center gap-6 p-6 bg-zinc-900/50 rounded-2xl border border-zinc-800">
+                        <div className="bg-white p-2 rounded-xl">
+                          <img src={pixData.qr_code_url} alt="QR Code PIX" className="w-40 h-40" />
                         </div>
-                      </div>
-                   </div>
-
-                   <div>
-                      <label className="text-[10px] font-black text-zinc-500 uppercase mb-1 block tracking-widest">Nome do Titular</label>
-                      <input
-                        type="text"
-                        name="holderName"
-                        value={cardData.holderName}
-                        onChange={handleInputChange}
-                        placeholder="NOME COMO NO CARTÃO"
-                        className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-red-600 transition-colors uppercase"
-                        required
-                      />
-                   </div>
-
-                   <div className="grid grid-cols-2 gap-4">
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="text-[10px] font-black text-zinc-500 uppercase mb-1 block tracking-widest">Mês (MM)</label>
-                          <input
-                            type="text"
-                            name="expiryMonth"
-                            value={cardData.expiryMonth}
-                            onChange={handleInputChange}
-                            placeholder="MM"
-                            className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-red-600 transition-colors text-center"
-                            required
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[10px] font-black text-zinc-500 uppercase mb-1 block tracking-widest">Ano (AA)</label>
-                          <input
-                            type="text"
-                            name="expiryYear"
-                            value={cardData.expiryYear}
-                            onChange={handleInputChange}
-                            placeholder="AA"
-                            className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-red-600 transition-colors text-center"
-                            required
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-black text-zinc-500 uppercase mb-1 block tracking-widest">CVV</label>
-                        <div className="relative">
-                          <input
-                            type="text"
-                            name="cvv"
-                            value={cardData.cvv}
-                            onChange={handleInputChange}
-                            placeholder="123"
-                            className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-red-600 transition-colors text-center"
-                            required
-                          />
-                          <div className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-600">
-                            <Lock size={14} />
+                        
+                        <div className="w-full space-y-3">
+                          <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-1">Pix Copia e Cola</label>
+                          <div className="relative">
+                            <input 
+                              type="text" 
+                              readOnly 
+                              value={pixData.qr_code}
+                              className="w-full bg-zinc-950 border border-zinc-800 rounded-xl pl-4 pr-12 py-3 text-[10px] text-zinc-400 font-mono focus:outline-none"
+                            />
+                            <button 
+                              onClick={() => {
+                                navigator.clipboard.writeText(pixData.qr_code);
+                                setCopied(true);
+                                toast.success("Código PIX copiado!");
+                                setTimeout(() => setCopied(false), 2000);
+                              }}
+                              className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-all"
+                            >
+                              {copied ? <Check size={14} /> : <Copy size={14} />}
+                            </button>
                           </div>
                         </div>
                       </div>
-                   </div>
 
-                   <button
-                     type="submit"
-                     disabled={loading}
-                     className="w-full mt-4 bg-red-600 hover:bg-red-700 text-white font-black py-4 rounded-xl transition-all uppercase tracking-widest text-sm disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-red-600/20"
-                   >
-                     {loading ? (
-                       <>
-                         <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                         Processando...
-                       </>
-                     ) : (
-                       <>
-                         <ShieldCheck size={18} />
-                         Finalizar Pagamento
-                       </>
-                     )}
-                   </button>
-                   
-                   <p className="text-[9px] text-zinc-600 text-center uppercase font-bold tracking-widest">
-                     Pagamento processado de forma segura via Pagar.me
-                   </p>
-                </form>
+                      <div className="space-y-4">
+                        <div className="flex items-start gap-3">
+                          <div className="mt-1 w-5 h-5 bg-emerald-500/20 text-emerald-500 rounded-full flex items-center justify-center shrink-0">
+                            <CheckCircle2 size={12} />
+                          </div>
+                          <p className="text-[11px] text-zinc-400 leading-relaxed">
+                            <strong className="text-zinc-200">Liberação Imediata:</strong> O curso será liberado em sua conta assim que o PIX for confirmado.
+                          </p>
+                        </div>
+                      </div>
+
+                      <button 
+                        onClick={() => {
+                          onSuccess();
+                          onClose();
+                        }}
+                        className="w-full bg-zinc-800 hover:bg-zinc-700 text-white font-black py-4 rounded-xl transition-all uppercase tracking-widest text-xs"
+                      >
+                        Já paguei, ver meus cursos
+                      </button>
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key="payment-form"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="space-y-6"
+                    >
+                      {/* Method Selector */}
+                      <div className="grid grid-cols-2 gap-3 mb-6">
+                        <button
+                          type="button"
+                          onClick={() => setPaymentMethod('credit_card')}
+                          className={`flex items-center justify-center gap-3 p-3 rounded-xl border transition-all ${paymentMethod === 'credit_card' ? 'bg-red-600/10 border-red-600 text-white' : 'bg-zinc-900 border-zinc-800 text-zinc-500 hover:border-zinc-700'}`}
+                        >
+                          <CreditCard size={16} />
+                          <span className="text-[10px] font-black uppercase tracking-widest">Cartão</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPaymentMethod('pix')}
+                          className={`flex items-center justify-center gap-3 p-3 rounded-xl border transition-all ${paymentMethod === 'pix' ? 'bg-red-600/10 border-red-600 text-white' : 'bg-zinc-900 border-zinc-800 text-zinc-500 hover:border-zinc-700'}`}
+                        >
+                          <QrCode size={16} />
+                          <span className="text-[10px] font-black uppercase tracking-widest">PIX</span>
+                        </button>
+                      </div>
+
+                      <form onSubmit={handlePayment} className="space-y-4">
+                        {paymentMethod === 'credit_card' ? (
+                          <div className="space-y-4">
+                            <div>
+                              <label className="text-[10px] font-black text-zinc-500 uppercase mb-1 block tracking-widest">Número do Cartão</label>
+                              <div className="relative">
+                                <input
+                                  type="text"
+                                  name="number"
+                                  value={cardData.number}
+                                  onChange={handleInputChange}
+                                  placeholder="0000 0000 0000 0000"
+                                  className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-red-600 transition-colors"
+                                  required
+                                />
+                                <div className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-600">
+                                  <CreditCard size={18} />
+                                </div>
+                              </div>
+                            </div>
+
+                            <div>
+                              <label className="text-[10px] font-black text-zinc-500 uppercase mb-1 block tracking-widest">Nome do Titular</label>
+                              <input
+                                type="text"
+                                name="holderName"
+                                value={cardData.holderName}
+                                onChange={handleInputChange}
+                                placeholder="NOME COMO NO CARTÃO"
+                                className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-red-600 transition-colors uppercase"
+                                required
+                              />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <label className="text-[10px] font-black text-zinc-500 uppercase mb-1 block tracking-widest">Mês (MM)</label>
+                                  <input
+                                    type="text"
+                                    name="expiryMonth"
+                                    value={cardData.expiryMonth}
+                                    onChange={handleInputChange}
+                                    placeholder="MM"
+                                    className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-red-600 transition-colors text-center"
+                                    required
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[10px] font-black text-zinc-500 uppercase mb-1 block tracking-widest">Ano (AA)</label>
+                                  <input
+                                    type="text"
+                                    name="expiryYear"
+                                    value={cardData.expiryYear}
+                                    onChange={handleInputChange}
+                                    placeholder="AA"
+                                    className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-red-600 transition-colors text-center"
+                                    required
+                                  />
+                                </div>
+                              </div>
+                              <div>
+                                <label className="text-[10px] font-black text-zinc-500 uppercase mb-1 block tracking-widest">CVV</label>
+                                <div className="relative">
+                                  <input
+                                    type="text"
+                                    name="cvv"
+                                    value={cardData.cvv}
+                                    onChange={handleInputChange}
+                                    placeholder="123"
+                                    className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-red-600 transition-colors text-center"
+                                    required
+                                  />
+                                  <div className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-600">
+                                    <Lock size={14} />
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="py-10 text-center space-y-4">
+                            <div className="w-16 h-16 bg-red-600/10 rounded-full flex items-center justify-center text-red-500 mx-auto">
+                              <QrCode size={32} />
+                            </div>
+                            <div>
+                              <h4 className="text-white font-black uppercase tracking-tighter">Confirmar Pagamento PIX</h4>
+                              <p className="text-zinc-500 text-xs mt-2">Um QR Code será gerado para pagamento imediato.</p>
+                            </div>
+                          </div>
+                        )}
+
+                        <button
+                          type="submit"
+                          disabled={loading}
+                          className="w-full mt-4 bg-red-600 hover:bg-red-700 text-white font-black py-4 rounded-xl transition-all uppercase tracking-widest text-sm disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-red-600/20"
+                        >
+                          {loading ? (
+                            <>
+                              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                              Processando...
+                            </>
+                          ) : (
+                            <>
+                              {paymentMethod === 'credit_card' ? <ShieldCheck size={18} /> : <QrCode size={18} />}
+                              <span>{paymentMethod === 'credit_card' ? 'Finalizar Pagamento' : 'Gerar QR Code PIX'}</span>
+                            </>
+                          )}
+                        </button>
+                        
+                        <p className="text-[9px] text-zinc-600 text-center uppercase font-bold tracking-widest">
+                          Pagamento processado de forma segura via Pagar.me
+                        </p>
+                      </form>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
              </div>
           </div>
 

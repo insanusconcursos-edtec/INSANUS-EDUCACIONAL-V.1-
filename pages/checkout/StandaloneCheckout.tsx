@@ -6,7 +6,8 @@ import { SystemLogo } from '../../components/common/SystemLogo';
 import { useAuth } from '../../contexts/AuthContext';
 import { toast } from 'react-hot-toast';
 import { createPagarmePayment } from '../../services/paymentService';
-import { Loader2, ShieldCheck, CreditCard, QrCode, Lock } from 'lucide-react';
+import { Loader2, ShieldCheck, CreditCard, QrCode, Lock, Copy, Check, CheckCircle2, ArrowRight } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 
 export default function StandaloneCheckout() {
   const { offerId } = useParams<{ offerId: string }>();
@@ -21,6 +22,8 @@ export default function StandaloneCheckout() {
   const [paymentMethod, setPaymentMethod] = useState<'credit_card' | 'pix' | 'ticket'>('credit_card');
   const [isProcessing, setIsProcessing] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [pixData, setPixData] = useState<{ qr_code: string; qr_code_url: string } | null>(null);
+  const [copied, setCopied] = useState(false);
   
   // Credit Card States
   const [cardNumber, setCardNumber] = useState('');
@@ -162,9 +165,14 @@ export default function StandaloneCheckout() {
       const result = await createPagarmePayment(paymentData);
       
       if (result.success) {
-        toast.success("Pagamento aprovado com sucesso!");
-        // Redireciona para a página de obrigado
-        window.location.href = '/obrigado';
+        if (paymentMethod === 'pix' && result.pix) {
+          setPixData(result.pix);
+          toast.success("PIX gerado com sucesso! Pague para liberar seu acesso.");
+        } else {
+          toast.success("Pagamento aprovado com sucesso!");
+          // Redireciona para a página de obrigado
+          window.location.href = '/obrigado';
+        }
       } else {
         setErrorMessage(result.message || 'Erro ao processar pagamento');
       }
@@ -175,6 +183,15 @@ export default function StandaloneCheckout() {
       toast.error(msg);
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  const handleCopyPix = () => {
+    if (pixData?.qr_code) {
+      navigator.clipboard.writeText(pixData.qr_code);
+      setCopied(true);
+      toast.success("Código PIX copiado!");
+      setTimeout(() => setCopied(false), 2000);
     }
   };
 
@@ -217,264 +234,340 @@ export default function StandaloneCheckout() {
       <main className="max-w-6xl mx-auto px-4 pb-20 mt-4">
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-8 items-start">
           
-          {/* LADO ESQUERDO: Formulário Multi-etapas */}
+          {/* LADO ESQUERDO: Formulário Multi-etapas / Tela PIX */}
           <div className="bg-[#121212] border border-zinc-800 rounded-3xl p-6 md:p-10 shadow-2xl order-2 lg:order-1">
-              <div className="flex items-center justify-between border-b border-zinc-800 pb-8">
-                <div className="flex items-center gap-2">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs transition-all ${currentStep === 1 ? 'bg-red-600 text-white shadow-lg shadow-red-600/20' : 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'}`}>
-                    {currentStep === 1 ? '01' : <ShieldCheck size={16} />}
-                  </div>
-                  <div className="h-px w-4 bg-zinc-800" />
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs transition-all ${currentStep === 2 ? 'bg-red-600 text-white shadow-lg shadow-red-600/20' : 'bg-zinc-800 text-zinc-500 border border-zinc-700'}`}>
-                    02
-                  </div>
-                </div>
-                <div className="text-right">
-                   <h3 className="text-lg font-black uppercase tracking-tight leading-none mb-1 text-white">
-                     {currentStep === 1 ? 'Dados Pessoais' : 'Pagamento'}
-                   </h3>
-                   <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest">Passo {currentStep} de 2</p>
-                </div>
-            </div>
-
-            {currentStep === 1 ? (
-              <div className="space-y-6">
-                <div className="space-y-4">
-                  <div className="space-y-1.5 pt-6">
-                    <label className="text-[11px] font-black text-zinc-400 uppercase tracking-widest ml-1">Nome Completo</label>
-                    <input 
-                      type="text"
-                      className={`w-full bg-zinc-950 border ${formErrors.name ? 'border-red-500' : 'border-zinc-800'} rounded-xl px-4 py-3.5 text-white font-semibold focus:outline-none focus:ring-2 focus:ring-red-600/20 transition-all placeholder:text-zinc-700`}
-                      placeholder="Como no seu documento"
-                      value={buyerData.name}
-                      onChange={(e) => setBuyerData({...buyerData, name: e.target.value})}
-                    />
-                    {formErrors.name && <p className="text-[10px] text-red-500 font-bold ml-1">{formErrors.name}</p>}
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-[11px] font-black text-zinc-400 uppercase tracking-widest ml-1">Seu melhor E-mail</label>
-                      <input 
-                        type="email"
-                        className={`w-full bg-zinc-950 border ${formErrors.email ? 'border-red-500' : 'border-zinc-800'} rounded-xl px-4 py-3.5 text-white font-semibold focus:outline-none focus:ring-2 focus:ring-red-600/20 transition-all placeholder:text-zinc-700`}
-                        placeholder="exemplo@email.com"
-                        value={buyerData.email}
-                        onChange={(e) => setBuyerData({...buyerData, email: e.target.value})}
-                      />
-                      {formErrors.email && <p className="text-[10px] text-red-500 font-bold ml-1">{formErrors.email}</p>}
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[11px] font-black text-zinc-400 uppercase tracking-widest ml-1">Confirme seu E-mail</label>
-                      <input 
-                        type="email"
-                        className={`w-full bg-zinc-950 border ${formErrors.emailConfirm ? 'border-red-500' : 'border-zinc-800'} rounded-xl px-4 py-3.5 text-white font-semibold focus:outline-none focus:ring-2 focus:ring-red-600/20 transition-all placeholder:text-zinc-700`}
-                        placeholder="Repita o e-mail"
-                        value={buyerData.emailConfirm}
-                        onChange={(e) => setBuyerData({...buyerData, emailConfirm: e.target.value})}
-                      />
-                      {formErrors.emailConfirm && <p className="text-[10px] text-red-500 font-bold ml-1">{formErrors.emailConfirm}</p>}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-[11px] font-black text-zinc-400 uppercase tracking-widest ml-1">CPF</label>
-                      <input 
-                        type="text"
-                        className={`w-full bg-zinc-950 border ${formErrors.cpf ? 'border-red-500' : 'border-zinc-800'} rounded-xl px-4 py-3.5 text-white font-semibold focus:outline-none focus:ring-2 focus:ring-red-600/20 transition-all placeholder:text-zinc-700`}
-                        placeholder="000.000.000-00"
-                        value={buyerData.cpf}
-                        onChange={(e) => setBuyerData({...buyerData, cpf: maskCpf(e.target.value)})}
-                      />
-                      {formErrors.cpf && <p className="text-[10px] text-red-500 font-bold ml-1">{formErrors.cpf}</p>}
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[11px] font-black text-zinc-400 uppercase tracking-widest ml-1">WhatsApp</label>
-                      <input 
-                        type="text"
-                        className={`w-full bg-zinc-950 border ${formErrors.phone ? 'border-red-500' : 'border-zinc-800'} rounded-xl px-4 py-3.5 text-white font-semibold focus:outline-none focus:ring-2 focus:ring-red-600/20 transition-all placeholder:text-zinc-700`}
-                        placeholder="(00) 00000-0000"
-                        value={buyerData.phone}
-                        onChange={(e) => setBuyerData({...buyerData, phone: maskPhone(e.target.value)})}
-                      />
-                      {formErrors.phone && <p className="text-[10px] text-red-500 font-bold ml-1">{formErrors.phone}</p>}
-                    </div>
-                  </div>
-                </div>
-
-                <button 
-                  onClick={handleNextStep}
-                  className="w-full bg-red-600 hover:bg-red-700 text-white font-black py-5 rounded-2xl transition-all flex items-center justify-center gap-2 group uppercase tracking-widest text-sm shadow-lg shadow-red-600/10 active:scale-[0.98]"
+            <AnimatePresence mode="wait">
+              {pixData ? (
+                <motion.div
+                  key="pix-screen"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="space-y-8"
                 >
-                  Continuar para Pagamento
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-6 pt-6">
-                <button 
-                  onClick={() => setCurrentStep(1)}
-                  className="mb-2 text-[11px] font-black text-red-500 uppercase tracking-widest flex items-center gap-1 hover:underline underline-offset-4 decoration-2"
-                >
-                  ← Alterar dados pessoais
-                </button>
-
-                {/* Method Selector */}
-                <div className="grid grid-cols-3 gap-3">
-                  <button
-                    onClick={() => setPaymentMethod('credit_card')}
-                    className={`flex flex-col items-center gap-3 p-4 rounded-2xl border transition-all ${paymentMethod === 'credit_card' ? 'bg-red-600/10 border-red-600 text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:border-zinc-700'}`}
-                  >
-                    <CreditCard size={20} />
-                    <span className="text-[9px] font-black uppercase tracking-widest">Cartão</span>
-                  </button>
-                  <button
-                    onClick={() => setPaymentMethod('pix')}
-                    className={`flex flex-col items-center gap-3 p-4 rounded-2xl border transition-all ${paymentMethod === 'pix' ? 'bg-red-600/10 border-red-600 text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:border-zinc-700'}`}
-                  >
-                    <QrCode size={20} />
-                    <span className="text-[9px] font-black uppercase tracking-widest">PIX</span>
-                  </button>
-                  <button
-                    onClick={() => setPaymentMethod('ticket')}
-                    className={`flex flex-col items-center gap-3 p-4 rounded-2xl border transition-all ${paymentMethod === 'ticket' ? 'bg-red-600/10 border-red-600 text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:border-zinc-700'}`}
-                  >
-                    <ShieldCheck size={20} />
-                    <span className="text-[9px] font-black uppercase tracking-widest">Boleto</span>
-                  </button>
-                </div>
-
-                {errorMessage && (
-                  <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl flex items-start gap-3 mt-4">
-                    <div className="mt-0.5 text-red-500">
-                      <ShieldCheck size={16} />
+                  <div className="text-center space-y-2">
+                    <div className="w-16 h-16 bg-emerald-500/10 rounded-full flex items-center justify-center text-emerald-500 mx-auto mb-4">
+                      <QrCode size={32} />
                     </div>
-                    <div className="space-y-1">
-                      <p className="text-[11px] font-black text-red-500 uppercase tracking-widest">Falha no Pagamento</p>
-                      <p className="text-xs text-red-200/80 leading-relaxed font-medium">
-                        {errorMessage}
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {paymentMethod === 'credit_card' ? (
-                  <div className="space-y-4 pt-4">
-                    <div className="space-y-1.5">
-                      <label className="text-[11px] font-black text-zinc-400 uppercase tracking-widest ml-1">Número do Cartão</label>
-                      <div className="relative">
-                        <input 
-                          type="text"
-                          value={cardNumber}
-                          onChange={(e) => {
-                            const val = e.target.value.replace(/\D/g, '').replace(/(\d{4})(?=\d)/g, '$1 ').substring(0, 19);
-                            setCardNumber(val);
-                          }}
-                          className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3.5 text-white font-semibold focus:outline-none focus:ring-2 focus:ring-red-600/20 transition-all placeholder:text-zinc-700"
-                          placeholder="0000 0000 0000 0000"
-                        />
-                        <div className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-700">
-                          <CreditCard size={18} />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-[11px] font-black text-zinc-400 uppercase tracking-widest ml-1">Nome do Titular</label>
-                      <input 
-                        type="text"
-                        value={cardHolder}
-                        onChange={(e) => setCardHolder(e.target.value.toUpperCase())}
-                        className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3.5 text-white font-semibold focus:outline-none focus:ring-2 focus:ring-red-600/20 transition-all placeholder:text-zinc-700 uppercase"
-                        placeholder="NOME COMO NO CARTÃO"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="space-y-1.5">
-                        <label className="text-[11px] font-black text-zinc-400 uppercase tracking-widest ml-1">Mês (MM)</label>
-                        <input 
-                          type="text"
-                          value={cardMonth}
-                          onChange={(e) => setCardMonth(e.target.value.replace(/\D/g, '').substring(0, 2))}
-                          className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3.5 text-white font-semibold focus:outline-none focus:ring-2 focus:ring-red-600/20 transition-all text-center"
-                          placeholder="MM"
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[11px] font-black text-zinc-400 uppercase tracking-widest ml-1">Ano (AA)</label>
-                        <input 
-                          type="text"
-                          value={cardYear}
-                          onChange={(e) => setCardYear(e.target.value.replace(/\D/g, '').substring(0, 4))}
-                          className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3.5 text-white font-semibold focus:outline-none focus:ring-2 focus:ring-red-600/20 transition-all text-center"
-                          placeholder="AA"
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[11px] font-black text-zinc-400 uppercase tracking-widest ml-1">CVV</label>
-                        <div className="relative">
-                          <input 
-                            type="text"
-                            value={cardCVV}
-                            onChange={(e) => setCardCVV(e.target.value.replace(/\D/g, '').substring(0, 4))}
-                            className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3.5 text-white font-semibold focus:outline-none focus:ring-2 focus:ring-red-600/20 transition-all text-center"
-                            placeholder="000"
-                          />
-                          <div className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-700">
-                            <Lock size={16} />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <button 
-                      onClick={handlePayment}
-                      disabled={isProcessing}
-                      className="w-full bg-red-600 hover:bg-red-700 text-white font-black py-5 rounded-2xl transition-all flex items-center justify-center gap-2 group uppercase tracking-widest text-sm shadow-lg shadow-red-600/20 active:scale-[0.98] mt-4"
-                    >
-                      {isProcessing ? (
-                        <>
-                          <Loader2 className="w-5 h-5 animate-spin" />
-                          <span>Processando...</span>
-                        </>
-                      ) : (
-                        <>
-                          <ShieldCheck size={18} />
-                          <span>Pagar {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(offer.price)}</span>
-                        </>
-                      )}
-                    </button>
-                    <p className="text-[9px] text-zinc-500 text-center uppercase font-bold tracking-widest mt-2">
-                       Pagamento processado com segurança via Pagar.me
+                    <h3 className="text-2xl font-black uppercase tracking-tight text-white">Quase lá!</h3>
+                    <p className="text-zinc-500 text-sm">
+                      Finalize o pagamento via PIX para liberar seu acesso imediatamente.
                     </p>
                   </div>
-                ) : (
-                  <div className="bg-zinc-900/50 border border-zinc-800 p-8 rounded-2xl text-center space-y-4 mt-4">
-                    <div className="w-16 h-16 bg-red-600/10 rounded-full flex items-center justify-center text-red-500 mx-auto">
-                      <ShieldCheck size={32} />
+
+                  <div className="flex flex-col items-center gap-6 p-6 bg-zinc-950 rounded-2xl border border-zinc-800">
+                    <div className="bg-white p-2 rounded-xl">
+                       <img src={pixData.qr_code_url} alt="QR Code PIX" className="w-48 h-48" />
                     </div>
-                    <div>
-                      <h4 className="text-white font-black uppercase tracking-tighter">
-                        {paymentMethod === 'pix' ? 'Pagamento via PIX' : 'Pagamento via Boleto'}
-                      </h4>
-                      <p className="text-zinc-500 text-xs mt-2">
-                        {paymentMethod === 'pix' 
-                          ? 'Gere o código copia e cola para pagar agora.' 
-                          : 'O boleto será enviado para o seu e-mail após a geração.'}
-                      </p>
+                    
+                    <div className="w-full space-y-3">
+                      <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-1">Pix Copia e Cola</label>
+                      <div className="relative group">
+                        <input 
+                          type="text" 
+                          readOnly 
+                          value={pixData.qr_code}
+                          className="w-full bg-zinc-900 border border-zinc-800 rounded-xl pl-4 pr-12 py-4 text-xs text-zinc-400 font-mono focus:outline-none"
+                        />
+                        <button 
+                          onClick={handleCopyPix}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-all"
+                        >
+                          {copied ? <Check size={16} /> : <Copy size={16} />}
+                        </button>
+                      </div>
                     </div>
+                  </div>
+
+                  <div className="bg-zinc-900/50 rounded-2xl p-6 border border-zinc-800">
+                    <ul className="space-y-4">
+                      <li className="flex items-start gap-3">
+                        <div className="mt-1 w-5 h-5 bg-emerald-500/20 text-emerald-500 rounded-full flex items-center justify-center shrink-0">
+                          <CheckCircle2 size={12} />
+                        </div>
+                        <p className="text-xs text-zinc-400 leading-relaxed">
+                          <strong className="text-zinc-200">Aprovação Instantânea:</strong> Seu curso será liberado assim que o banco confirmar o pagamento.
+                        </p>
+                      </li>
+                      <li className="flex items-start gap-3">
+                        <div className="mt-1 w-5 h-5 bg-zinc-800 text-zinc-500 rounded-full flex items-center justify-center shrink-0">
+                          <ArrowRight size={12} />
+                        </div>
+                        <p className="text-xs text-zinc-400 leading-relaxed">
+                           Você receberá um e-mail com os dados de acesso em <strong className="text-zinc-200">até 2 minutos</strong> após a confirmação.
+                        </p>
+                      </li>
+                    </ul>
+                  </div>
+
+                  <button 
+                    onClick={() => window.location.href = '/app/home'}
+                    className="w-full bg-zinc-800 hover:bg-zinc-700 text-white font-black py-4 rounded-xl transition-all uppercase tracking-widest text-xs"
+                  >
+                    Já paguei, ir para a plataforma
+                  </button>
+                </motion.div>
+              ) : (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between border-b border-zinc-800 pb-8">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs transition-all ${currentStep === 1 ? 'bg-red-600 text-white shadow-lg shadow-red-600/20' : 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'}`}>
+                        {currentStep === 1 ? '01' : <ShieldCheck size={16} />}
+                      </div>
+                      <div className="h-px w-4 bg-zinc-800" />
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs transition-all ${currentStep === 2 ? 'bg-red-600 text-white shadow-lg shadow-red-600/20' : 'bg-zinc-800 text-zinc-500 border border-zinc-700'}`}>
+                        02
+                      </div>
+                    </div>
+                    <div className="text-right">
+                       <h3 className="text-lg font-black uppercase tracking-tight leading-none mb-1 text-white">
+                         {currentStep === 1 ? 'Dados Pessoais' : 'Pagamento'}
+                       </h3>
+                       <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest">Passo {currentStep} de 2</p>
+                    </div>
+                </div>
+
+                {currentStep === 1 ? (
+                  <div className="space-y-6">
+                    <div className="space-y-4">
+                      <div className="space-y-1.5 pt-6">
+                        <label className="text-[11px] font-black text-zinc-400 uppercase tracking-widest ml-1">Nome Completo</label>
+                        <input 
+                          type="text"
+                          className={`w-full bg-zinc-950 border ${formErrors.name ? 'border-red-500' : 'border-zinc-800'} rounded-xl px-4 py-3.5 text-white font-semibold focus:outline-none focus:ring-2 focus:ring-red-600/20 transition-all placeholder:text-zinc-700`}
+                          placeholder="Como no seu documento"
+                          value={buyerData.name}
+                          onChange={(e) => setBuyerData({...buyerData, name: e.target.value})}
+                        />
+                        {formErrors.name && <p className="text-[10px] text-red-500 font-bold ml-1">{formErrors.name}</p>}
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-black text-zinc-400 uppercase tracking-widest ml-1">Seu melhor E-mail</label>
+                          <input 
+                            type="email"
+                            className={`w-full bg-zinc-950 border ${formErrors.email ? 'border-red-500' : 'border-zinc-800'} rounded-xl px-4 py-3.5 text-white font-semibold focus:outline-none focus:ring-2 focus:ring-red-600/20 transition-all placeholder:text-zinc-700`}
+                            placeholder="exemplo@email.com"
+                            value={buyerData.email}
+                            onChange={(e) => setBuyerData({...buyerData, email: e.target.value})}
+                          />
+                          {formErrors.email && <p className="text-[10px] text-red-500 font-bold ml-1">{formErrors.email}</p>}
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-black text-zinc-400 uppercase tracking-widest ml-1">Confirme seu E-mail</label>
+                          <input 
+                            type="email"
+                            className={`w-full bg-zinc-950 border ${formErrors.emailConfirm ? 'border-red-500' : 'border-zinc-800'} rounded-xl px-4 py-3.5 text-white font-semibold focus:outline-none focus:ring-2 focus:ring-red-600/20 transition-all placeholder:text-zinc-700`}
+                            placeholder="Repita o e-mail"
+                            value={buyerData.emailConfirm}
+                            onChange={(e) => setBuyerData({...buyerData, emailConfirm: e.target.value})}
+                          />
+                          {formErrors.emailConfirm && <p className="text-[10px] text-red-500 font-bold ml-1">{formErrors.emailConfirm}</p>}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-black text-zinc-400 uppercase tracking-widest ml-1">CPF</label>
+                          <input 
+                            type="text"
+                            className={`w-full bg-zinc-950 border ${formErrors.cpf ? 'border-red-500' : 'border-zinc-800'} rounded-xl px-4 py-3.5 text-white font-semibold focus:outline-none focus:ring-2 focus:ring-red-600/20 transition-all placeholder:text-zinc-700`}
+                            placeholder="000.000.000-00"
+                            value={buyerData.cpf}
+                            onChange={(e) => setBuyerData({...buyerData, cpf: maskCpf(e.target.value)})}
+                          />
+                          {formErrors.cpf && <p className="text-[10px] text-red-500 font-bold ml-1">{formErrors.cpf}</p>}
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-black text-zinc-400 uppercase tracking-widest ml-1">WhatsApp</label>
+                          <input 
+                            type="text"
+                            className={`w-full bg-zinc-950 border ${formErrors.phone ? 'border-red-500' : 'border-zinc-800'} rounded-xl px-4 py-3.5 text-white font-semibold focus:outline-none focus:ring-2 focus:ring-red-600/20 transition-all placeholder:text-zinc-700`}
+                            placeholder="(00) 00000-0000"
+                            value={buyerData.phone}
+                            onChange={(e) => setBuyerData({...buyerData, phone: maskPhone(e.target.value)})}
+                          />
+                          {formErrors.phone && <p className="text-[10px] text-red-500 font-bold ml-1">{formErrors.phone}</p>}
+                        </div>
+                      </div>
+                    </div>
+
                     <button 
-                      onClick={handlePayment}
-                      disabled={isProcessing}
-                      className="w-full bg-red-600 hover:bg-red-700 text-white font-black py-4 rounded-xl transition-all uppercase tracking-widest text-sm disabled:opacity-50"
+                      onClick={handleNextStep}
+                      className="w-full bg-red-600 hover:bg-red-700 text-white font-black py-5 rounded-2xl transition-all flex items-center justify-center gap-2 group uppercase tracking-widest text-sm shadow-lg shadow-red-600/10 active:scale-[0.98]"
                     >
-                      {isProcessing ? 'Processando...' : `Gerar ${paymentMethod === 'pix' ? 'PIX' : 'Boleto'}`}
+                      Continuar para Pagamento
                     </button>
                   </div>
+                ) : (
+                  <div className="space-y-6 pt-6">
+                    <button 
+                      onClick={() => setCurrentStep(1)}
+                      className="mb-2 text-[11px] font-black text-red-500 uppercase tracking-widest flex items-center gap-1 hover:underline underline-offset-4 decoration-2"
+                    >
+                      ← Alterar dados pessoais
+                    </button>
+
+                    {/* Method Selector */}
+                    <div className="grid grid-cols-3 gap-3">
+                      <button
+                        onClick={() => setPaymentMethod('credit_card')}
+                        className={`flex flex-col items-center gap-3 p-4 rounded-2xl border transition-all ${paymentMethod === 'credit_card' ? 'bg-red-600/10 border-red-600 text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:border-zinc-700'}`}
+                      >
+                        <CreditCard size={20} />
+                        <span className="text-[9px] font-black uppercase tracking-widest">Cartão</span>
+                      </button>
+                      <button
+                        onClick={() => setPaymentMethod('pix')}
+                        className={`flex flex-col items-center gap-3 p-4 rounded-2xl border transition-all ${paymentMethod === 'pix' ? 'bg-red-600/10 border-red-600 text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:border-zinc-700'}`}
+                      >
+                        <QrCode size={20} />
+                        <span className="text-[9px] font-black uppercase tracking-widest">PIX</span>
+                      </button>
+                      <button
+                        onClick={() => setPaymentMethod('ticket')}
+                        className={`flex flex-col items-center gap-3 p-4 rounded-2xl border transition-all ${paymentMethod === 'ticket' ? 'bg-red-600/10 border-red-600 text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:border-zinc-700'}`}
+                      >
+                        <ShieldCheck size={20} />
+                        <span className="text-[9px] font-black uppercase tracking-widest">Boleto</span>
+                      </button>
+                    </div>
+
+                    {errorMessage && (
+                      <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl flex items-start gap-3 mt-4">
+                        <div className="mt-0.5 text-red-500">
+                          <ShieldCheck size={16} />
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-[11px] font-black text-red-500 uppercase tracking-widest">Falha no Pagamento</p>
+                          <p className="text-xs text-red-200/80 leading-relaxed font-medium">
+                            {errorMessage}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {paymentMethod === 'credit_card' ? (
+                      <div className="space-y-4 pt-4">
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-black text-zinc-400 uppercase tracking-widest ml-1">Número do Cartão</label>
+                          <div className="relative">
+                            <input 
+                              type="text"
+                              value={cardNumber}
+                              onChange={(e) => {
+                                const val = e.target.value.replace(/\D/g, '').replace(/(\d{4})(?=\d)/g, '$1 ').substring(0, 19);
+                                setCardNumber(val);
+                              }}
+                              className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3.5 text-white font-semibold focus:outline-none focus:ring-2 focus:ring-red-600/20 transition-all placeholder:text-zinc-700"
+                              placeholder="0000 0000 0000 0000"
+                            />
+                            <div className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-700">
+                              <CreditCard size={18} />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-black text-zinc-400 uppercase tracking-widest ml-1">Nome do Titular</label>
+                          <input 
+                            type="text"
+                            value={cardHolder}
+                            onChange={(e) => setCardHolder(e.target.value.toUpperCase())}
+                            className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3.5 text-white font-semibold focus:outline-none focus:ring-2 focus:ring-red-600/20 transition-all placeholder:text-zinc-700 uppercase"
+                            placeholder="NOME COMO NO CARTÃO"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div className="space-y-1.5">
+                            <label className="text-[11px] font-black text-zinc-400 uppercase tracking-widest ml-1">Mês (MM)</label>
+                            <input 
+                              type="text"
+                              value={cardMonth}
+                              onChange={(e) => setCardMonth(e.target.value.replace(/\D/g, '').substring(0, 2))}
+                              className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3.5 text-white font-semibold focus:outline-none focus:ring-2 focus:ring-red-600/20 transition-all text-center"
+                              placeholder="MM"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-[11px] font-black text-zinc-400 uppercase tracking-widest ml-1">Ano (AA)</label>
+                            <input 
+                              type="text"
+                              value={cardYear}
+                              onChange={(e) => setCardYear(e.target.value.replace(/\D/g, '').substring(0, 4))}
+                              className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3.5 text-white font-semibold focus:outline-none focus:ring-2 focus:ring-red-600/20 transition-all text-center"
+                              placeholder="AA"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-[11px] font-black text-zinc-400 uppercase tracking-widest ml-1">CVV</label>
+                            <div className="relative">
+                              <input 
+                                type="text"
+                                value={cardCVV}
+                                onChange={(e) => setCardCVV(e.target.value.replace(/\D/g, '').substring(0, 4))}
+                                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3.5 text-white font-semibold focus:outline-none focus:ring-2 focus:ring-red-600/20 transition-all text-center"
+                                placeholder="000"
+                              />
+                              <div className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-700">
+                                <Lock size={16} />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <button 
+                          onClick={handlePayment}
+                          disabled={isProcessing}
+                          className="w-full bg-red-600 hover:bg-red-700 text-white font-black py-5 rounded-2xl transition-all flex items-center justify-center gap-2 group uppercase tracking-widest text-sm shadow-lg shadow-red-600/20 active:scale-[0.98] mt-4"
+                        >
+                          {isProcessing ? (
+                            <>
+                              <Loader2 className="w-5 h-5 animate-spin" />
+                              <span>Processando...</span>
+                            </>
+                          ) : (
+                            <>
+                              <ShieldCheck size={18} />
+                              <span>Pagar {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(offer.price)}</span>
+                            </>
+                          )}
+                        </button>
+                        <p className="text-[9px] text-zinc-500 text-center uppercase font-bold tracking-widest mt-2">
+                           Pagamento processado com segurança via Pagar.me
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="bg-zinc-900/50 border border-zinc-800 p-8 rounded-2xl text-center space-y-4 mt-4">
+                        <div className="w-16 h-16 bg-red-600/10 rounded-full flex items-center justify-center text-red-500 mx-auto">
+                          <ShieldCheck size={32} />
+                        </div>
+                        <div>
+                          <h4 className="text-white font-black uppercase tracking-tighter">
+                            {paymentMethod === 'pix' ? 'Pagamento via PIX' : 'Pagamento via Boleto'}
+                          </h4>
+                          <p className="text-zinc-500 text-xs mt-2">
+                            {paymentMethod === 'pix' 
+                              ? 'Gere o código copia e cola para pagar agora.' 
+                              : 'O boleto será enviado para o seu e-mail após a geração.'}
+                          </p>
+                        </div>
+                        <button 
+                          onClick={handlePayment}
+                          disabled={isProcessing}
+                          className="w-full bg-red-600 hover:bg-red-700 text-white font-black py-4 rounded-xl transition-all uppercase tracking-widest text-sm disabled:opacity-50"
+                        >
+                          {isProcessing ? 'Processando...' : `Gerar ${paymentMethod === 'pix' ? 'PIX' : 'Boleto'}`}
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 )}
-              </div>
-            )}
+                </div>
+              )}
+            </AnimatePresence>
           </div>
 
           {/* LADO DIREITO: Resumo do Pedido */}

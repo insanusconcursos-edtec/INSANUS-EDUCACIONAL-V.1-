@@ -569,6 +569,25 @@ async function setupVite(app: any) {
       }
 
       const response = await createPagarmeOrder(body, coproducers);
+      
+      // Se for PIX, extraímos os dados do QR Code para o frontend
+      if (body.payment_method === 'pix' && response.status === 'pending') {
+        const charge = response.charges?.[0];
+        const lastTransaction = charge?.last_transaction;
+        
+        if (lastTransaction && lastTransaction.qr_code) {
+          return res.status(200).json({ 
+            success: true, 
+            pix: {
+              qr_code: lastTransaction.qr_code,
+              qr_code_url: lastTransaction.qr_code_url,
+              status: 'pending'
+            },
+            payment: response 
+          });
+        }
+      }
+
       return res.status(200).json({ success: true, payment: response });
     } catch (error: any) {
       console.error("❌ Pagarme Route Error:", error);
