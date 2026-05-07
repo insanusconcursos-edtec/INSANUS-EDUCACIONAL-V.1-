@@ -219,13 +219,13 @@ const SalesPage: React.FC = () => {
                                                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                                                 <div className="bg-zinc-950 p-3 rounded-xl border border-zinc-800/50">
                                                                     <p className="text-[9px] font-black text-zinc-600 uppercase tracking-widest mb-1 flex items-center justify-between">
-                                                                        PIX <span className="text-[8px] text-zinc-700 italic">(-0.99%)</span>
+                                                                        PIX <span className="text-[8px] text-zinc-700 italic">(-1.2% + R$ 0,40)</span>
                                                                     </p>
                                                                     <p className="text-base font-black text-white">R$ {parseFloat(netEarns.pix).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                                                                 </div>
                                                                 <div className="bg-zinc-950 p-3 rounded-xl border border-zinc-800/50">
                                                                     <p className="text-[9px] font-black text-zinc-600 uppercase tracking-widest mb-1 flex items-center justify-between">
-                                                                        CARTÃO <span className="text-[8px] text-zinc-700 italic">(-4.98%)</span>
+                                                                        CARTÃO* <span className="text-[8px] text-zinc-700 italic">(-4.99% + R$ 0,40)</span>
                                                                     </p>
                                                                     <p className="text-base font-black text-white">R$ {parseFloat(netEarns.card).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                                                                 </div>
@@ -242,6 +242,7 @@ const SalesPage: React.FC = () => {
                                                             <div className="text-center">
                                                                 <p className="text-[9px] font-black text-zinc-600 uppercase tracking-widest mb-1">Preço Final</p>
                                                                 <p className="text-2xl font-black text-white tracking-tighter">R$ {offer.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                                                <p className="text-[8px] text-zinc-700 italic mt-1 font-bold uppercase tracking-tighter">*Média estimada</p>
                                                             </div>
                                                             <button 
                                                                 onClick={() => copyLink(offer.id)}

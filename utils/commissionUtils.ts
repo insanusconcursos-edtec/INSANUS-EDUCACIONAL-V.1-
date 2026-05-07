@@ -1,13 +1,13 @@
 export const calculateNetCommissions = (price: number, commissionPercent: number) => {
-  // Taxes for each payment method
-  const pixTax = 0.0099; // 0.99%
-  const cardTax = 0.0498; // 4.98%
-  const boletoTax = 3.49; // Fixed R$ 3.49
+  // Pagar.me Cascade Rates
+  // PIX: 1.2% + R$ 0.40
+  // CARD: 4.99% + R$ 0.40 (Average)
+  // BOLETO: Fixed R$ 3.49
 
   // Calculate net amount after gateway fees
-  const pixNet = price - (price * pixTax);
-  const cardNet = price - (price * cardTax);
-  const boletoNet = price > boletoTax ? price - boletoTax : 0;
+  const pixNet = price - (price * 0.012 + 0.40);
+  const cardNet = price - (price * 0.0499 + 0.40);
+  const boletoNet = price > 3.49 ? price - 3.49 : 0;
 
   // Calculate commission based on net amount
   const calc = (netAmount: number) => ((netAmount * commissionPercent) / 100).toFixed(2);

@@ -38,6 +38,7 @@ export const createPagarmeOrder = async (orderData: any, initialCoproducers: any
   // 0. Fetch Product/Offer data from Firestore to get Split Rules
   let coproducers = [...initialCoproducers];
   let affiliateDataFromDB = null;
+  let affiliateCommissionPercent = 0;
 
   try {
     const productId = orderData.metadata?.courseId || orderData.metadata?.productId || orderData.productId;
@@ -51,6 +52,10 @@ export const createPagarmeOrder = async (orderData: any, initialCoproducers: any
         const data = offerDoc.data();
         console.log("🚨 [DEBUG DB] Chaves da Oferta:", Object.keys(data || {}));
         console.log("🔍 [Pagarme] Dados brutos de Coprodutores da Oferta:", JSON.stringify(data?.coproducers, null, 2));
+        
+        // Capturar comissão de afiliado configurada na oferta
+        affiliateCommissionPercent = Number(data?.affiliateCommission) || 0;
+
         if (data?.coproducers && Array.isArray(data.coproducers) && coproducers.length === 0) {
           coproducers = data.coproducers;
           console.log(`[Pagarme] ✅ ${coproducers.length} Coprodutores encontrados na Oferta.`);
@@ -82,15 +87,15 @@ export const createPagarmeOrder = async (orderData: any, initialCoproducers: any
       }
     }
         
-    // 3. Buscar dados do Vendedor (Afiliado) se houver ID
-    const affiliateId = orderData.metadata?.affiliateId || orderData.affiliateId;
+    // 3. Buscar dados do Vendedor (Afiliado) se houver ID (refId priorizado)
+    const affiliateId = orderData.metadata?.refId || orderData.metadata?.affiliateId || orderData.affiliateId;
     if (affiliateId) {
       const affDoc = await dbAdmin.collection('users').doc(affiliateId).get();
       if (affDoc.exists) {
         const affUser = affDoc.data();
         if (affUser?.pagarmeRecipientId) {
           affiliateDataFromDB = {
-            percentage: Number(orderData.metadata?.affiliatePercentage) || Number(orderData.affiliatePercentage) || 0,
+            percentage: affiliateCommissionPercent || Number(orderData.metadata?.affiliatePercentage) || Number(orderData.affiliatePercentage) || 0,
             recipientId: affUser.pagarmeRecipientId
           };
           console.log(`[Pagarme] ✅ Vendedor (Afiliado) identificado: ${affUser.name} (${affiliateId}) - ${affiliateDataFromDB.percentage}%`);
