@@ -19,7 +19,8 @@ export default function CheckoutModal({ product, offerId, onClose, onSuccess }: 
   const [cardData, setCardData] = useState({
     number: '',
     holderName: '',
-    expiry: '',
+    expiryMonth: '',
+    expiryYear: '',
     cvv: ''
   });
 
@@ -30,10 +31,11 @@ export default function CheckoutModal({ product, offerId, onClose, onSuccess }: 
     let maskedValue = value;
     if (name === 'number') {
       maskedValue = value.replace(/\D/g, '').replace(/(\d{4})(?=\d)/g, '$1 ').substring(0, 19);
-    } else if (name === 'expiry') {
-      maskedValue = value.replace(/\D/g, '').replace(/(\d{2})(?=\d)/g, '$1/').substring(0, 5);
-    } else if (name === 'cvv') {
-      maskedValue = value.replace(/\D/g, '').substring(0, 4);
+    } else if (name === 'expiryMonth' || name === 'expiryYear' || name === 'cvv') {
+      maskedValue = value.replace(/\D/g, '');
+      if (name === 'expiryMonth') maskedValue = maskedValue.substring(0, 2);
+      if (name === 'expiryYear') maskedValue = maskedValue.substring(0, 4);
+      if (name === 'cvv') maskedValue = maskedValue.substring(0, 4);
     } else if (name === 'holderName') {
       maskedValue = value.toUpperCase();
     }
@@ -50,14 +52,8 @@ export default function CheckoutModal({ product, offerId, onClose, onSuccess }: 
   const handlePayment = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!cardData.number || !cardData.holderName || !cardData.expiry || !cardData.cvv) {
+    if (!cardData.number || !cardData.holderName || !cardData.expiryMonth || !cardData.expiryYear || !cardData.cvv) {
       toast.error('Por favor, preencha todos os campos do cartão.');
-      return;
-    }
-
-    const [exp_month, exp_year] = cardData.expiry.split('/');
-    if (!exp_month || !exp_year || exp_month.length !== 2 || exp_year.length !== 2) {
-      toast.error('Validade inválida. Use o formato MM/AA.');
       return;
     }
 
@@ -69,8 +65,8 @@ export default function CheckoutModal({ product, offerId, onClose, onSuccess }: 
         payment_method: 'credit_card',
         card_number: cardData.number.replace(/\s/g, ''),
         card_holder_name: cardData.holderName,
-        card_expiration_month: exp_month,
-        card_expiration_year: `20${exp_year}`,
+        card_expiration_month: cardData.expiryMonth,
+        card_expiration_year: cardData.expiryYear.length === 2 ? `20${cardData.expiryYear}` : cardData.expiryYear,
         card_cvv: cardData.cvv,
         installments: 1,
         payer: {
@@ -175,17 +171,31 @@ export default function CheckoutModal({ product, offerId, onClose, onSuccess }: 
                    </div>
 
                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-[10px] font-black text-zinc-500 uppercase mb-1 block tracking-widest">Validade (MM/AA)</label>
-                        <input
-                          type="text"
-                          name="expiry"
-                          value={cardData.expiry}
-                          onChange={handleInputChange}
-                          placeholder="MM/AA"
-                          className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-red-600 transition-colors text-center"
-                          required
-                        />
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] font-black text-zinc-500 uppercase mb-1 block tracking-widest">Mês (MM)</label>
+                          <input
+                            type="text"
+                            name="expiryMonth"
+                            value={cardData.expiryMonth}
+                            onChange={handleInputChange}
+                            placeholder="MM"
+                            className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-red-600 transition-colors text-center"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-black text-zinc-500 uppercase mb-1 block tracking-widest">Ano (AA)</label>
+                          <input
+                            type="text"
+                            name="expiryYear"
+                            value={cardData.expiryYear}
+                            onChange={handleInputChange}
+                            placeholder="AA"
+                            className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-red-600 transition-colors text-center"
+                            required
+                          />
+                        </div>
                       </div>
                       <div>
                         <label className="text-[10px] font-black text-zinc-500 uppercase mb-1 block tracking-widest">CVV</label>

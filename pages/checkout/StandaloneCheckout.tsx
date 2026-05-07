@@ -6,7 +6,7 @@ import { SystemLogo } from '../../components/common/SystemLogo';
 import { useAuth } from '../../contexts/AuthContext';
 import { toast } from 'react-hot-toast';
 import { createPagarmePayment } from '../../services/paymentService';
-import { Loader2, ShieldCheck, CreditCard, QrCode } from 'lucide-react';
+import { Loader2, ShieldCheck, CreditCard, QrCode, Lock } from 'lucide-react';
 
 export default function StandaloneCheckout() {
   const { offerId } = useParams<{ offerId: string }>();
@@ -20,6 +20,13 @@ export default function StandaloneCheckout() {
   const [error, setError] = useState<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<'credit_card' | 'pix' | 'ticket'>('credit_card');
   const [isProcessing, setIsProcessing] = useState(false);
+  
+  // Credit Card States
+  const [cardNumber, setCardNumber] = useState('');
+  const [cardHolder, setCardHolder] = useState('');
+  const [cardMonth, setCardMonth] = useState('');
+  const [cardYear, setCardYear] = useState('');
+  const [cardCVV, setCardCVV] = useState('');
   
   // Buyer Data Steps
   const [currentStep, setCurrentStep] = useState(1);
@@ -109,6 +116,14 @@ export default function StandaloneCheckout() {
 
   const handlePayment = async () => {
     if (!product || !offer) return;
+
+    if (paymentMethod === 'credit_card') {
+      if (!cardNumber || !cardHolder || !cardMonth || !cardYear || !cardCVV) {
+        toast.error('Por favor, preencha todos os campos do cartão.');
+        return;
+      }
+    }
+
     setIsProcessing(true);
     try {
       const paymentData = {
@@ -116,6 +131,15 @@ export default function StandaloneCheckout() {
         description: `Compra de ${product.name} - ${offer.name}`,
         payment_method: paymentMethod,
         affiliateId: refId || null,
+        // Card data if credit_card
+        ...(paymentMethod === 'credit_card' && {
+          card_number: cardNumber.replace(/\s/g, ''),
+          card_holder_name: cardHolder,
+          card_expiration_month: cardMonth,
+          card_expiration_year: cardYear.length === 2 ? `20${cardYear}` : cardYear,
+          card_cvv: cardCVV,
+          installments: 1,
+        }),
         payer: {
           email: buyerData.email,
           document: buyerData.cpf.replace(/\D/g, ''),
@@ -313,25 +337,121 @@ export default function StandaloneCheckout() {
                   </button>
                 </div>
 
-                <div className="bg-zinc-900/50 border border-zinc-800 p-8 rounded-2xl text-center space-y-4">
-                  <div className="w-16 h-16 bg-red-600/10 rounded-full flex items-center justify-center text-red-500 mx-auto">
-                    <ShieldCheck size={32} />
-                  </div>
-                  <div>
-                    <h4 className="text-white font-black uppercase tracking-tighter">Migração Pagar.me</h4>
-                    <p className="text-zinc-500 text-xs mt-2">
-                      Estamos concluindo a integração com o novo gateway. 
-                      Clique no botão abaixo para processar seu pedido via Pagar.me.
+                {paymentMethod === 'credit_card' ? (
+                  <div className="space-y-4 pt-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-black text-zinc-400 uppercase tracking-widest ml-1">Número do Cartão</label>
+                      <div className="relative">
+                        <input 
+                          type="text"
+                          value={cardNumber}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/\D/g, '').replace(/(\d{4})(?=\d)/g, '$1 ').substring(0, 19);
+                            setCardNumber(val);
+                          }}
+                          className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3.5 text-white font-semibold focus:outline-none focus:ring-2 focus:ring-red-600/20 transition-all placeholder:text-zinc-700"
+                          placeholder="0000 0000 0000 0000"
+                        />
+                        <div className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-700">
+                          <CreditCard size={18} />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-black text-zinc-400 uppercase tracking-widest ml-1">Nome do Titular</label>
+                      <input 
+                        type="text"
+                        value={cardHolder}
+                        onChange={(e) => setCardHolder(e.target.value.toUpperCase())}
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3.5 text-white font-semibold focus:outline-none focus:ring-2 focus:ring-red-600/20 transition-all placeholder:text-zinc-700 uppercase"
+                        placeholder="NOME COMO NO CARTÃO"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-black text-zinc-400 uppercase tracking-widest ml-1">Mês (MM)</label>
+                        <input 
+                          type="text"
+                          value={cardMonth}
+                          onChange={(e) => setCardMonth(e.target.value.replace(/\D/g, '').substring(0, 2))}
+                          className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3.5 text-white font-semibold focus:outline-none focus:ring-2 focus:ring-red-600/20 transition-all text-center"
+                          placeholder="MM"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-black text-zinc-400 uppercase tracking-widest ml-1">Ano (AA)</label>
+                        <input 
+                          type="text"
+                          value={cardYear}
+                          onChange={(e) => setCardYear(e.target.value.replace(/\D/g, '').substring(0, 4))}
+                          className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3.5 text-white font-semibold focus:outline-none focus:ring-2 focus:ring-red-600/20 transition-all text-center"
+                          placeholder="AA"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-black text-zinc-400 uppercase tracking-widest ml-1">CVV</label>
+                        <div className="relative">
+                          <input 
+                            type="text"
+                            value={cardCVV}
+                            onChange={(e) => setCardCVV(e.target.value.replace(/\D/g, '').substring(0, 4))}
+                            className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3.5 text-white font-semibold focus:outline-none focus:ring-2 focus:ring-red-600/20 transition-all text-center"
+                            placeholder="000"
+                          />
+                          <div className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-700">
+                            <Lock size={16} />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <button 
+                      onClick={handlePayment}
+                      disabled={isProcessing}
+                      className="w-full bg-red-600 hover:bg-red-700 text-white font-black py-5 rounded-2xl transition-all flex items-center justify-center gap-2 group uppercase tracking-widest text-sm shadow-lg shadow-red-600/20 active:scale-[0.98] mt-4"
+                    >
+                      {isProcessing ? (
+                        <>
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                          <span>Processando...</span>
+                        </>
+                      ) : (
+                        <>
+                          <ShieldCheck size={18} />
+                          <span>Pagar {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(offer.price)}</span>
+                        </>
+                      )}
+                    </button>
+                    <p className="text-[9px] text-zinc-500 text-center uppercase font-bold tracking-widest mt-2">
+                       Pagamento processado com segurança via Pagar.me
                     </p>
                   </div>
-                  <button 
-                    onClick={handlePayment}
-                    disabled={isProcessing}
-                    className="w-full bg-red-600 hover:bg-red-700 text-white font-black py-4 rounded-xl transition-all uppercase tracking-widest text-sm disabled:opacity-50"
-                  >
-                    {isProcessing ? 'Processando...' : `Pagar ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(offer.price)}`}
-                  </button>
-                </div>
+                ) : (
+                  <div className="bg-zinc-900/50 border border-zinc-800 p-8 rounded-2xl text-center space-y-4 mt-4">
+                    <div className="w-16 h-16 bg-red-600/10 rounded-full flex items-center justify-center text-red-500 mx-auto">
+                      <ShieldCheck size={32} />
+                    </div>
+                    <div>
+                      <h4 className="text-white font-black uppercase tracking-tighter">
+                        {paymentMethod === 'pix' ? 'Pagamento via PIX' : 'Pagamento via Boleto'}
+                      </h4>
+                      <p className="text-zinc-500 text-xs mt-2">
+                        {paymentMethod === 'pix' 
+                          ? 'Gere o código copia e cola para pagar agora.' 
+                          : 'O boleto será enviado para o seu e-mail após a geração.'}
+                      </p>
+                    </div>
+                    <button 
+                      onClick={handlePayment}
+                      disabled={isProcessing}
+                      className="w-full bg-red-600 hover:bg-red-700 text-white font-black py-4 rounded-xl transition-all uppercase tracking-widest text-sm disabled:opacity-50"
+                    >
+                      {isProcessing ? 'Processando...' : `Gerar ${paymentMethod === 'pix' ? 'PIX' : 'Boleto'}`}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
