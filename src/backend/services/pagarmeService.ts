@@ -12,6 +12,12 @@ const CC_RATES: Record<number, number> = {
   7: 0.0274, 8: 0.0265, 9: 0.0262, 10: 0.0263, 11: 0.0271, 12: 0.0285
 };
 
+const INSTALLMENT_MULTIPLIERS: Record<number, number> = {
+  1: 1.00000, 2: 1.04018, 3: 1.06027, 4: 1.08036,
+  5: 1.10045, 6: 1.12054, 7: 1.14063, 8: 1.16072,
+  9: 1.18081, 10: 1.20090, 11: 1.22100, 12: 1.24109
+};
+
 /**
  * Calculates financial distribution in cascade:
  * Total -> Fees -> Affiliate -> Coproducers -> Master
@@ -118,8 +124,14 @@ const getHeaders = () => {
 export const createPagarmeOrder = async (orderData: any, coproducers: any[] = []) => {
   console.log('[Pagarme] Creating order for:', orderData.description);
 
+  // Recalculate total amount with interest based on installments
+  const installments = orderData.installments || 1;
+  const multiplier = INSTALLMENT_MULTIPLIERS[installments] || 1;
+  const originalAmount = Number(orderData.transaction_amount);
+  const totalAmountWithInterest = originalAmount * multiplier;
+
   // Pagar.me works with cents
-  const totalAmountCents = Math.round(Number(orderData.transaction_amount) * 100);
+  const totalAmountCents = Math.round(totalAmountWithInterest * 100);
   
   // Prepare Cascade Splits
   const affiliateData = orderData.affiliateId && orderData.affiliateRecipientId ? {
@@ -130,7 +142,7 @@ export const createPagarmeOrder = async (orderData: any, coproducers: any[] = []
   const splits = calculateCascadeSplits(
     totalAmountCents,
     orderData.payment_method,
-    orderData.installments || 1,
+    installments,
     affiliateData,
     coproducers
   );

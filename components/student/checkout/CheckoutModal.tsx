@@ -1,11 +1,17 @@
 
 import React, { useState, useEffect } from 'react';
-import { X, ShieldCheck, CreditCard, Lock, QrCode, Copy, Check, CheckCircle2, Loader2 } from 'lucide-react';
+import { X, ShieldCheck, CreditCard, Lock, QrCode, Copy, Check, CheckCircle2, Loader2, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { createPagarmePayment } from '../../../services/paymentService';
 import { TictoProduct } from '../../../types/product';
 import { useAuth } from '../../../contexts/AuthContext';
 import toast from 'react-hot-toast';
+
+const INSTALLMENT_MULTIPLIERS: Record<number, number> = {
+  1: 1.00000, 2: 1.04018, 3: 1.06027, 4: 1.08036,
+  5: 1.10045, 6: 1.12054, 7: 1.14063, 8: 1.16072,
+  9: 1.18081, 10: 1.20090, 11: 1.22100, 12: 1.24109
+};
 
 interface CheckoutModalProps {
   product: TictoProduct;
@@ -353,21 +359,27 @@ export default function CheckoutModal({ product, offerId, onClose, onSuccess }: 
 
                             <div>
                               <label className="text-[10px] font-black text-zinc-500 uppercase mb-1 block tracking-widest">Parcelas</label>
-                              <select 
-                                value={installments}
-                                onChange={(e) => setInstallments(Number(e.target.value))}
-                                className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-red-600 transition-colors appearance-none cursor-pointer"
-                              >
-                                {[...Array(12)].map((_, i) => {
-                                  const count = i + 1;
-                                  const value = price / count;
-                                  return (
-                                    <option key={count} value={count}>
-                                      {count}x de {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)}
-                                    </option>
-                                  );
-                                })}
-                              </select>
+                              <div className="relative">
+                                <select 
+                                  value={installments}
+                                  onChange={(e) => setInstallments(Number(e.target.value))}
+                                  className="bg-[#1A1A1A] text-white border border-neutral-700 rounded-md p-3 w-full focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none transition-all appearance-none cursor-pointer pr-10 text-xs"
+                                >
+                                  {[...Array(12)].map((_, i) => {
+                                    const count = i + 1;
+                                    const totalWithInterest = price * INSTALLMENT_MULTIPLIERS[count];
+                                    const installmentValue = totalWithInterest / count;
+                                    return (
+                                      <option key={count} value={count}>
+                                        {count}x de {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(installmentValue)} (Total: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalWithInterest)})
+                                      </option>
+                                    );
+                                  })}
+                                </select>
+                                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-500">
+                                  <ChevronDown size={14} />
+                                </div>
+                              </div>
                             </div>
                           </div>
                         ) : (
