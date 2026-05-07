@@ -30,7 +30,7 @@ export default function StandaloneCheckout() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [pixData, setPixData] = useState<{ qr_code: string; qr_code_url: string } | null>(null);
   const [copied, setCopied] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(900); // 15 minutes in seconds
+  const [timeLeft, setTimeLeft] = useState(1800); // 30 minutes in seconds
   const [installments, setInstallments] = useState(1);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   

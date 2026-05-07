@@ -224,6 +224,8 @@ export const provisionPurchase = async (customerData: CustomerData, targetId: st
         displayName: customerData.name,
       });
 
+      console.log(`[PROVISIONING] ✅ Conta criada com sucesso para: ${customerData.email}`);
+
       const newUserDoc = {
         uid: userRecord.uid,
         name: customerData.name,
@@ -238,6 +240,7 @@ export const provisionPurchase = async (customerData: CustomerData, targetId: st
 
       await dbAdmin.collection('users').doc(userRecord.uid).set(newUserDoc);
       await sendWelcomeEmail(customerData.name, customerData.email, generatedPassword, productName);
+      console.log(`[PROVISIONING] ✅ E-mail de Boas-vindas enviado para: ${customerData.email}`);
     } else {
       const userRef = dbAdmin.collection('users').doc(userRecord.uid);
       const userDoc = await userRef.get();
@@ -252,7 +255,9 @@ export const provisionPurchase = async (customerData: CustomerData, targetId: st
       if (!userData.contact && phone) updateData.contact = phone;
 
       await userRef.update(updateData);
+      console.log(`[PROVISIONING] ✅ Acesso atualizado para aluno antigo: ${customerData.email}`);
       await sendAccessNotificationEmail(userData.name || customerData.name, customerData.email, productName);
+      console.log(`[PROVISIONING] ✅ E-mail de Nova Compra enviado para: ${customerData.email}`);
     }
 
     return { success: true };

@@ -26,7 +26,7 @@ export default function CheckoutModal({ product, offerId, onClose, onSuccess }: 
   const [paymentMethod, setPaymentMethod] = useState<'credit_card' | 'pix'>('credit_card');
   const [pixData, setPixData] = useState<{ qr_code: string; qr_code_url: string } | null>(null);
   const [copied, setCopied] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(900); // 15 minutes in seconds
+  const [timeLeft, setTimeLeft] = useState(1800); // 30 minutes in seconds
   const [installments, setInstallments] = useState(1);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [cardData, setCardData] = useState({

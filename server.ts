@@ -611,15 +611,14 @@ async function setupVite(app: any) {
   });
 
   // Rota de Webhook Pagar.me
-  app.post('/api/webhooks/pagarme', async (req, res) => {
-    try {
-      console.log('Webhook Pagar.me recebido:', req.body);
-      const result = await handlePagarmeWebhook(req.body);
-      return res.status(200).json(result);
-    } catch (error) {
-      console.error("Erro no webhook Pagar.me:", error);
-      return res.status(200).json({ success: false, error: "Internal error handled" });
-    }
+  app.post('/api/webhooks/pagarme', (req, res) => {
+    // Retorno imediato para o Pagar.me evitar timeout
+    res.status(200).json({ success: true, message: 'Webhook received and processing started' });
+
+    // Processamento assíncrono em background
+    handlePagarmeWebhook(req.body).catch(error => {
+      console.error("❌ Erro no processamento assíncrono do webhook Pagar.me:", error);
+    });
   });
 
   // Função auxiliar extractPandaId

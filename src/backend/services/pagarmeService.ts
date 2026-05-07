@@ -186,7 +186,7 @@ export const createPagarmeOrder = async (orderData: any, coproducers: any[] = []
               cvv: orderData.card_cvv
             }
         } : (orderData.payment_method === 'pix' ? {
-            expires_in: 3600 // 1 hour
+            expires_in: 1800 // 30 minutes
         } : {
             expires_in: 86400 * 3 // 3 days
         }),
@@ -265,37 +265,38 @@ export const createPagarmeRecipient = async (data: Record<string, any>) => {
 };
 
 export const handlePagarmeWebhook = async (payload: Record<string, any>) => {
-  console.log('[Pagarme] handleWebhook called event:', payload.type);
+  console.log('✅ [Pagarme] Webhook recebido:', payload.type);
 
   try {
     const eventType = payload.type;
     const orderData = payload.data;
 
     if (eventType === 'order.paid') {
-      console.log('[Pagarme] Webhook: Order paid. Provisioning access for:', orderData.customer.email);
+      const email = orderData.metadata?.userEmail || orderData.customer.email;
+      console.log(`🚀 [Pagarme] Processando order.paid para o e-mail: ${email}`);
       
       const customerData = {
-        email: orderData.customer.email,
-        name: orderData.customer.name,
+        email: email,
+        name: orderData.metadata?.userName || orderData.customer.name,
         cpf: orderData.customer.document || '',
-        phone: orderData.customer.phones?.mobile_phone 
+        phone: orderData.metadata?.userPhone || (orderData.customer.phones?.mobile_phone 
           ? `${orderData.customer.phones.mobile_phone.country_code}${orderData.customer.phones.mobile_phone.area_code}${orderData.customer.phones.mobile_phone.number}`
-          : ''
+          : '')
       };
 
-      const productId = orderData.metadata?.courseId || orderData.metadata?.productId;
+      const productId = orderData.metadata?.courseId || orderData.metadata?.productId || orderData.metadata?.offerId;
       
       if (productId) {
         await provisionPurchase(customerData, String(productId), 'pagarme');
         return { success: true, message: 'Provisioning triggered' };
       } else {
-        console.warn('[Pagarme] Webhook: Paid order missing courseId/productId in metadata');
+        console.warn(`⚠️ [Pagarme] Webhook: Ordem paga (${orderData.id}) sem courseId/productId no metadata`);
       }
     }
 
     return { success: true, message: 'Webhook received' };
   } catch (error) {
-    console.error('[Pagarme] Error processing webhook:', error);
+    console.error('❌ [Pagarme] Erro ao processar webhook:', error);
     throw error;
   }
 };
