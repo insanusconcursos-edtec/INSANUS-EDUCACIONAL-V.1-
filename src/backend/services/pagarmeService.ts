@@ -111,55 +111,90 @@ export const createPagarmeOrder = async (orderData: any, initialCoproducers: any
 
   // Pagar.me works with cents
   const totalAmountCents = Math.round(totalAmountWithInterest * 100);
-  
-  // 🔴 REESCRITA OBRIGATÓRIA (Backend):
-  
-  // 1. Captura e Log Forçado:
-  const coprodutores = coproducers || [];
-  console.log("🚨 [DEBUG SPLIT] Coprodutores encontrados:", JSON.stringify(coprodutores));
 
-  // 2. Variáveis de Controle:
-  let totalSplitAmount = 0;
+  // 🔴 LÓGICA DE DISTRIBUIÇÃO EM CASCATA (Split Cascade):
+
+  // 1. Valor Bruto da Transação
+  const grossAmount = totalAmountCents;
+  
+  // 2. Estimativa de Taxas Pagar.me para determinar Base Líquida
+  let estimatedPagarmeFee = GATEWAY_FEE; // R$ 0,40 fixo base
+  if (orderData.payment_method === 'pix') {
+    estimatedPagarmeFee += Math.round(grossAmount * PIX_RATE);
+  } else if (orderData.payment_method === 'credit_card') {
+    estimatedPagarmeFee += Math.round(grossAmount * 0.0499); // 4.99% estimativa média para split
+  } else {
+    estimatedPagarmeFee += BOLETO_FEE; // R$ 3,19 fixo boleto
+  }
+
+  // 3. Valor Líquido Gateway (Base para as comissões)
+  const netGatewayValue = grossAmount - estimatedPagarmeFee;
+  console.log(`[Pagarme Cascade] Bruto: ${grossAmount} | Taxa Est.: ${estimatedPagarmeFee} | Líquido Gateway: ${netGatewayValue}`);
+
   const splitArray: any[] = [];
-  const totalTransactionAmount = totalAmountCents;
+  let totalDistributedShares = 0;
 
-  // 3. O Loop de Divisão:
-  if (coprodutores.length > 0) {
-    coprodutores.forEach((copro: any) => {
-      // Verifica se tem o ID da Pagar.me e se é válido
-      if (copro.pagarmeRecipientId && copro.pagarmeRecipientId.startsWith('re_')) {
-        const coproFatia = Math.floor(totalTransactionAmount * (Number(copro.percentage) / 100));
-        splitArray.push({
-          amount: coproFatia,
-          recipient_id: copro.pagarmeRecipientId,
-          type: 'flat',
-          options: { charge_processing_fee: false, charge_remainder_fee: false, liable: true }
-        });
-        totalSplitAmount += coproFatia;
-        console.log(`✅ [DEBUG SPLIT] Adicionado ${coproFatia} centavos para ${copro.pagarmeRecipientId}`);
+  // 4. Vendedor/Afiliado (Comissão sobre o Líquido Gateway)
+  if (affiliateDataFromDB && affiliateDataFromDB.recipientId) {
+    const affiliateAmount = Math.floor(netGatewayValue * (affiliateDataFromDB.percentage / 100));
+    if (affiliateAmount > 0) {
+      splitArray.push({
+        amount: affiliateAmount,
+        recipient_id: affiliateDataFromDB.recipientId,
+        type: 'flat',
+        options: { charge_processing_fee: false, charge_remainder_fee: false, liable: true }
+      });
+      totalDistributedShares += affiliateAmount;
+      console.log(`✅ [Pagarme Split] Vendedor ${affiliateDataFromDB.recipientId} recebe ${affiliateAmount} (${affiliateDataFromDB.percentage}% do Líquido)`);
+    }
+  }
+
+  // 5. Base Líquida para Coprodutores
+  const coproducerBase = netGatewayValue - totalDistributedShares;
+  console.log(`[Pagarme Cascade] Base Líquida Coprodutores: ${coproducerBase}`);
+
+  // 6. Loop de Coprodutores (Comissão sobre a Base de Coprodução)
+  const coprodutoresArray = coproducers || [];
+  if (coprodutoresArray.length > 0) {
+    coprodutoresArray.forEach((copro: any) => {
+      const recipientId = copro.pagarmeRecipientId || copro.recipientId;
+      const percentage = Number(copro.percentage) || 0;
+      
+      if (recipientId && recipientId.startsWith('re_') && percentage > 0) {
+        const coproAmount = Math.floor(coproducerBase * (percentage / 100));
+        if (coproAmount > 0) {
+          splitArray.push({
+            amount: coproAmount,
+            recipient_id: recipientId,
+            type: 'flat',
+            options: { charge_processing_fee: false, charge_remainder_fee: false, liable: true }
+          });
+          totalDistributedShares += coproAmount;
+          console.log(`✅ [Pagarme Split] Coprodutor ${recipientId} recebe ${coproAmount} (${percentage}%)`);
+        }
       } else {
-        console.log(`❌ [DEBUG SPLIT] Coprodutor ignorado. ID Pagar.me inválido ou ausente:`, JSON.stringify(copro));
+        console.log(`❌ [Pagarme Split] Coprodutor ignorado. ID ou percentual inválido:`, JSON.stringify(copro));
       }
     });
   }
 
-  // 4. O Restante para a Master:
-  const remainderMaster = totalTransactionAmount - totalSplitAmount;
+  // 7. Conta Master (Recebe o Bruto - Total Distribuído e Arca com as Taxas)
+  const masterAmount = grossAmount - totalDistributedShares;
   const masterRecipientId = process.env.PAGARME_MASTER_RECIPIENT_ID;
 
   if (masterRecipientId) {
     splitArray.push({
-      amount: remainderMaster,
+      amount: masterAmount,
       recipient_id: masterRecipientId,
       type: 'flat',
       options: { charge_processing_fee: true, charge_remainder_fee: true, liable: true }
     });
-    console.log(`✅ [DEBUG SPLIT] Adicionado resto de ${remainderMaster} centavos para a conta Master (${masterRecipientId})`);
+    console.log(`✅ [Pagarme Split] Master ${masterRecipientId} recebe ${masterAmount} (líquido real abaterá as taxas)`);
   } else {
-    console.error("❌ [DEBUG SPLIT] PAGARME_MASTER_RECIPIENT_ID não configurado! Split pode falhar.");
+    console.error("❌ [ERRO CRÍTICO] PAGARME_MASTER_RECIPIENT_ID não configurado!");
   }
 
-  console.log("🚨 [DEBUG SPLIT] Array Final de Split:", JSON.stringify(splitArray));
+  console.log("🚨 [Pagarme Cascade] Distribuição Final do Split:", JSON.stringify(splitArray));
 
   // 3. Build Payload (Update: using the new splitArray)
   const payload: any = {
