@@ -37,6 +37,15 @@ export default function CheckoutModal({ product, offerId, onClose, onSuccess }: 
     expiryYear: '',
     cvv: ''
   });
+  const [billingAddress, setBillingAddress] = useState({
+    zipCode: '',
+    street: '',
+    number: '',
+    neighborhood: '',
+    city: '',
+    state: ''
+  });
+  const [fetchingCep, setFetchingCep] = useState(false);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -55,6 +64,41 @@ export default function CheckoutModal({ product, offerId, onClose, onSuccess }: 
     }
 
     setCardData(prev => ({ ...prev, [name]: maskedValue }));
+  };
+
+  const handleBillingChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    let finalValue = value;
+
+    if (name === 'zipCode') {
+      finalValue = value.replace(/\D/g, '').replace(/(\d{5})(\d)/, '$1-$2').substring(0, 9);
+      if (finalValue.replace(/\D/g, '').length === 8) {
+        fetchAddress(finalValue.replace(/\D/g, ''));
+      }
+    }
+
+    setBillingAddress(prev => ({ ...prev, [name]: finalValue }));
+  };
+
+  const fetchAddress = async (cep: string) => {
+    setFetchingCep(true);
+    try {
+      const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+      const data = await response.json();
+      if (!data.erro) {
+        setBillingAddress(prev => ({
+          ...prev,
+          street: data.logradouro,
+          neighborhood: data.bairro,
+          city: data.localidade,
+          state: data.uf
+        }));
+      }
+    } catch (error) {
+      console.error('Erro ao buscar CEP:', error);
+    } finally {
+      setFetchingCep(false);
+    }
   };
 
   useEffect(() => {
@@ -113,8 +157,13 @@ export default function CheckoutModal({ product, offerId, onClose, onSuccess }: 
   const handlePayment = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!cardData.number || !cardData.holderName || !cardData.expiryMonth || !cardData.expiryYear || !cardData.cvv) {
+    if (paymentMethod === 'credit_card' && (!cardData.number || !cardData.holderName || !cardData.expiryMonth || !cardData.expiryYear || !cardData.cvv)) {
       toast.error('Por favor, preencha todos os campos do cartão.');
+      return;
+    }
+
+    if (paymentMethod === 'credit_card' && (!billingAddress.zipCode || !billingAddress.street || !billingAddress.number || !billingAddress.city || !billingAddress.state)) {
+      toast.error('Por favor, preencha o endereço de cobrança completo.');
       return;
     }
 
@@ -131,6 +180,7 @@ export default function CheckoutModal({ product, offerId, onClose, onSuccess }: 
           card_expiration_year: cardData.expiryYear.length === 2 ? `20${cardData.expiryYear}` : cardData.expiryYear,
           card_cvv: cardData.cvv,
           installments: installments,
+          billingAddress: billingAddress,
         }),
         payer: {
           name: currentUser?.displayName || cardData.holderName || (currentUser as any)?.name || 'Estudante',
@@ -441,6 +491,99 @@ export default function CheckoutModal({ product, offerId, onClose, onSuccess }: 
                                     </>
                                   )}
                                 </AnimatePresence>
+                              </div>
+                            </div>
+
+                            <div className="space-y-4 pt-4 border-t border-zinc-800">
+                              <h4 className="text-[10px] font-black text-white uppercase tracking-widest">Endereço de Cobrança</h4>
+                              
+                              <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                  <label className="text-[10px] font-black text-zinc-500 uppercase mb-1 block tracking-widest">CEP</label>
+                                  <div className="relative">
+                                    <input
+                                      type="text"
+                                      name="zipCode"
+                                      value={billingAddress.zipCode}
+                                      onChange={handleBillingChange}
+                                      placeholder="00000-000"
+                                      className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-red-600 transition-colors"
+                                      required
+                                    />
+                                    {fetchingCep && (
+                                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                        <Loader2 size={14} className="animate-spin text-red-500" />
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                                <div>
+                                  <label className="text-[10px] font-black text-zinc-500 uppercase mb-1 block tracking-widest">Número</label>
+                                  <input
+                                    type="text"
+                                    name="number"
+                                    value={billingAddress.number}
+                                    onChange={handleBillingChange}
+                                    placeholder="123"
+                                    className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-red-600 transition-colors"
+                                    required
+                                  />
+                                </div>
+                              </div>
+
+                              <div>
+                                <label className="text-[10px] font-black text-zinc-500 uppercase mb-1 block tracking-widest">Rua / Logradouro</label>
+                                <input
+                                  type="text"
+                                  name="street"
+                                  value={billingAddress.street}
+                                  onChange={handleBillingChange}
+                                  placeholder="Nome da Rua"
+                                  className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-red-600 transition-colors"
+                                  required
+                                />
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                  <label className="text-[10px] font-black text-zinc-500 uppercase mb-1 block tracking-widest">Bairro</label>
+                                  <input
+                                    type="text"
+                                    name="neighborhood"
+                                    value={billingAddress.neighborhood}
+                                    onChange={handleBillingChange}
+                                    placeholder="Bairro"
+                                    className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-red-600 transition-colors"
+                                    required
+                                  />
+                                </div>
+                                <div className="grid grid-cols-3 gap-2">
+                                  <div className="col-span-2">
+                                    <label className="text-[10px] font-black text-zinc-500 uppercase mb-1 block tracking-widest">Cidade</label>
+                                    <input
+                                      type="text"
+                                      name="city"
+                                      value={billingAddress.city}
+                                      onChange={handleBillingChange}
+                                      placeholder="Cidade"
+                                      className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-red-600 transition-colors"
+                                      required
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-[10px] font-black text-zinc-500 uppercase mb-1 block tracking-widest">UF</label>
+                                    <input
+                                      type="text"
+                                      name="state"
+                                      value={billingAddress.state}
+                                      onChange={handleBillingChange}
+                                      placeholder="SP"
+                                      maxLength={2}
+                                      className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl px-2 py-3 text-white text-sm focus:outline-none focus:border-red-600 transition-colors text-center uppercase"
+                                      required
+                                    />
+                                  </div>
+                                </div>
                               </div>
                             </div>
                           </div>

@@ -198,7 +198,7 @@ export const createPagarmeOrder = async (orderData: any, initialCoproducers: any
 
   // 3. Build Payload (Update: using the new splitArray)
   const payload: any = {
-    antifraud_enabled: false,
+    antifraud_enabled: true,
     items: [
       {
         amount: totalAmountCents,
@@ -228,26 +228,26 @@ export const createPagarmeOrder = async (orderData: any, initialCoproducers: any
             statement_descriptor: 'VIBECODE',
             card: orderData.card_token ? {
               token: orderData.card_token,
-              billing_address: {
-                line_1: "Rua Ficticia, 123",
-                zip_code: "01001000",
-                city: "São Paulo",
-                state: "SP",
+              billing_address: orderData.billingAddress ? {
+                line_1: `${orderData.billingAddress.number}, ${orderData.billingAddress.street}, ${orderData.billingAddress.neighborhood}`,
+                zip_code: orderData.billingAddress.zipCode.replace(/\D/g, ''),
+                city: orderData.billingAddress.city,
+                state: orderData.billingAddress.state,
                 country: "BR"
-              }
+              } : undefined
             } : {
               number: orderData.card_number,
               holder_name: orderData.card_holder_name,
               exp_month: Number(orderData.card_expiration_month),
               exp_year: Number(orderData.card_expiration_year),
               cvv: orderData.card_cvv,
-              billing_address: {
-                line_1: "Rua Ficticia, 123",
-                zip_code: "01001000",
-                city: "São Paulo",
-                state: "SP",
+              billing_address: orderData.billingAddress ? {
+                line_1: `${orderData.billingAddress.number}, ${orderData.billingAddress.street}, ${orderData.billingAddress.neighborhood}`,
+                zip_code: orderData.billingAddress.zipCode.replace(/\D/g, ''),
+                city: orderData.billingAddress.city,
+                state: orderData.billingAddress.state,
                 country: "BR"
-              }
+              } : undefined
             }
         } : (orderData.payment_method === 'pix' ? {
             expires_in: 1800 // 30 minutes
