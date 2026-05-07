@@ -20,6 +20,7 @@ export default function StandaloneCheckout() {
   const [error, setError] = useState<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<'credit_card' | 'pix' | 'ticket'>('credit_card');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   
   // Credit Card States
   const [cardNumber, setCardNumber] = useState('');
@@ -125,6 +126,7 @@ export default function StandaloneCheckout() {
     }
 
     setIsProcessing(true);
+    setErrorMessage(null);
     try {
       const paymentData = {
         transaction_amount: Number(offer.price),
@@ -157,15 +159,20 @@ export default function StandaloneCheckout() {
         },
       };
 
-      await createPagarmePayment(paymentData);
+      const result = await createPagarmePayment(paymentData);
       
-      toast.success("Solicitação recebida! Integração Pagar.me em andamento.");
-      setTimeout(() => {
-        window.location.href = '/app/home';
-      }, 2000);
+      if (result.success) {
+        toast.success("Pagamento aprovado com sucesso!");
+        // Redireciona para a página de obrigado
+        window.location.href = '/obrigado';
+      } else {
+        setErrorMessage(result.message || 'Erro ao processar pagamento');
+      }
     } catch (err: any) {
       console.error(err);
-      toast.error(err.message || 'Erro ao processar pagamento');
+      const msg = err.message || 'Erro ao processar pagamento';
+      setErrorMessage(msg);
+      toast.error(msg);
     } finally {
       setIsProcessing(false);
     }
@@ -336,6 +343,20 @@ export default function StandaloneCheckout() {
                     <span className="text-[9px] font-black uppercase tracking-widest">Boleto</span>
                   </button>
                 </div>
+
+                {errorMessage && (
+                  <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl flex items-start gap-3 mt-4">
+                    <div className="mt-0.5 text-red-500">
+                      <ShieldCheck size={16} />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-[11px] font-black text-red-500 uppercase tracking-widest">Falha no Pagamento</p>
+                      <p className="text-xs text-red-200/80 leading-relaxed font-medium">
+                        {errorMessage}
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 {paymentMethod === 'credit_card' ? (
                   <div className="space-y-4 pt-4">

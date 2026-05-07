@@ -195,10 +195,24 @@ export const createPagarmeOrder = async (orderData: any, coproducers: any[] = []
 
     if (!response.ok) {
       console.error('[Pagarme] API Error:', result);
-      throw new Error(result.message || 'Erro ao criar pedido no Pagar.me');
+      // Pagar.me often returns errors in an 'errors' array or just a 'message'
+      const errorMessage = result.message || (result.errors && result.errors[0]?.message);
+      throw new Error(errorMessage || 'Erro ao criar pedido no Pagar.me');
     }
 
-    if (response.ok && result.status === 'paid') {
+    // Check for payment failure in the charge
+    const charge = result.charges?.[0];
+    if (charge && (charge.status === 'failed' || charge.status === 'not_authorized')) {
+      const declineReason = charge.last_transaction?.acquirer_message || charge.last_transaction?.status_details || 'Pagamento recusado pelo banco emissor.';
+      console.warn('[Pagarme] Payment Refused:', declineReason);
+      
+      const error = new Error(declineReason);
+      (error as any).status = 'failed';
+      (error as any).pagarmeResponse = result;
+      throw error;
+    }
+
+    if (result.status === 'paid') {
       console.log('[Pagarme] Order paid immediately. Provisioning access...');
       const customerData = {
         email: orderData.payer.email,
@@ -209,9 +223,15 @@ export const createPagarmeOrder = async (orderData: any, coproducers: any[] = []
       const productId = orderData.productId || orderData.metadata.courseId || orderData.metadata.productId;
       
       if (productId) {
-        provisionPurchase(customerData, String(productId), 'pagarme').catch(err => {
+        try {
+          await provisionPurchase(customerData, String(productId), 'pagarme');
+          console.log('[Pagarme] Immediate provisioning success for:', customerData.email);
+        } catch (err) {
           console.error('[Pagarme] Error provisioning immediate access:', err);
-        });
+          // We don't necessarily want to fail the whole payment if provisioning fails 
+          // (it might be retried via webhook), but since it's synchronous paid status, 
+          // we should probably let it continue or handle it.
+        }
       }
     }
 

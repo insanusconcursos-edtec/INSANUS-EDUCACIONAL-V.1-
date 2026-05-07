@@ -570,12 +570,23 @@ async function setupVite(app: any) {
 
       const response = await createPagarmeOrder(body, coproducers);
       return res.status(200).json({ success: true, payment: response });
-    } catch (error) {
+    } catch (error: any) {
       console.error("❌ Pagarme Route Error:", error);
+      
+      // Se for uma falha de pagamento (cartão recusado), retornamos a mensagem específica
+      if (error.status === 'failed') {
+        return res.status(400).json({
+          success: false,
+          error: "Pagamento Recusado",
+          message: error.message || "Pagamento recusado pelo banco. Verifique seus dados ou tente outro cartão.",
+          status: 'failed'
+        });
+      }
+
       return res.status(400).json({ 
         success: false, 
-        error: "Erro ao processar pagamento no Pagar.me",
-        message: error instanceof Error ? error.message : "Falha na comunicação com o provedor de pagamentos."
+        error: "Erro no Checkout",
+        message: error.message || "Falha na comunicação com o provedor de pagamentos."
       });
     }
   });

@@ -40,6 +40,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { SpacedReviewModalProvider } from './contexts/SpacedReviewModalContext';
 import PrivateRoute from './components/PrivateRoute';
 import StandaloneCheckout from './pages/checkout/StandaloneCheckout';
+import SuccessPage from './pages/checkout/SuccessPage';
 
 // Student Pages Imports
 import { 
@@ -107,6 +108,7 @@ const App: React.FC = () => {
           <Route path="/migracao/:token" element={<MigrationEnrollment />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/checkout/:offerId" element={<StandaloneCheckout />} />
+          <Route path="/obrigado" element={<SuccessPage />} />
           
           {/* Video Room (Full Screen) */}
           <Route path="/video-room/:callId" element={
