@@ -25,6 +25,7 @@ export default function CheckoutModal({ product, offerId, onClose, onSuccess }: 
   const [loading, setLoading] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'credit_card' | 'pix'>('credit_card');
   const [pixData, setPixData] = useState<{ qr_code: string; qr_code_url: string } | null>(null);
+  const [orderId, setOrderId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [timeLeft, setTimeLeft] = useState(1800); // 30 minutes in seconds
   const [installments, setInstallments] = useState(1);
@@ -67,6 +68,35 @@ export default function CheckoutModal({ product, offerId, onClose, onSuccess }: 
       if (timer) clearInterval(timer);
     };
   }, [pixData, timeLeft]);
+
+  // Polling do status do pagamento (PIX)
+  useEffect(() => {
+    let pollingInterval: NodeJS.Timeout;
+
+    if (pixData && orderId) {
+      pollingInterval = setInterval(async () => {
+        try {
+          const response = await fetch(`/api/payments/pagarme/status?orderId=${orderId}`);
+          const data = await response.json();
+          
+          if (data.success && data.status === 'paid') {
+            clearInterval(pollingInterval);
+            toast.success("Pagamento confirmado!");
+            setTimeout(() => {
+              onSuccess();
+              onClose();
+            }, 1000);
+          }
+        } catch (error) {
+          console.error("Erro no polling de pagamento:", error);
+        }
+      }, 5000);
+    }
+
+    return () => {
+      if (pollingInterval) clearInterval(pollingInterval);
+    };
+  }, [pixData, orderId, onSuccess, onClose]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -121,6 +151,9 @@ export default function CheckoutModal({ product, offerId, onClose, onSuccess }: 
       if (result.success) {
         if (paymentMethod === 'pix' && result.pix) {
           setPixData(result.pix);
+          if (result.payment?.id) {
+            setOrderId(result.payment.id);
+          }
           toast.success('PIX gerado com sucesso!');
         } else {
           toast.success('Pedido processado com sucesso!');

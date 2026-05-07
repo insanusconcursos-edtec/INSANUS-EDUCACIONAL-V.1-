@@ -4,7 +4,7 @@ import { fetchPandaVideoTranscription } from './src/backend/services/pandaVideoS
 import { generateStudyMaterial } from './src/backend/services/geminiService.js';
 import { getAdminConfig } from './src/backend/services/firebaseAdmin.js';
 import { provisionTictoPurchase, revokeTictoPurchase } from './src/backend/services/provisioningService.js';
-import { createPagarmeOrder, handlePagarmeWebhook } from './src/backend/services/pagarmeService.js';
+import { createPagarmeOrder, handlePagarmeWebhook, getPagarmeOrderStatus } from './src/backend/services/pagarmeService.js';
 
 // const __filename = fileURLToPath(import.meta.url);
 // __dirname is not used in this file, but kept for reference if needed
@@ -610,15 +610,47 @@ async function setupVite(app: any) {
     }
   });
 
-  // Rota de Webhook Pagar.me
-  app.post('/api/webhooks/pagarme', (req, res) => {
-    // Retorno imediato para o Pagar.me evitar timeout
-    res.status(200).json({ success: true, message: 'Webhook received and processing started' });
+  // Rota de consulta de status Pagar.me para Polling do Frontend
+  app.get('/api/payments/pagarme/status', async (req, res) => {
+    try {
+      const orderId = req.query.orderId as string;
+      if (!orderId) {
+        return res.status(400).json({ success: false, error: 'orderId e obrigatorio' });
+      }
+      const order = await getPagarmeOrderStatus(orderId);
+      return res.status(200).json({ 
+        success: true, 
+        status: order.status, // 'paid', 'pending', 'canceled', etc.
+        order 
+      });
+    } catch (error) {
+      console.error("Erro ao consultar status Pagar.me:", error);
+      return res.status(500).json({ success: false, error: 'Internal Server Error' });
+    }
+  });
 
-    // Processamento assíncrono em background
-    handlePagarmeWebhook(req.body).catch(error => {
-      console.error("❌ Erro no processamento assíncrono do webhook Pagar.me:", error);
-    });
+  // Rota de Webhook Pagar.me
+  app.post('/api/webhooks/pagarme', async (req, res) => {
+    console.log('✅ [Webhook Pagar.me] Recebido:', req.body.type);
+    
+    try {
+      // No Vercel/Serverless, DEVEMOS esperar o processamento antes de responder,
+      // caso contrário o processo é congelado e o fulfillment (e-mail/banco) não termina.
+      await handlePagarmeWebhook(req.body);
+      
+      return res.status(200).json({ 
+        success: true, 
+        message: 'Webhook processed successfully' 
+      });
+    } catch (error) {
+      console.error("❌ Erro no Fulfillment do Webhook Pagar.me:", error);
+      // Retornamos 200 mesmo em erro para o Pagar.me não ficar tentando infinitamente
+      // se for um erro lógico, mas logamos pesado para auditoria.
+      return res.status(200).json({ 
+        success: false, 
+        error: "Fulfillment failed but webhook acknowledged" 
+      });
+    }
   });
 
   // Função auxiliar extractPandaId

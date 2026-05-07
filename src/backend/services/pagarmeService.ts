@@ -104,6 +104,8 @@ const calculateCascadeSplits = (
         liable: true
       }
     });
+  } else {
+    console.error("❌ [Pagarme] PAGARME_MASTER_RECIPIENT_ID não configurado! Split pode falhar.");
   }
 
   return splits;
@@ -146,6 +148,11 @@ export const createPagarmeOrder = async (orderData: any, coproducers: any[] = []
     affiliateData,
     coproducers
   );
+
+  // Log Split Payload specifically for debugging as requested
+  if (splits.length > 0) {
+    console.log("🚀 Payload de Split preparado:", JSON.stringify(splits, null, 2));
+  }
 
   // 3. Build Payload
   const payload: any = {
@@ -190,11 +197,15 @@ export const createPagarmeOrder = async (orderData: any, coproducers: any[] = []
         } : {
             expires_in: 86400 * 3 // 3 days
         }),
-        split: splits.length > 0 ? splits : undefined
+        split: splits.length > 0 ? splits : undefined,
+        splits: splits.length > 0 ? splits : undefined
       }
     ],
     metadata: orderData.metadata
   };
+
+  // Critical Log for Auditing as requested
+  console.log("🚀 [Pagarme] Payload Final do Pedido:", JSON.stringify(payload, null, 2));
 
   try {
     const response = await fetch(PAGARME_API_URL, {
@@ -262,6 +273,29 @@ export const createPagarmeTransaction = async (data: Record<string, any>) => {
 export const createPagarmeRecipient = async (data: Record<string, any>) => {
   console.log('[Pagarme] createRecipient called with:', data);
   throw new Error('Pagar.me service integration pending.');
+};
+
+export const getPagarmeOrderStatus = async (orderId: string) => {
+  console.log(`[Pagarme] Checking status for order: ${orderId}`);
+  
+  try {
+    const response = await fetch(`${PAGARME_API_URL}/${orderId}`, {
+      method: 'GET',
+      headers: getHeaders()
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      console.error('[Pagarme] Status Check API Error:', result);
+      throw new Error('Erro ao consultar status no Pagar.me');
+    }
+
+    return result;
+  } catch (error) {
+    console.error('[Pagarme] Error checking order status:', error);
+    throw error;
+  }
 };
 
 export const handlePagarmeWebhook = async (payload: Record<string, any>) => {

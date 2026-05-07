@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { getProductByOfferId } from '../../services/productService';
 import { TictoProduct, ProductOffer } from '../../types/product';
 import { SystemLogo } from '../../components/common/SystemLogo';
@@ -29,10 +29,12 @@ export default function StandaloneCheckout() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [pixData, setPixData] = useState<{ qr_code: string; qr_code_url: string } | null>(null);
+  const [orderId, setOrderId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [timeLeft, setTimeLeft] = useState(1800); // 30 minutes in seconds
   const [installments, setInstallments] = useState(1);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const navigate = useNavigate();
   
   // Credit Card States
   const [cardNumber, setCardNumber] = useState('');
@@ -118,6 +120,34 @@ export default function StandaloneCheckout() {
     };
   }, [pixData, timeLeft]);
 
+  // Polling do status do pagamento (PIX)
+  useEffect(() => {
+    let pollingInterval: NodeJS.Timeout;
+
+    if (pixData && orderId) {
+      pollingInterval = setInterval(async () => {
+        try {
+          const response = await fetch(`/api/payments/pagarme/status?orderId=${orderId}`);
+          const data = await response.json();
+          
+          if (data.success && data.status === 'paid') {
+            clearInterval(pollingInterval);
+            toast.success("Pagamento confirmado! Redirecionando...");
+            setTimeout(() => {
+              navigate('/obrigado');
+            }, 1500);
+          }
+        } catch (error) {
+          console.error("Erro no polling de pagamento:", error);
+        }
+      }, 5000); // Polling a cada 5 segundos
+    }
+
+    return () => {
+      if (pollingInterval) clearInterval(pollingInterval);
+    };
+  }, [pixData, orderId, navigate]);
+
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -194,6 +224,9 @@ export default function StandaloneCheckout() {
       if (result.success) {
         if (paymentMethod === 'pix' && result.pix) {
           setPixData(result.pix);
+          if (result.payment?.id) {
+            setOrderId(result.payment.id);
+          }
           toast.success("PIX gerado com sucesso! Pague para liberar seu acesso.");
         } else {
           toast.success("Pagamento aprovado com sucesso!");
