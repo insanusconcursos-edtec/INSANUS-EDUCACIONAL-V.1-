@@ -34,6 +34,16 @@ export default function StandaloneCheckout() {
   const [timeLeft, setTimeLeft] = useState(1800); // 30 minutes in seconds
   const [installments, setInstallments] = useState(1);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [billingAddress, setBillingAddress] = useState({
+    zipCode: '',
+    street: '',
+    number: '',
+    complement: '',
+    neighborhood: '',
+    city: '',
+    state: ''
+  });
+  const [fetchingCep, setFetchingCep] = useState(false);
   const navigate = useNavigate();
   
   // Credit Card States
@@ -106,6 +116,41 @@ export default function StandaloneCheckout() {
       .replace(/(\d{2})(\d)/, '($1) $2')
       .replace(/(\d{5})(\d)/, '$1-$2')
       .replace(/(-\d{4})\d+?$/, '$1');
+  };
+
+  const handleBillingChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    let finalValue = value;
+
+    if (name === 'zipCode') {
+      finalValue = value.replace(/\D/g, '').replace(/(\d{5})(\d)/, '$1-$2').substring(0, 9);
+      if (finalValue.replace(/\D/g, '').length === 8) {
+        fetchAddress(finalValue.replace(/\D/g, ''));
+      }
+    }
+
+    setBillingAddress(prev => ({ ...prev, [name]: finalValue }));
+  };
+
+  const fetchAddress = async (cep: string) => {
+    setFetchingCep(true);
+    try {
+      const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+      const data = await response.json();
+      if (!data.erro) {
+        setBillingAddress(prev => ({
+          ...prev,
+          street: data.logradouro,
+          neighborhood: data.bairro,
+          city: data.localidade,
+          state: data.uf
+        }));
+      }
+    } catch (error) {
+      console.error('Erro ao buscar CEP:', error);
+    } finally {
+      setFetchingCep(false);
+    }
   };
 
   useEffect(() => {
@@ -183,6 +228,10 @@ export default function StandaloneCheckout() {
         toast.error('Por favor, preencha todos os campos do cartão.');
         return;
       }
+      if (!billingAddress.zipCode || !billingAddress.street || !billingAddress.number || !billingAddress.city || !billingAddress.state) {
+        toast.error('Por favor, preencha o endereço de cobrança completo.');
+        return;
+      }
     }
 
     setIsProcessing(true);
@@ -201,6 +250,7 @@ export default function StandaloneCheckout() {
           card_expiration_year: cardYear.length === 2 ? `20${cardYear}` : cardYear,
           card_cvv: cardCVV,
           installments: installments,
+          billingAddress: billingAddress,
         }),
         payer: {
           email: buyerData.email,
@@ -634,6 +684,118 @@ export default function StandaloneCheckout() {
                                 </>
                               )}
                             </AnimatePresence>
+                          </div>
+                        </div>
+
+                        {/* Endereço de Cobrança */}
+                        <div className="space-y-4 pt-6 border-t border-zinc-800/50">
+                          <div className="flex items-center justify-between">
+                            <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Endereço de Cobrança (Obrigatório)</h3>
+                            {fetchingCep && (
+                              <div className="flex items-center gap-2">
+                                <Loader2 size={12} className="animate-spin text-red-500" />
+                                <span className="text-[9px] text-zinc-500 font-bold uppercase">Buscando...</span>
+                              </div>
+                            )}
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-1.5">
+                              <label className="text-[11px] font-black text-zinc-400 uppercase tracking-widest ml-1">CEP</label>
+                              <input
+                                type="text"
+                                name="zipCode"
+                                value={billingAddress.zipCode}
+                                onChange={handleBillingChange}
+                                placeholder="00000-000"
+                                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3.5 text-white font-semibold focus:outline-none focus:ring-2 focus:ring-red-600/20 transition-all placeholder:text-zinc-700"
+                                required
+                              />
+                            </div>
+                            <div className="space-y-1.5">
+                              <label className="text-[11px] font-black text-zinc-400 uppercase tracking-widest ml-1">Número</label>
+                              <input
+                                type="text"
+                                name="number"
+                                value={billingAddress.number}
+                                onChange={handleBillingChange}
+                                placeholder="123"
+                                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3.5 text-white font-semibold focus:outline-none focus:ring-2 focus:ring-red-600/20 transition-all placeholder:text-zinc-700"
+                                required
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="md:col-span-2 space-y-1.5">
+                              <label className="text-[11px] font-black text-zinc-400 uppercase tracking-widest ml-1">Rua / Logradouro</label>
+                              <input
+                                type="text"
+                                name="street"
+                                value={billingAddress.street}
+                                onChange={handleBillingChange}
+                                placeholder="Nome da Rua"
+                                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3.5 text-white font-semibold focus:outline-none focus:ring-2 focus:ring-red-600/20 transition-all placeholder:text-zinc-700 disabled:opacity-50"
+                                required
+                                readOnly={!!billingAddress.street && fetchingCep === false && billingAddress.zipCode.length === 9}
+                              />
+                            </div>
+                            <div className="space-y-1.5">
+                              <label className="text-[11px] font-black text-zinc-400 uppercase tracking-widest ml-1">Comp.</label>
+                              <input
+                                type="text"
+                                name="complement"
+                                value={billingAddress.complement}
+                                onChange={handleBillingChange}
+                                placeholder="Apto/Bl"
+                                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3.5 text-white font-semibold focus:outline-none focus:ring-2 focus:ring-red-600/20 transition-all placeholder:text-zinc-700"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-1.5">
+                              <label className="text-[11px] font-black text-zinc-400 uppercase tracking-widest ml-1">Bairro</label>
+                              <input
+                                type="text"
+                                name="neighborhood"
+                                value={billingAddress.neighborhood}
+                                onChange={handleBillingChange}
+                                placeholder="Bairro"
+                                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3.5 text-white font-semibold focus:outline-none focus:ring-2 focus:ring-red-600/20 transition-all placeholder:text-zinc-700 disabled:opacity-50"
+                                required
+                                readOnly={!!billingAddress.neighborhood && fetchingCep === false && billingAddress.zipCode.length === 9}
+                              />
+                            </div>
+                            <div className="grid grid-cols-3 gap-2">
+                              <div className="col-span-2 space-y-1.5">
+                                <label className="text-[11px] font-black text-zinc-400 uppercase tracking-widest ml-1">Cidade</label>
+                                <input
+                                  type="text"
+                                  name="city"
+                                  value={billingAddress.city}
+                                  onChange={handleBillingChange}
+                                  placeholder="Cidade"
+                                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3.5 text-white font-semibold focus:outline-none focus:ring-2 focus:ring-red-600/20 transition-all placeholder:text-zinc-700 disabled:opacity-50"
+                                  required
+                                  readOnly={!!billingAddress.city && fetchingCep === false && billingAddress.zipCode.length === 9}
+                                />
+                              </div>
+                              <div className="space-y-1.5">
+                                <label className="text-[11px] font-black text-zinc-400 uppercase tracking-widest ml-1">UF</label>
+                                <input
+                                  type="text"
+                                  name="state"
+                                  value={billingAddress.state}
+                                  onChange={handleBillingChange}
+                                  placeholder="SP"
+                                  maxLength={2}
+                                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-2 py-3.5 text-white font-semibold focus:outline-none focus:ring-2 focus:ring-red-600/20 transition-all text-center uppercase disabled:opacity-50"
+                                  required
+                                  readOnly={!!billingAddress.state && fetchingCep === false && billingAddress.zipCode.length === 9}
+                                />
+                              </div>
+                            </div>
                           </div>
                         </div>
 
