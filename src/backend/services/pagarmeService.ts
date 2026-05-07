@@ -63,30 +63,26 @@ export const createPagarmeOrder = async (orderData: any, initialCoproducers: any
       console.log(`[Pagarme] Buscando regras no Curso/Produto/Combo: ${productId}`);
       
       let productData = null;
-      let usedCollection = '';
+      const collectionsToTry = ['products', 'combos', 'courses', 'bundles']; 
       
-      // Tenta em múltiplas coleções (cursos, combos ou produtos)
-      const collections = ['courses', 'combos', 'products'];
-      for (const coll of collections) {
-        const doc = await dbAdmin.collection(coll).doc(productId).get();
-        if (doc.exists) {
-          productData = doc.data();
-          usedCollection = coll;
+      for (const collectionName of collectionsToTry) {
+        const docRef = await dbAdmin.collection(collectionName).doc(productId).get();
+        if (docRef.exists) {
+          productData = docRef.data();
+          console.log(`✅ [DEBUG BD] Produto encontrado com sucesso na coleção: ${collectionName}`);
+          console.log("🚨 [DEBUG DB] Chaves do Produto/Combo:", Object.keys(productData || {}));
+          console.log("🚨 [DEBUG DB] Estrutura do Produto/Combo:", JSON.stringify(productData));
           break;
         }
       }
 
       if (productData) {
-        console.log(`🚨 [DEBUG DB] Encontrado na coleção: ${usedCollection}`);
-        console.log("🚨 [DEBUG DB] Chaves do Produto/Combo:", Object.keys(productData || {}));
-        console.log("🚨 [DEBUG DB] Estrutura do Produto/Combo:", JSON.stringify(productData));
-        
         if (productData?.coproducers && Array.isArray(productData.coproducers)) {
           coproducers = productData.coproducers;
           console.log(`[Pagarme] ✅ ${coproducers.length} Coprodutores encontrados.`);
         }
       } else {
-        console.warn(`⚠️ [Pagarme] Produto/Curso/Combo ${productId} não encontrado em nenhuma coleção.`);
+        console.error(`❌ [ERRO CRÍTICO] O ID ${productId} não existe em nenhuma das coleções mapeadas!`);
       }
     }
         
