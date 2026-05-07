@@ -116,6 +116,7 @@ export const provisionPurchase = async (customerData: CustomerData, targetId: st
         const productsSnapshot = await dbAdmin.collection('ticto_products').doc(safeTargetId).get();
         if (productsSnapshot.exists) {
           const productData = productsSnapshot.data();
+          productDocId = productsSnapshot.id;
           productName = productData?.name || 'Produto';
           accessDays = productData?.accessDays || 365;
           linkedResources = productData?.linkedResources || linkedResources;
@@ -226,6 +227,9 @@ export const provisionPurchase = async (customerData: CustomerData, targetId: st
 
       console.log(`[PROVISIONING] ✅ Conta criada com sucesso para: ${customerData.email}`);
 
+      const productsToGrant = accessesToGrant.filter(a => a.type === 'product');
+      const regularAccessToGrant = accessesToGrant.filter(a => a.type !== 'product');
+
       const newUserDoc = {
         uid: userRecord.uid,
         name: customerData.name,
@@ -235,7 +239,8 @@ export const provisionPurchase = async (customerData: CustomerData, targetId: st
         role: 'student',
         status: 'active',
         createdAt: FieldValue.serverTimestamp(),
-        access: accessesToGrant,
+        access: regularAccessToGrant,
+        products: productsToGrant
       };
 
       await dbAdmin.collection('users').doc(userRecord.uid).set(newUserDoc);
@@ -246,10 +251,20 @@ export const provisionPurchase = async (customerData: CustomerData, targetId: st
       const userDoc = await userRef.get();
       const userData = userDoc.data() || {};
       
+      const productsToGrant = accessesToGrant.filter(a => a.type === 'product');
+      const regularAccessToGrant = accessesToGrant.filter(a => a.type !== 'product');
+      
       const updateData: Record<string, any> = { 
-        status: 'active',
-        access: FieldValue.arrayUnion(...accessesToGrant)
+        status: 'active'
       };
+
+      if (regularAccessToGrant.length > 0) {
+        updateData.access = FieldValue.arrayUnion(...regularAccessToGrant);
+      }
+      
+      if (productsToGrant.length > 0) {
+        updateData.products = FieldValue.arrayUnion(...productsToGrant);
+      }
       
       if (!userData.cpf && cpf) updateData.cpf = cpf;
       if (!userData.contact && phone) updateData.contact = phone;

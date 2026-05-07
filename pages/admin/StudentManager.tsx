@@ -16,6 +16,8 @@ import {
 } from '../../services/userService';
 import { getPlans, Plan } from '../../services/planService';
 import { getSimulatedClasses, SimulatedClass } from '../../services/simulatedService';
+import { getProducts } from '../../services/productService';
+import { TictoProduct } from '../../types/product';
 import StudentFormModal from '../../components/admin/students/StudentFormModal';
 import StudentAccessManager from '../../components/admin/students/StudentAccessManager';
 import ConfirmationModal from '../../components/ui/ConfirmationModal';
@@ -26,6 +28,7 @@ const StudentManager: React.FC = () => {
   const [students, setStudents] = useState<Student[]>([]);
   const [availablePlans, setAvailablePlans] = useState<Plan[]>([]);
   const [availableClasses, setAvailableClasses] = useState<SimulatedClass[]>([]);
+  const [availableProducts, setAvailableProducts] = useState<TictoProduct[]>([]);
   const [loading, setLoading] = useState(true);
   
   // Filter State
@@ -33,6 +36,7 @@ const StudentManager: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
   const [selectedPlanFilter, setSelectedPlanFilter] = useState(''); // Filter for Plans
   const [selectedClassFilter, setSelectedClassFilter] = useState(''); // Filter for Simulated Classes
+  const [selectedProductFilter, setSelectedProductFilter] = useState(''); // Filter for Products (Combos)
   
   // Modal State
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -53,16 +57,18 @@ const StudentManager: React.FC = () => {
   // === DATA FETCHING ===
   const fetchData = useCallback(async () => {
     try {
-      // Fetch students, plans, and classes in parallel
-      const [studentsData, plansData, classesData] = await Promise.all([
+      // Fetch students, plans, classes, and products in parallel
+      const [studentsData, plansData, classesData, productsData] = await Promise.all([
         getStudents(),
         getPlans(),
-        getSimulatedClasses()
+        getSimulatedClasses(),
+        getProducts()
       ]);
       
       setStudents(studentsData);
       setAvailablePlans(plansData);
       setAvailableClasses(classesData);
+      setAvailableProducts(productsData);
     } catch (error) {
       console.error("Erro ao buscar dados:", error);
     } finally {
@@ -210,7 +216,16 @@ const StudentManager: React.FC = () => {
         matchesClass = student.access?.some(item => item.targetId === selectedClassFilter && item.type === 'simulated_class') || false;
     }
 
-    return matchesSearch && matchesStatus && matchesPlan && matchesClass;
+    // 5. Product Filter (Combo)
+    let matchesProduct = true;
+    if (selectedProductFilter) {
+        matchesProduct = (
+            student.products?.some(item => item.targetId === selectedProductFilter && item.isActive) || 
+            student.access?.some(item => item.targetId === selectedProductFilter && item.type === 'product' && item.isActive)
+        ) || false;
+    }
+
+    return matchesSearch && matchesStatus && matchesPlan && matchesClass && matchesProduct;
   });
 
   return (
@@ -277,6 +292,20 @@ const StudentManager: React.FC = () => {
                 </option>
             ))}
         </select>
+
+        {/* Product Select */}
+        <select 
+            value={selectedProductFilter}
+            onChange={(e) => setSelectedProductFilter(e.target.value)}
+            className="bg-brand-black border border-zinc-800 rounded-lg text-[10px] font-bold text-white px-4 py-2.5 focus:outline-none focus:border-brand-red transition-all uppercase tracking-tighter min-w-[200px]"
+        >
+            <option value="">Todos os Combos</option>
+            {availableProducts.map(prod => (
+                <option key={prod.id} value={prod.id} className="text-white">
+                    {prod.name}
+                </option>
+            ))}
+        </select>
         
         {/* Search Input */}
         <div className="relative flex-1 min-w-[200px]">
@@ -309,13 +338,20 @@ const StudentManager: React.FC = () => {
                     <tr>
                         <th className="px-6 py-4">Aluno</th>
                         <th className="px-6 py-4">CPF</th>
+                        <th className="px-6 py-4">Produtos (Combos)</th>
                         <th className="px-6 py-4 text-center">Contato</th>
                         <th className="px-6 py-4 text-center">Status</th>
                         <th className="px-6 py-4 text-right">Ações</th>
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-800/50">
-                    {filteredStudents.map(student => (
+                    {filteredStudents.map(student => {
+                        const activeProducts = [
+                            ...(student.products?.filter(p => p.isActive) || []),
+                            ...(student.access?.filter(a => a.type === 'product' && a.isActive) || [])
+                        ];
+
+                        return (
                         <tr key={student.uid} className="hover:bg-zinc-900/40 transition-colors group">
                             {/* Aluno */}
                             <td className="px-6 py-4">
@@ -323,9 +359,9 @@ const StudentManager: React.FC = () => {
                                     <div className="w-10 h-10 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-xs font-black text-zinc-300">
                                         {getInitials(student.name)}
                                     </div>
-                                    <div>
-                                        <div className="text-xs font-bold text-white uppercase">{student.name}</div>
-                                        <div className="text-[10px] text-zinc-500">{student.email}</div>
+                                    <div className="max-w-[200px]">
+                                        <div className="text-xs font-bold text-white uppercase truncate">{student.name}</div>
+                                        <div className="text-[10px] text-zinc-500 truncate">{student.email}</div>
                                     </div>
                                 </div>
                             </td>
@@ -333,6 +369,21 @@ const StudentManager: React.FC = () => {
                             {/* CPF */}
                             <td className="px-6 py-4">
                                 <span className="text-xs font-mono text-zinc-400">{formatCPF(student.cpf)}</span>
+                            </td>
+
+                            {/* Produtos (Combos) */}
+                            <td className="px-6 py-4">
+                                <div className="flex flex-wrap gap-1 max-w-[300px]">
+                                    {activeProducts.length > 0 ? (
+                                        activeProducts.map(p => (
+                                            <span key={p.id} className="inline-block px-2 py-0.5 bg-purple-900/30 text-purple-400 border border-purple-800/50 rounded text-[9px] font-bold uppercase truncate max-w-[140px]">
+                                                {p.title}
+                                            </span>
+                                        ))
+                                    ) : (
+                                        <span className="text-[10px] text-zinc-700 font-bold uppercase italic">Sem Combos</span>
+                                    )}
+                                </div>
                             </td>
 
                             {/* WhatsApp */}
@@ -402,7 +453,8 @@ const StudentManager: React.FC = () => {
                                 </div>
                             </td>
                         </tr>
-                    ))}
+                        );
+                    })}
                 </tbody>
             </table>
         )}
