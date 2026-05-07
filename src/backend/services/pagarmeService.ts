@@ -67,10 +67,16 @@ const calculateCascadeSplits = (
   // 4. Coproducers Commission (on what's left after Affiliate)
   const remainingAfterAffiliate = postFeeValue - totalDistributed;
   
+  if (coproducers && coproducers.length > 0) {
+    console.log(`[Pagarme] 🛠️ Processando split para ${coproducers.length} coprodutores. Valor base: ${remainingAfterAffiliate / 100}`);
+  }
+
   for (const copro of coproducers) {
+    console.log("[Pagarme] 🔍 Analisando coprodutor na iteração:", JSON.stringify(copro, null, 2));
+
     // Validação rigorosa do ID do recebedor Pagar.me
     if (!copro.pagarmeRecipientId || !copro.pagarmeRecipientId.startsWith('re_') || copro.isActive === false) {
-      console.warn(`⚠️ [Pagarme] Coprodutor ${copro.coproducerName || 'sem nome'} ignorado no split: ID inválido ou inativo.`);
+      console.warn(`⚠️ [Pagarme] Coprodutor ${copro.coproducerName || 'sem nome'} ignorado no split: ID inválido (${copro.pagarmeRecipientId}), incompleto ou inativo.`);
       continue;
     }
     
@@ -78,6 +84,7 @@ const calculateCascadeSplits = (
     const coproAmount = Math.floor(remainingAfterAffiliate * (coproPercentage / 100));
     
     if (coproAmount > 0) {
+      console.log(`[Pagarme] ✅ Adicionando split de ${coproPercentage}% (${coproAmount / 100}) para ${copro.coproducerName}`);
       splits.push({
         amount: coproAmount,
         recipient_id: copro.pagarmeRecipientId,
@@ -89,6 +96,8 @@ const calculateCascadeSplits = (
         }
       });
       totalDistributed += coproAmount;
+    } else {
+      console.warn(`⚠️ [Pagarme] Coprodutor ${copro.coproducerName} resultou em valor R$ 0,00 e foi ignorado.`);
     }
   }
 
@@ -146,6 +155,7 @@ export const createPagarmeOrder = async (orderData: any, initialCoproducers: any
       const offerDoc = await dbAdmin.collection('offers').doc(offerId).get();
       if (offerDoc.exists) {
         const data = offerDoc.data();
+        console.log("🔍 [Pagarme] Dados brutos de Coprodutores da Oferta:", JSON.stringify(data?.coproducers, null, 2));
         if (data?.coproducers && Array.isArray(data.coproducers) && coproducers.length === 0) {
           coproducers = data.coproducers;
           console.log(`[Pagarme] ✅ ${coproducers.length} Coprodutores encontrados na Oferta.`);
@@ -159,6 +169,7 @@ export const createPagarmeOrder = async (orderData: any, initialCoproducers: any
       const courseDoc = await dbAdmin.collection('courses').doc(productId).get();
       if (courseDoc.exists) {
         const data = courseDoc.data();
+        console.log("🔍 [Pagarme] Dados brutos de Coprodutores do Curso:", JSON.stringify(data?.coproducers, null, 2));
         if (data?.coproducers && Array.isArray(data.coproducers)) {
           coproducers = data.coproducers;
           console.log(`[Pagarme] ✅ ${coproducers.length} Coprodutores encontrados no Curso.`);
