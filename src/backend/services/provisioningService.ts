@@ -49,7 +49,7 @@ interface Resources {
   liveEvents?: string[];
 }
 
-export const provisionPurchase = async (customerData: CustomerData, targetId: string, origin: 'ticto' | 'mp' = 'ticto') => {
+export const provisionPurchase = async (customerData: CustomerData, targetId: string, origin: 'ticto' | 'mp' | 'pagarme' = 'ticto') => {
   const { dbAdmin, authAdmin } = getAdminConfig();
   try {
     const safeTargetId = String(targetId);
@@ -103,7 +103,7 @@ export const provisionPurchase = async (customerData: CustomerData, targetId: st
         });
       }
     } else {
-      // Mercado Pago: targetId is usually the ONLINE COURSE ID or a PRODUCT ID
+      // Mercado Pago ou Pagar.me: targetId is usually the ONLINE COURSE ID or a PRODUCT ID
       // Let's assume for now it's a direct course if it's not found in ticto_products (or we can have a generic products collection)
       // For now, let's look in online_courses if it's a courseId
       const courseSnap = await dbAdmin.collection('online_courses').doc(safeTargetId).get();

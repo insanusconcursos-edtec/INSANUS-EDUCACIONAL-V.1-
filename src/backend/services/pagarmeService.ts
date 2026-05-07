@@ -1,4 +1,6 @@
 
+import { provisionPurchase } from './provisioningService.js';
+
 const PAGARME_API_URL = 'https://api.pagar.me/core/v5/orders';
 
 // Pagar.me Fees (in cents)
@@ -196,6 +198,23 @@ export const createPagarmeOrder = async (orderData: any, coproducers: any[] = []
       throw new Error(result.message || 'Erro ao criar pedido no Pagar.me');
     }
 
+    if (response.ok && result.status === 'paid') {
+      console.log('[Pagarme] Order paid immediately. Provisioning access...');
+      const customerData = {
+        email: orderData.payer.email,
+        name: orderData.payer.name,
+        cpf: orderData.payer.document.replace(/\D/g, ''),
+        phone: orderData.metadata.userPhone
+      };
+      const productId = orderData.productId || orderData.metadata.courseId || orderData.metadata.productId;
+      
+      if (productId) {
+        provisionPurchase(customerData, String(productId), 'pagarme').catch(err => {
+          console.error('[Pagarme] Error provisioning immediate access:', err);
+        });
+      }
+    }
+
     return result;
   } catch (error: any) {
     console.error('[Pagarme] fetch error:', error);
@@ -214,6 +233,37 @@ export const createPagarmeRecipient = async (data: Record<string, any>) => {
 };
 
 export const handlePagarmeWebhook = async (payload: Record<string, any>) => {
-  console.log('[Pagarme] handleWebhook called with:', payload);
-  throw new Error('Pagar.me service integration pending.');
+  console.log('[Pagarme] handleWebhook called event:', payload.type);
+
+  try {
+    const eventType = payload.type;
+    const orderData = payload.data;
+
+    if (eventType === 'order.paid') {
+      console.log('[Pagarme] Webhook: Order paid. Provisioning access for:', orderData.customer.email);
+      
+      const customerData = {
+        email: orderData.customer.email,
+        name: orderData.customer.name,
+        cpf: orderData.customer.document || '',
+        phone: orderData.customer.phones?.mobile_phone 
+          ? `${orderData.customer.phones.mobile_phone.country_code}${orderData.customer.phones.mobile_phone.area_code}${orderData.customer.phones.mobile_phone.number}`
+          : ''
+      };
+
+      const productId = orderData.metadata?.courseId || orderData.metadata?.productId;
+      
+      if (productId) {
+        await provisionPurchase(customerData, String(productId), 'pagarme');
+        return { success: true, message: 'Provisioning triggered' };
+      } else {
+        console.warn('[Pagarme] Webhook: Paid order missing courseId/productId in metadata');
+      }
+    }
+
+    return { success: true, message: 'Webhook received' };
+  } catch (error) {
+    console.error('[Pagarme] Error processing webhook:', error);
+    throw error;
+  }
 };
