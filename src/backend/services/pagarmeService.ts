@@ -42,58 +42,33 @@ export const createPagarmeOrder = async (orderData: any, initialCoproducers: any
 
   try {
     const productId = orderData.metadata?.courseId || orderData.metadata?.productId || orderData.productId;
-    const offerId = orderData.metadata?.offerId;
+    const metadata = orderData.metadata || {};
+    const offerId = metadata.offerId;
     
-    // 1. Tentar buscar por Oferta primeiro (regras específicas de preço/split)
-    if (offerId) {
-      console.log(`[Pagarme] Buscando regras na Oferta: ${offerId}`);
-      const offerDoc = await dbAdmin.collection('offers').doc(offerId).get();
-      if (offerDoc.exists) {
-        const data = offerDoc.data();
-        console.log("🚨 [DEBUG DB] Chaves da Oferta:", Object.keys(data || {}));
-        console.log("🔍 [Pagarme] Dados brutos de Coprodutores da Oferta:", JSON.stringify(data?.coproducers, null, 2));
+    if (productId) {
+      console.log(`[Pagarme] Buscando regras no Produto: ${productId}`);
+      const productDoc = await dbAdmin.collection('ticto_products').doc(productId).get();
+      
+      if (productDoc.exists) {
+        const courseData = productDoc.data();
         
-        // 1.1 Robust mapping of Affiliate Commission
-        console.log("🔍 [DEBUG OFERTA] Estrutura da Oferta:", JSON.stringify(data || {}));
+        // 1. Encontra a oferta exata dentro do array do produto
+        const offersArray = courseData?.offers || [];
+        const currentOffer = offersArray.find((offer: any) => String(offer.id) === String(offerId));
 
-        // Busca profunda do valor da comissão (tenta várias chaves possíveis)
-        const percentualVendedor = 
-          Number(data?.affiliateCommission) || 
-          Number(data?.commission) || 
-          Number(data?.affiliation?.commission) || 
-          Number(data?.affiliateSettings?.commission) || 
-          Number(data?.affiliateConfig?.percentage) || 
-          Number(data?.affiliatePercentage) || 
-          0;
-
+        // 2. Extrai a comissão exata e verifica se a afiliação está ativa
+        const percentualVendedor = currentOffer && currentOffer.isAffiliationEnabled ? (Number(currentOffer.affiliateCommission) || 0) : 0;
         affiliateCommissionPercent = percentualVendedor;
-        console.log(`✅ [DEBUG AFILIADO] Porcentagem extraída: ${percentualVendedor}%`);
 
-        if (data?.coproducers && Array.isArray(data.coproducers) && coproducers.length === 0) {
-          coproducers = data.coproducers;
-          console.log(`[Pagarme] ✅ ${coproducers.length} Coprodutores encontrados na Oferta.`);
-        }
-      }
-    }
+        console.log(`✅ [DEBUG AFILIADO] Oferta ID: ${offerId} | Comissão Extraída: ${percentualVendedor}%`);
 
-    // 2. Se não encontrou coprodutores na oferta, tenta no Produto Ticto base
-    if (coproducers.length === 0 && productId) {
-      console.log(`[Pagarme] Buscando regras na coleção ticto_products: ${productId}`);
-      
-      const docRef = await dbAdmin.collection('ticto_products').doc(productId).get();
-      
-      if (docRef.exists) {
-        const productData = docRef.data();
-        console.log(`✅ [DEBUG BD] Produto encontrado com sucesso na coleção: ticto_products`);
-        console.log("🚨 [DEBUG DB] Chaves do Produto:", Object.keys(productData || {}));
-        
-        // O array de divisão no BD se chama 'coproduction'
-        const productCoproduction = productData?.coproduction || [];
-        if (Array.isArray(productCoproduction) && productCoproduction.length > 0) {
-          coproducers = productCoproduction;
-          console.log(`[Pagarme] ✅ ${coproducers.length} Coprodutores encontrados na chave 'coproduction'.`);
-        } else {
-          console.log("⚠️ [Pagarme] Nenhuma regra encontrada na chave 'coproduction'.");
+        // Extrair coprodutores da oferta (priorizando o que está no array da oferta)
+        if (currentOffer?.coproducers && Array.isArray(currentOffer.coproducers) && currentOffer.coproducers.length > 0) {
+          coproducers = currentOffer.coproducers;
+          console.log(`[Pagarme] ✅ ${coproducers.length} Coprodutores encontrados na Oferta (array).`);
+        } else if (courseData?.coproduction && Array.isArray(courseData.coproduction)) {
+          coproducers = courseData.coproduction;
+          console.log(`[Pagarme] ✅ ${coproducers.length} Coprodutores encontrados no Produto (coproduction).`);
         }
       } else {
         console.error(`❌ [ERRO CRÍTICO] O ID ${productId} não existe na coleção ticto_products!`);
