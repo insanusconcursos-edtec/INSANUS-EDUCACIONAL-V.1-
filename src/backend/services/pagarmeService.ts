@@ -56,7 +56,24 @@ export const createPagarmeOrder = async (orderData: any, initialCoproducers: any
         const offersArray = courseData?.offers || [];
         const currentOffer = offersArray.find((offer: any) => String(offer.id) === String(offerId));
 
-        // 2. Extrai a comissão exata e verifica se a afiliação está ativa
+        // 2. Aplicação de Descontos Dinâmicos (PIX/Boleto) antes de prosseguir
+        let basePrice = currentOffer?.price || Number(orderData.transaction_amount);
+        const method = orderData.payment_method;
+        
+        if (method === 'pix' && currentOffer?.pixDiscount > 0) {
+           const discount = Number(currentOffer.pixDiscount);
+           basePrice = basePrice * (1 - (discount / 100));
+           console.log(`[Pagarme] 🎯 Desconto PIX: ${discount}% | Base: ${currentOffer.price} -> ${basePrice}`);
+        } else if (method === 'ticket' && currentOffer?.boletoDiscount > 0) {
+           const discount = Number(currentOffer.boletoDiscount);
+           basePrice = basePrice * (1 - (discount / 100));
+           console.log(`[Pagarme] 🎯 Desconto Boleto: ${discount}% | Base: ${currentOffer.price} -> ${basePrice}`);
+        }
+
+        // Atualiza o transaction_amount do pedido para refletir o desconto
+        orderData.transaction_amount = basePrice;
+
+        // 3. Extrai a comissão exata e verifica se a afiliação está ativa
         const percentualVendedor = currentOffer && currentOffer.isAffiliationEnabled ? (Number(currentOffer.affiliateCommission) || 0) : 0;
         affiliateCommissionPercent = percentualVendedor;
 
@@ -302,11 +319,11 @@ export const createPagarmeOrder = async (orderData: any, initialCoproducers: any
         try {
           await provisionPurchase(customerData, String(productId), 'pagarme');
           console.log('[Pagarme] Immediate provisioning success for:', customerData.email);
+          
+          // Registrar comissão para o afiliado/vendedor
+          await recordAffiliateCommission(result);
         } catch (err) {
           console.error('[Pagarme] Error provisioning immediate access:', err);
-          // We don't necessarily want to fail the whole payment if provisioning fails 
-          // (it might be retried via webhook), but since it's synchronous paid status, 
-          // we should probably let it continue or handle it.
         }
       }
     }
@@ -379,6 +396,14 @@ export const handlePagarmeWebhook = async (payload: Record<string, any>) => {
       
       if (productId) {
         await provisionPurchase(customerData, String(productId), 'pagarme');
+        
+        // Novo: Registrar comissão no histórico do afiliado
+        try {
+          await recordAffiliateCommission(orderData);
+        } catch (commErr) {
+          console.error('⚠️ [Pagarme] Erro ao registrar comissão (não fatal):', commErr);
+        }
+
         return { success: true, message: 'Provisioning triggered' };
       } else {
         console.warn(`⚠️ [Pagarme] Webhook: Ordem paga (${orderData.id}) sem courseId/productId no metadata`);
@@ -391,3 +416,77 @@ export const handlePagarmeWebhook = async (payload: Record<string, any>) => {
     throw error;
   }
 };
+
+/**
+ * Registra a comissão do afiliado no Firestore para fins de relatório.
+ * Chamado quando um pedido é pago.
+ */
+async function recordAffiliateCommission(orderData: any) {
+  const { dbAdmin } = getAdminConfig();
+  const metadata = orderData.metadata || {};
+  
+  // refId é o identificador mestre do vendedor no sistema
+  const affiliateId = metadata.refId || metadata.affiliateId;
+  const courseId = metadata.courseId || metadata.productId;
+  const offerId = metadata.offerId;
+
+  if (!affiliateId || !courseId) {
+    console.log(`[Commission] Pedido ${orderData.id} ignorado (sem affiliateId ou courseId no metadata).`);
+    return;
+  }
+
+  try {
+    // 1. Busca as regras do produto para garantir que estamos aplicando o percentual correto
+    const productDoc = await dbAdmin.collection('ticto_products').doc(courseId).get();
+    if (!productDoc.exists) {
+      console.error(`[Commission] Produto ${courseId} não encontrado.`);
+      return;
+    }
+
+    const courseData = productDoc.data();
+    const offersArray = courseData?.offers || [];
+    const currentOffer = offersArray.find((offer: any) => String(offer.id) === String(offerId));
+    
+    // Percentual exato do vendedor extraído da oferta
+    const percentualVendedor = currentOffer && currentOffer.isAffiliationEnabled 
+      ? (Number(currentOffer.affiliateCommission) || 0) 
+      : 0;
+
+    if (percentualVendedor <= 0) {
+      console.log(`[Commission] Pedido ${orderData.id}: Comissao zero ou afiliacao desativada.`);
+      return;
+    }
+
+    const grossAmount = orderData.amount; // Valor em centavos
+    const paymentMethod = orderData.charges?.[0]?.payment_method || orderData.payment_method || 'unknown';
+
+    // 2. Cálculo do "Líquido Gateway" (mesma lógica do Split Cascade para bater os valores)
+    let estimatedPagarmeFee = 40; // GATEWAY_FEE
+    if (paymentMethod === 'pix') {
+      estimatedPagarmeFee += Math.round(grossAmount * 0.012); // PIX_RATE
+    } else if (paymentMethod === 'credit_card') {
+      estimatedPagarmeFee += Math.round(grossAmount * 0.0499); // Taxa est. crédito
+    } else {
+      estimatedPagarmeFee += 319; // BOLETO_FEE
+    }
+
+    const netGatewayValue = grossAmount - estimatedPagarmeFee;
+    const commissionEarned = Math.floor(netGatewayValue * (percentualVendedor / 100));
+
+    // 3. Salva na coleção solicitada: affiliate_commissions
+    await dbAdmin.collection('affiliate_commissions').add({
+      affiliateId,
+      orderId: orderData.id,
+      courseId,
+      courseName: currentOffer?.title || courseData?.name || 'Produto Digital',
+      grossValue: grossAmount,
+      commissionEarned: commissionEarned,
+      paymentMethod,
+      createdAt: new Date().toISOString()
+    });
+
+    console.log(`✅ [DEBUG COMISSÃO] Afiliado: ${affiliateId} | Pedido: ${orderData.id} | Valor: ${commissionEarned} centavos`);
+  } catch (error) {
+    console.error('❌ [ERRO COMISSÃO] Falha ao salvar no Firestore:', error);
+  }
+}

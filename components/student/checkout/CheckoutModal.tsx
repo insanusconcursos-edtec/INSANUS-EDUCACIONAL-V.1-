@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { X, ShieldCheck, CreditCard, Lock, QrCode, Copy, Check, CheckCircle2, Loader2, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { createPagarmePayment } from '../../../services/paymentService';
@@ -155,6 +155,17 @@ export default function CheckoutModal({ product, offerId, onClose, onSuccess }: 
 
   const price = currentOffer?.price || product.price || 0;
 
+  const totalToPay = useMemo(() => {
+    let finalPrice = price;
+
+    if (paymentMethod === 'pix' && currentOffer?.pixDiscount && currentOffer.pixDiscount > 0) {
+      finalPrice = finalPrice - (finalPrice * (currentOffer.pixDiscount / 100));
+    }
+    // Nota: CheckoutModal não parece ter opção de boleto atualmente
+    
+    return finalPrice;
+  }, [price, paymentMethod, currentOffer]);
+
   const handlePayment = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -171,7 +182,7 @@ export default function CheckoutModal({ product, offerId, onClose, onSuccess }: 
     setLoading(true);
     try {
       const paymentData = {
-        transaction_amount: price,
+        transaction_amount: totalToPay,
         description: `Compra de ${product.name}${currentOffer ? ` - ${currentOffer.name}` : ''}`,
         payment_method: paymentMethod,
         ...(paymentMethod === 'credit_card' && {
@@ -258,13 +269,19 @@ export default function CheckoutModal({ product, offerId, onClose, onSuccess }: 
                 </div>
                 <div className="mt-4 p-4 bg-zinc-900/50 border border-zinc-800 rounded-xl">
                    <p className="text-[10px] font-black text-zinc-500 uppercase mb-1">Total a pagar:</p>
-                   {currentOffer?.originalPrice && currentOffer.originalPrice > price && (
+                   {currentOffer?.pixDiscount && currentOffer.pixDiscount > 0 && paymentMethod === 'pix' && (
+                      <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-2 py-1 flex items-center justify-between mb-2">
+                        <span className="text-[8px] text-emerald-500 font-black uppercase tracking-widest">Desconto PIX Aplicado</span>
+                        <span className="text-[9px] text-emerald-500 font-mono font-bold">-{currentOffer.pixDiscount}%</span>
+                      </div>
+                   )}
+                   {currentOffer?.originalPrice && currentOffer.originalPrice > totalToPay && (
                      <div className="flex items-center justify-between mb-1">
                         <p className="text-[11px] text-red-500 line-through font-semibold">
                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(currentOffer.originalPrice)}
                         </p>
                         {(() => {
-                           const discount = Math.round(((currentOffer.originalPrice - price) / currentOffer.originalPrice) * 100);
+                           const discount = Math.round(((currentOffer.originalPrice - totalToPay) / currentOffer.originalPrice) * 100);
                            return (
                              <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1 py-0.5 rounded text-[8px] font-black animate-pulse">
                                {discount}% OFF
@@ -274,7 +291,7 @@ export default function CheckoutModal({ product, offerId, onClose, onSuccess }: 
                      </div>
                    )}
                    <p className="text-2xl font-black text-white tracking-tighter">
-                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(price)}
+                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalToPay)}
                    </p>
                 </div>
              </div>

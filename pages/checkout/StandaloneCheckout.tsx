@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { getProductByOfferId } from '../../services/productService';
 import { TictoProduct, ProductOffer } from '../../types/product';
@@ -45,6 +45,21 @@ export default function StandaloneCheckout() {
   });
   const [fetchingCep, setFetchingCep] = useState(false);
   const navigate = useNavigate();
+
+  // Cálculo Dinâmico de Preço com base no Método de Pagamento
+  const totalToPay = useMemo(() => {
+    if (!offer) return 0;
+    
+    let finalPrice = offer.price;
+
+    if (paymentMethod === 'pix' && offer.pixDiscount && offer.pixDiscount > 0) {
+      finalPrice = finalPrice - (finalPrice * (offer.pixDiscount / 100));
+    } else if (paymentMethod === 'ticket' && offer.boletoDiscount && offer.boletoDiscount > 0) {
+      finalPrice = finalPrice - (finalPrice * (offer.boletoDiscount / 100));
+    }
+
+    return finalPrice;
+  }, [offer, paymentMethod]);
   
   // Credit Card States
   const [cardNumber, setCardNumber] = useState('');
@@ -238,7 +253,7 @@ export default function StandaloneCheckout() {
     setErrorMessage(null);
     try {
       const paymentData = {
-        transaction_amount: Number(offer.price),
+        transaction_amount: Number(totalToPay),
         description: `Compra de ${product.name} - ${offer.name}`,
         payment_method: paymentMethod,
         affiliateId: refId || null,
@@ -812,7 +827,7 @@ export default function StandaloneCheckout() {
                           ) : (
                             <>
                               <ShieldCheck size={18} />
-                              <span>Pagar {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(offer.price)}</span>
+                              <span>Pagar {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalToPay)}</span>
                             </>
                           )}
                         </button>
@@ -883,10 +898,22 @@ export default function StandaloneCheckout() {
                         const discountPercentage = offer.originalPrice && offer.originalPrice > offer.price 
                           ? Math.round(((offer.originalPrice - offer.price) / (offer.originalPrice)) * 100) 
                           : 0;
+
+                        const methodDiscount = paymentMethod === 'pix' && offer.pixDiscount && offer.pixDiscount > 0
+                          ? { label: 'Desconto PIX Aplicado', value: offer.pixDiscount }
+                          : paymentMethod === 'ticket' && offer.boletoDiscount && offer.boletoDiscount > 0
+                          ? { label: 'Desconto Boleto Aplicado', value: offer.boletoDiscount }
+                          : null;
                         
                         return (
                           <div className="flex justify-between items-end">
-                            <div className="space-y-1">
+                            <div className="space-y-1 w-full">
+                               {methodDiscount && (
+                                 <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-1.5 flex items-center justify-between mb-2">
+                                   <span className="text-[10px] text-emerald-500 font-black uppercase tracking-widest">{methodDiscount.label}</span>
+                                   <span className="text-[10px] text-emerald-500 font-mono font-bold">-{methodDiscount.value}%</span>
+                                 </div>
+                               )}
                                <div className="flex items-center gap-2">
                                  <p className="text-[10px] text-emerald-500 font-black uppercase tracking-widest">Total com Desconto</p>
                                  {discountPercentage > 0 && (
@@ -896,7 +923,7 @@ export default function StandaloneCheckout() {
                                  )}
                                </div>
                                <p className="text-3xl font-black text-white tracking-tighter">
-                                 {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(offer.price)}
+                                 {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalToPay)}
                                </p>
                             </div>
                           </div>

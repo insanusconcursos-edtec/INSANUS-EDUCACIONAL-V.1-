@@ -17,6 +17,8 @@ export interface ProductOffer {
   isAffiliationEnabled?: boolean; // Novo: Habilita afiliações por oferta
   affiliateCommission?: number; // Novo: Porcentagem de comissão por oferta
   originalPrice?: number; // Novo: Preço de ancoragem
+  pixDiscount?: number; // Desconto para PIX (%)
+  boletoDiscount?: number; // Desconto para Boleto (%)
 }
 
 export interface ProductSplit {

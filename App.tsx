@@ -16,7 +16,7 @@ import PresentialClassManager from './pages/admin/PresentialClassManager';
 import { AdminLiveEvents } from './pages/admin/AdminLiveEvents'; // Nova Importação Eventos ao Vivo
 import { AdminLiveEventDetails } from './pages/admin/AdminLiveEventDetails'; // Nova Importação Gerenciar Evento
 import { AdminLiveRoom } from './pages/admin/AdminLiveRoom'; // Nova Importação Sala de Transmissão
-import CoproducersPage from './pages/admin/CoproducersPage';
+import AffiliateDashboard from './pages/admin/AffiliateDashboard';
 import FinancePage from './pages/admin/FinancePage';
 import SalesPage from './pages/admin/SalesPage';
 import { StudentCoursesTab } from './components/student/courses/StudentCoursesTab'; // Nova Importação Student
@@ -26,12 +26,6 @@ import { StudentLiveEvents } from './pages/student/liveEvents/StudentLiveEvents'
 import { StudentLiveEventRoom } from './pages/student/liveEvents/StudentLiveEventRoom';
 import { VideoRoom } from './components/video/VideoRoom';
 import { 
-  getCollaborators, 
-  createCollaborator, 
-  updateCollaborator,
-  deleteCollaborator, 
-  Collaborator, 
-  CreateCollaboratorData,
   CollaboratorPermissions 
 } from './services/collaboratorService';
 import AdminLayout from './components/Layout/AdminLayout';
@@ -63,6 +57,7 @@ const RootRedirect = () => {
     
     if (userRole === 'ADMIN' || userRole === 'COLLABORATOR' || userRole === 'SELLER') {
         const perms = userData?.permissions || {};
+        if (userRole === 'SELLER') return <Navigate to="/admin/afiliado" replace />;
         if (userRole === 'ADMIN' || perms.planos) return <Navigate to="/admin/planos" replace />;
         if (perms.vendas) return <Navigate to="/admin/vendas" replace />;
         return <Navigate to="/admin/alunos" replace />;
@@ -87,10 +82,11 @@ const AdminRoleGuard = ({ children, permission }: { children: React.ReactNode, p
 // Helper to determine the first accessible admin route
 const AdminIndexRedirect = () => {
     const { userRole, userData } = useAuth();
+    if (userRole === 'SELLER') return <Navigate to="afiliado" replace />;
     if (userRole === 'ADMIN') return <Navigate to="planos" replace />;
     
     const perms = userData?.permissions || {};
-    if (perms.vendas) return <Navigate to="vendas" replace />;
+    if (perms.vendas) return <Navigate to="afiliado" replace />;
     if (perms.planos) return <Navigate to="planos" replace />;
     if (perms.produtos) return <Navigate to="products" replace />;
     if (perms.cursos_online) return <Navigate to="cursos" replace />;
@@ -131,6 +127,7 @@ const App: React.FC = () => {
           }>
               <Route index element={<AdminIndexRedirect />} />
               <Route path="vendas" element={<AdminRoleGuard permission="vendas"><SalesPage /></AdminRoleGuard>} />
+              <Route path="afiliado" element={<AffiliateDashboard />} />
               <Route path="planos" element={<AdminRoleGuard permission="planos"><PlansPage /></AdminRoleGuard>} />
               <Route path="plans/:planId" element={<AdminRoleGuard permission="planos"><PlanEditor /></AdminRoleGuard>} />
               

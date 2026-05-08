@@ -149,7 +149,9 @@ export default function ProductFormModal({ product, onClose, onSave }: ProductFo
       isDefault: offers.length === 0,
       isActive: true,
       isAffiliationEnabled: false,
-      affiliateCommission: 0
+      affiliateCommission: 0,
+      pixDiscount: 0,
+      boletoDiscount: 0
     };
     setOffers([...offers, newOffer]);
   };
@@ -396,32 +398,60 @@ export default function ProductFormModal({ product, onClose, onSave }: ProductFo
                       </div>
                     </div>
 
-                    <div className="xl:col-span-3 bg-zinc-900/50 p-4 rounded-xl border border-zinc-800/50">
-                      <div className="flex items-center justify-between mb-3">
-                        <label className="text-[9px] font-black text-zinc-500 uppercase tracking-[0.2em]">Config. Afiliação</label>
-                        <div 
-                          onClick={() => updateOffer(offer.id, { isAffiliationEnabled: !offer.isAffiliationEnabled })}
-                          className={`w-10 h-5 rounded-full relative cursor-pointer transition-all ${offer.isAffiliationEnabled ? 'bg-emerald-500' : 'bg-zinc-800'}`}
-                        >
-                          <div className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-all ${offer.isAffiliationEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                    <div className="xl:col-span-3 space-y-4">
+                      <div className="bg-zinc-900/50 p-4 rounded-xl border border-zinc-800/50">
+                        <div className="flex items-center justify-between mb-3">
+                          <label className="text-[9px] font-black text-zinc-500 uppercase tracking-[0.2em]">Config. Afiliação</label>
+                          <div 
+                            onClick={() => updateOffer(offer.id, { isAffiliationEnabled: !offer.isAffiliationEnabled })}
+                            className={`w-10 h-5 rounded-full relative cursor-pointer transition-all ${offer.isAffiliationEnabled ? 'bg-emerald-500' : 'bg-zinc-800'}`}
+                          >
+                            <div className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-all ${offer.isAffiliationEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1">
+                            <p className="text-[8px] text-zinc-600 font-bold uppercase mb-1">Comissão (%)</p>
+                            <input 
+                              type="number"
+                              disabled={!offer.isAffiliationEnabled}
+                              value={offer.affiliateCommission || 0}
+                              onChange={(e) => updateOffer(offer.id, { affiliateCommission: Number(e.target.value) })}
+                              className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-emerald-500 disabled:opacity-20"
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-[8px] text-zinc-600 font-bold uppercase mb-1">Valor Final</p>
+                            <div className="px-2 py-1.5 bg-emerald-500/5 rounded-lg text-emerald-500 font-mono font-bold text-xs border border-emerald-500/10 truncate">
+                              R$ {((offer.price * (offer.affiliateCommission || 0)) / 100).toFixed(2)}
+                            </div>
+                          </div>
                         </div>
                       </div>
-                      
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1">
-                          <p className="text-[8px] text-zinc-600 font-bold uppercase mb-1">Comissão (%)</p>
-                          <input 
-                            type="number"
-                            disabled={!offer.isAffiliationEnabled}
-                            value={offer.affiliateCommission || 0}
-                            onChange={(e) => updateOffer(offer.id, { affiliateCommission: Number(e.target.value) })}
-                            className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-emerald-500 disabled:opacity-20"
-                          />
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-[8px] text-zinc-600 font-bold uppercase mb-1">Valor Final</p>
-                          <div className="px-2 py-1.5 bg-emerald-500/5 rounded-lg text-emerald-500 font-mono font-bold text-xs border border-emerald-500/10 truncate">
-                            R$ {((offer.price * (offer.affiliateCommission || 0)) / 100).toFixed(2)}
+
+                      <div className="bg-zinc-900/50 p-4 rounded-xl border border-zinc-800/50">
+                        <label className="text-[9px] font-black text-zinc-500 uppercase tracking-[0.2em] block mb-3 text-center">Descontos Adicionais</label>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <p className="text-[8px] text-zinc-600 font-bold uppercase mb-1">Desconto PIX (%)</p>
+                            <input 
+                              type="number"
+                              value={offer.pixDiscount || 0}
+                              onChange={(e) => updateOffer(offer.id, { pixDiscount: Number(e.target.value) })}
+                              className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-2 py-1.5 text-[10px] font-mono font-bold text-red-500 text-center"
+                              placeholder="0"
+                            />
+                          </div>
+                          <div>
+                            <p className="text-[8px] text-zinc-600 font-bold uppercase mb-1">Desconto Boleto (%)</p>
+                            <input 
+                              type="number"
+                              value={offer.boletoDiscount || 0}
+                              onChange={(e) => updateOffer(offer.id, { boletoDiscount: Number(e.target.value) })}
+                              className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-2 py-1.5 text-[10px] font-mono font-bold text-red-500 text-center"
+                              placeholder="0"
+                            />
                           </div>
                         </div>
                       </div>

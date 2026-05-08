@@ -59,6 +59,9 @@ const AdminLayout: React.FC = () => {
     if (isAdmin || perms.vendas) {
       groups[1].items.push({ label: 'VENDAS', path: '/admin/vendas' });
     }
+    if (isAdmin || userRole === 'SELLER' || perms.vendas) {
+      groups[1].items.push({ label: 'DASHBOARD AFILIADO', path: '/admin/afiliado' });
+    }
 
     // ADMINISTRATIVO Group
     if (isAdmin || perms.equipe) {
