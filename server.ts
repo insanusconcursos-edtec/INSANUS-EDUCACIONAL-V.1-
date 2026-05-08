@@ -653,6 +653,56 @@ async function setupVite(app: any) {
     }
   });
 
+  // Rota de Migração Temporária para Sincronizar Dados de Afiliados (Follow-up)
+  app.get('/api/admin/migrations/sync-commissions', async (req, res) => {
+    try {
+      const { dbAdmin } = getAdminConfig();
+      // Buscamos todos para filtrar os que não tem o campo de e-mail (legado)
+      const snapshot = await dbAdmin.collection('affiliate_commissions').get();
+      const legacyDocs = snapshot.docs.filter(doc => !doc.data().customerEmail);
+
+      console.log(`[Migration] Iniciando sincronia de ${legacyDocs.length} documentos.`);
+
+      let updatedCount = 0;
+      let failedCount = 0;
+
+      for (const doc of legacyDocs) {
+        const orderId = doc.data().orderId;
+        if (orderId) {
+          try {
+            const orderDetails = await getPagarmeOrderStatus(orderId);
+            const customer = orderDetails.customer;
+            
+            if (customer) {
+              await doc.ref.update({
+                customerName: customer.name || 'Cliente',
+                customerEmail: customer.email || 'N/A',
+                customerPhone: customer.phones?.mobile_phone 
+                  ? `+${customer.phones.mobile_phone.country_code}${customer.phones.mobile_phone.area_code}${customer.phones.mobile_phone.number}`
+                  : 'N/A'
+              });
+              updatedCount++;
+            }
+          } catch (err) {
+            console.error(`[Migration] Erro no pedido ${orderId}:`, err);
+            failedCount++;
+          }
+        }
+      }
+
+      return res.status(200).json({ 
+        success: true, 
+        message: 'Migração de follow-up concluída',
+        found: legacyDocs.length,
+        updated: updatedCount,
+        failed: failedCount
+      });
+    } catch (error) {
+      console.error("Erro na migração:", error);
+      return res.status(500).json({ success: false, error: "Erro interno na migração." });
+    }
+  });
+
   // Função auxiliar extractPandaId
   function extractPandaId(url: string): string | null {
     try {
