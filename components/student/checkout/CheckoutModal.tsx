@@ -382,8 +382,13 @@ export default function CheckoutModal({ product, offerId, onClose, onSuccess }: 
                         <button
                           type="button"
                           onClick={() => setPaymentMethod('pix')}
-                          className={`flex items-center justify-center gap-3 p-3 rounded-xl border transition-all ${paymentMethod === 'pix' ? 'bg-red-600/10 border-red-600 text-white' : 'bg-zinc-900 border-zinc-800 text-zinc-500 hover:border-zinc-700'}`}
+                          className={`relative flex items-center justify-center gap-3 p-3 rounded-xl border transition-all ${paymentMethod === 'pix' ? 'bg-red-600/10 border-red-600 text-white' : 'bg-zinc-900 border-zinc-800 text-zinc-500 hover:border-zinc-700'}`}
                         >
+                          {currentOffer?.pixDiscount && currentOffer.pixDiscount > 0 && (
+                            <div className="absolute -top-3 -right-2 bg-green-500 text-[#0a0a0a] text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-green-400 shadow-[0_0_8px_rgba(34,197,94,0.6)] animate-pulse z-10">
+                              +{currentOffer.pixDiscount}% OFF
+                            </div>
+                          )}
                           <QrCode size={16} />
                           <span className="text-[10px] font-black uppercase tracking-widest">PIX</span>
                         </button>

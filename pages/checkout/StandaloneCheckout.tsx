@@ -551,15 +551,25 @@ export default function StandaloneCheckout() {
                       </button>
                       <button
                         onClick={() => setPaymentMethod('pix')}
-                        className={`flex flex-col items-center gap-3 p-4 rounded-2xl border transition-all ${paymentMethod === 'pix' ? 'bg-red-600/10 border-red-600 text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:border-zinc-700'}`}
+                        className={`relative flex flex-col items-center gap-3 p-4 rounded-2xl border transition-all ${paymentMethod === 'pix' ? 'bg-red-600/10 border-red-600 text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:border-zinc-700'}`}
                       >
+                        {offer.pixDiscount && offer.pixDiscount > 0 && (
+                          <div className="absolute -top-3 -right-2 bg-green-500 text-[#0a0a0a] text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-green-400 shadow-[0_0_8px_rgba(34,197,94,0.6)] animate-pulse z-10">
+                            +{offer.pixDiscount}% OFF
+                          </div>
+                        )}
                         <QrCode size={20} />
                         <span className="text-[9px] font-black uppercase tracking-widest">PIX</span>
                       </button>
                       <button
                         onClick={() => setPaymentMethod('ticket')}
-                        className={`flex flex-col items-center gap-3 p-4 rounded-2xl border transition-all ${paymentMethod === 'ticket' ? 'bg-red-600/10 border-red-600 text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:border-zinc-700'}`}
+                        className={`relative flex flex-col items-center gap-3 p-4 rounded-2xl border transition-all ${paymentMethod === 'ticket' ? 'bg-red-600/10 border-red-600 text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:border-zinc-700'}`}
                       >
+                        {offer.boletoDiscount && offer.boletoDiscount > 0 && (
+                          <div className="absolute -top-3 -right-2 bg-green-500 text-[#0a0a0a] text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-green-400 shadow-[0_0_8px_rgba(34,197,94,0.6)] animate-pulse z-10">
+                            +{offer.boletoDiscount}% OFF
+                          </div>
+                        )}
                         <ShieldCheck size={20} />
                         <span className="text-[9px] font-black uppercase tracking-widest">Boleto</span>
                       </button>
