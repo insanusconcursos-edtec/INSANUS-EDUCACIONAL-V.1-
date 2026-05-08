@@ -53,15 +53,21 @@ export const createPagarmeOrder = async (orderData: any, initialCoproducers: any
         console.log("🚨 [DEBUG DB] Chaves da Oferta:", Object.keys(data || {}));
         console.log("🔍 [Pagarme] Dados brutos de Coprodutores da Oferta:", JSON.stringify(data?.coproducers, null, 2));
         
-        // Capturar comissão de afiliado configurada na oferta
-        console.log("🔍 [DEBUG AFILIADO] Dados da Oferta lidos:", JSON.stringify({ 
-          isAffiliationEnabled: data?.isAffiliationEnabled, 
-          affiliateCommission: data?.affiliateCommission,
-          commission: data?.commission,
-          affiliateSettingsCommission: data?.affiliateSettings?.commission
-        }));
+        // 1.1 Robust mapping of Affiliate Commission
+        console.log("🔍 [DEBUG OFERTA] Estrutura da Oferta:", JSON.stringify(data || {}));
 
-        affiliateCommissionPercent = Number(data?.affiliateCommission) || Number(data?.commission) || Number(data?.affiliateSettings?.commission) || 0;
+        // Busca profunda do valor da comissão (tenta várias chaves possíveis)
+        const percentualVendedor = 
+          Number(data?.affiliateCommission) || 
+          Number(data?.commission) || 
+          Number(data?.affiliation?.commission) || 
+          Number(data?.affiliateSettings?.commission) || 
+          Number(data?.affiliateConfig?.percentage) || 
+          Number(data?.affiliatePercentage) || 
+          0;
+
+        affiliateCommissionPercent = percentualVendedor;
+        console.log(`✅ [DEBUG AFILIADO] Porcentagem extraída: ${percentualVendedor}%`);
 
         if (data?.coproducers && Array.isArray(data.coproducers) && coproducers.length === 0) {
           coproducers = data.coproducers;
@@ -147,7 +153,7 @@ export const createPagarmeOrder = async (orderData: any, initialCoproducers: any
   let totalDistributedShares = 0;
 
   // 4. Vendedor/Afiliado (Comissão sobre o Líquido Gateway)
-  if (affiliateDataFromDB && affiliateDataFromDB.recipientId) {
+  if (affiliateDataFromDB && affiliateDataFromDB.recipientId && affiliateDataFromDB.percentage > 0) {
     const affiliateAmount = Math.floor(netGatewayValue * (affiliateDataFromDB.percentage / 100));
     if (affiliateAmount > 0) {
       splitArray.push({
