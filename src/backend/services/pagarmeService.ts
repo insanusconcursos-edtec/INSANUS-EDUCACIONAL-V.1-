@@ -460,6 +460,14 @@ async function recordAffiliateCommission(orderData: any) {
     const grossAmount = orderData.amount; // Valor em centavos
     const paymentMethod = orderData.charges?.[0]?.payment_method || orderData.payment_method || 'unknown';
 
+    // Extracao de dados do cliente para o follow-up do vendedor
+    const customerName = orderData.metadata?.userName || orderData.customer?.name || 'Cliente';
+    const customerEmail = orderData.metadata?.userEmail || orderData.customer?.email || 'N/A';
+    const customerPhone = orderData.metadata?.userPhone || 
+      (orderData.customer?.phones?.mobile_phone 
+        ? `+${orderData.customer.phones.mobile_phone.country_code}${orderData.customer.phones.mobile_phone.area_code}${orderData.customer.phones.mobile_phone.number}`
+        : 'N/A');
+
     // 2. Cálculo do "Líquido Gateway" (mesma lógica do Split Cascade para bater os valores)
     let estimatedPagarmeFee = 40; // GATEWAY_FEE
     if (paymentMethod === 'pix') {
@@ -482,6 +490,9 @@ async function recordAffiliateCommission(orderData: any) {
       grossValue: grossAmount,
       commissionEarned: commissionEarned,
       paymentMethod,
+      customerName,
+      customerEmail,
+      customerPhone,
       createdAt: new Date().toISOString()
     });
 

@@ -25,7 +25,9 @@ import {
   Award,
   ArrowUpRight,
   ShoppingBag,
-  Clock
+  Clock,
+  MessageSquare,
+  Mail
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -38,6 +40,9 @@ interface Commission {
   grossValue: number;
   commissionEarned: number;
   paymentMethod: string;
+  customerName?: string;
+  customerEmail?: string;
+  customerPhone?: string;
   createdAt: string;
 }
 
@@ -290,6 +295,8 @@ const AffiliateDashboard: React.FC = () => {
             <thead className="bg-[#1a1a1a] text-gray-500 text-xs uppercase tracking-widest">
               <tr>
                 <th className="px-6 py-4 font-medium">Produto</th>
+                <th className="px-6 py-4 font-medium">Cliente</th>
+                <th className="px-6 py-4 font-medium">Contato</th>
                 <th className="px-6 py-4 font-medium">Data</th>
                 <th className="px-6 py-4 font-medium">Pagamento</th>
                 <th className="px-6 py-4 font-medium">Valor Bruto</th>
@@ -299,8 +306,33 @@ const AffiliateDashboard: React.FC = () => {
             <tbody className="divide-y divide-[#222]">
               {commissions.slice(0, 10).map((c, i) => (
                 <tr key={i} className="hover:bg-[#1a1a1a]/50 transition-colors">
-                  <td className="px-6 py-4 text-sm font-medium text-white">{c.courseName}</td>
-                  <td className="px-6 py-4 text-sm text-gray-400">
+                  <td className="px-6 py-4">
+                    <p className="text-sm font-medium text-white line-clamp-1">{c.courseName}</p>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex flex-col">
+                      <span className="text-sm font-bold text-gray-200 truncate max-w-[150px]">{c.customerName || 'N/A'}</span>
+                      <span className="text-[10px] text-gray-500 flex items-center gap-1">
+                        <Mail size={10} /> {c.customerEmail || 'N/A'}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    {c.customerPhone && c.customerPhone !== 'N/A' ? (
+                      <a 
+                        href={`https://wa.me/${c.customerPhone.replace(/\D/g, '')}`} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 px-2 py-1 rounded-lg border border-emerald-500/20 transition-all group w-fit"
+                      >
+                        <MessageSquare size={12} className="group-hover:scale-110 transition-transform" />
+                        <span className="text-[10px] font-black uppercase">Chamar</span>
+                      </a>
+                    ) : (
+                      <span className="text-[10px] text-zinc-700 italic">Sem fone</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 text-xs text-gray-400 whitespace-nowrap">
                     {new Date(c.createdAt).toLocaleDateString('pt-BR')}
                   </td>
                   <td className="px-6 py-4">
@@ -318,7 +350,7 @@ const AffiliateDashboard: React.FC = () => {
               ))}
               {commissions.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-gray-600">
+                  <td colSpan={7} className="px-6 py-12 text-center text-gray-600">
                     Nenhum registro de comissão encontrado.
                   </td>
                 </tr>
