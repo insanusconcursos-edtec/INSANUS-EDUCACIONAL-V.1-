@@ -33,7 +33,9 @@ export default function ProductFormModal({ product, onClose, onSave }: ProductFo
   const [type, setType] = useState<ProductType>(product?.type || 'COMBO');
   const [accessDays, setAccessDays] = useState(product?.accessDays || 365);
   const [coverUrl, setCoverUrl] = useState(product?.coverUrl || '');
+  const [checkoutCoverUrl, setCheckoutCoverUrl] = useState(product?.checkoutCoverUrl || '');
   const [isUploading, setIsUploading] = useState(false);
+  const [isUploadingCheckout, setIsUploadingCheckout] = useState(false);
   const [searchTerms] = useState({ plans: '', courses: '', classes: '', simulated: '', liveEvents: '' });
   const [expanded, setExpanded] = useState({ plans: false, courses: false, classes: false, simulated: false, liveEvents: false });
 
@@ -115,6 +117,7 @@ export default function ProductFormModal({ product, onClose, onSave }: ProductFo
       type,
       accessDays,
       coverUrl,
+      checkoutCoverUrl,
       linkedResources: {
         plans: linkedPlans,
         onlineCourses: linkedCourses,
@@ -550,9 +553,9 @@ export default function ProductFormModal({ product, onClose, onSave }: ProductFo
             <div className="p-8">
               {activeTab === 'resources' ? (
                 <div className="grid grid-cols-1 lg:grid-cols-5 gap-12">
-                  <div className="lg:col-span-1 space-y-6">
+                  <div className="lg:col-span-1 space-y-8">
                     <div>
-                      <label className="block text-[9px] font-black text-zinc-600 uppercase tracking-[0.2em] mb-4">Capa do Produto</label>
+                      <label className="block text-[9px] font-black text-zinc-600 uppercase tracking-[0.2em] mb-4">Capa do Produto (Vertical)</label>
                       <div className="relative group">
                         {coverUrl ? (
                           <div className="aspect-[3/4] rounded-2xl overflow-hidden border border-zinc-800 shadow-2xl">
@@ -582,6 +585,39 @@ export default function ProductFormModal({ product, onClose, onSave }: ProductFo
                         </label>
                       </div>
                       <p className="text-[9px] text-zinc-700 italic mt-4 text-center">Formato recomendado: 474x1000px</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-[9px] font-black text-zinc-600 uppercase tracking-[0.2em] mb-4">Capa do Checkout (16:9)</label>
+                      <div className="relative group">
+                        {checkoutCoverUrl ? (
+                          <div className="aspect-video rounded-2xl overflow-hidden border border-zinc-800 shadow-2xl">
+                            <img src={checkoutCoverUrl} alt="Capa Checkout" className="w-full h-full object-cover transition-transform group-hover:scale-105" />
+                          </div>
+                        ) : (
+                          <div className="aspect-video bg-zinc-950 rounded-2xl border border-zinc-800 flex items-center justify-center border-dashed">
+                            <Upload className="text-zinc-800" size={40} />
+                          </div>
+                        )}
+                        <label className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center cursor-pointer transition-all rounded-2xl backdrop-blur-sm">
+                          <div className="text-white flex flex-col items-center gap-2">
+                             <Upload size={24} />
+                             <span className="text-[10px] font-black uppercase">{checkoutCoverUrl ? 'Trocar' : 'Enviar'}</span>
+                          </div>
+                          <input type="file" accept="image/*" className="hidden" disabled={isUploadingCheckout} onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              setIsUploadingCheckout(true);
+                              try {
+                                 const url = await uploadProductCover(file);
+                                 setCheckoutCoverUrl(url);
+                              } catch { alert('Erro no upload'); }
+                              setIsUploadingCheckout(false);
+                            }
+                          }} />
+                        </label>
+                      </div>
+                      <p className="text-[9px] text-zinc-700 italic mt-4 text-center">Formato recomendado: 1920x1080px (16:9)</p>
                     </div>
                   </div>
 

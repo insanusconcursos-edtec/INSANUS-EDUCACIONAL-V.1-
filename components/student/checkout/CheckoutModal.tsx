@@ -259,8 +259,12 @@ export default function CheckoutModal({ product, offerId, onClose, onSuccess }: 
         <div className="flex-1 overflow-y-auto p-6 scrollbar-hide">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
              <div className="md:col-span-1">
-                <div className="aspect-[474/1000] rounded-xl border border-zinc-800 overflow-hidden relative group">
-                   <img src={product.coverUrl} alt={product.name} className="w-full h-full object-cover" />
+                <div className="aspect-video relative group overflow-hidden border border-zinc-800 rounded-xl mb-4">
+                   <img 
+                     src={product.checkoutCoverUrl || product.coverUrl} 
+                     alt={product.name} 
+                     className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
+                   />
                    <div className="absolute inset-0 bg-gradient-to-t from-black to-transparent opacity-80" />
                    <div className="absolute bottom-4 left-4 right-4">
                       <p className="text-[10px] font-black text-red-500 uppercase tracking-widest mb-1">Você está adquirindo:</p>

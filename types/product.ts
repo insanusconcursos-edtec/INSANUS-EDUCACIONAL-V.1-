@@ -39,6 +39,7 @@ export interface TictoProduct {
   type: ProductType;
   accessDays: number;
   coverUrl?: string;
+  checkoutCoverUrl?: string;
   linkedResources: LinkedResources;
   offers?: ProductOffer[]; // Novo: Sistema de múltiplas ofertas
   coproduction?: ProductSplit[]; // Novo: Sistema de coprodução/split

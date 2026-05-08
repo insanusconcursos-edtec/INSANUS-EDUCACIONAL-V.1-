@@ -879,8 +879,12 @@ export default function StandaloneCheckout() {
           {/* LADO DIREITO: Resumo do Pedido */}
           <aside className="space-y-6 order-1 lg:order-2">
              <div className="bg-zinc-900 border border-zinc-800 rounded-3xl overflow-hidden shadow-xl sticky top-8">
-                <div className="aspect-video relative group overflow-hidden">
-                   <img src={product.coverUrl} alt={product.name} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                <div className="aspect-video relative group overflow-hidden border-b border-zinc-800">
+                   <img 
+                     src={product.checkoutCoverUrl || product.coverUrl} 
+                     alt={product.name} 
+                     className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
+                   />
                    <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-transparent to-transparent" />
                    <div className="absolute bottom-4 left-4 right-4">
                       <span className="bg-red-600 text-white text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-widest mb-2 inline-block shadow-lg shadow-red-600/20">Produto Selecionado</span>
