@@ -88,7 +88,7 @@ export const createPagarmeOrder = async (orderData: any, initialCoproducers: any
           console.log(`[Pagarme] ✅ ${coproducers.length} Coprodutores encontrados no Produto (coproduction).`);
         }
       } else {
-        console.error(`❌ [ERRO CRÍTICO] O ID ${productId} não existe na coleção ticto_products!`);
+        console.error(`❌ [ERRO CRÍTICO] O ID ${productId} não existe na coleção products!`);
       }
     }
         
@@ -357,8 +357,9 @@ export const getPagarmeRecipientBalance = async (recipientId: string) => {
     return { available: 0, waiting_funds: 0, transferred: 0 };
   }
 
-  const url = `https://api.pagar.me/core/v5/recipients/${recipientId.trim()}/balances`;
-  console.log("[Pagarme] URL chamada:", url);
+  // Ajuste técnico: Endpoint singular 'balance' para V5
+  const url = `https://api.pagar.me/core/v5/recipients/${recipientId.trim()}/balance`;
+  console.log("[Pagarme] Tentando consulta de saldo na URL:", url);
   
   try {
     const response = await fetch(url, {
@@ -366,14 +367,25 @@ export const getPagarmeRecipientBalance = async (recipientId: string) => {
       headers: getHeaders()
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`[Pagarme] Balance Check API Error (${response.status}):`, errorText);
-      throw new Error(`Erro na API da Pagarme: ${response.status}`);
+    const responseText = await response.text();
+    let result: any = {};
+    
+    try {
+      result = JSON.parse(responseText);
+    } catch (e) {
+      console.error("[Pagarme] Falha ao parsear JSON no saldo. Corpo da resposta:", responseText);
     }
 
-    const result = await response.json();
-    console.log("[Pagarme] Saldo recebido:", JSON.stringify(result));
+    if (!response.ok) {
+      console.error(`[Pagarme] Balance Check API Error (${response.status}):`, {
+        url,
+        result,
+        responseText
+      });
+      return { available: 0, waiting_funds: 0, transferred: 0 };
+    }
+
+    console.log("[Pagarme] Saldo recebido com sucesso para:", recipientId);
 
     return {
       available: result.available_amount || 0,
@@ -381,7 +393,7 @@ export const getPagarmeRecipientBalance = async (recipientId: string) => {
       transferred: result.transferred_amount || 0
     };
   } catch (error) {
-    console.error('[Pagarme] Error getting recipient balance:', error);
+    console.error('[Pagarme] Exception in getPagarmeRecipientBalance:', error);
     // Return empty balance instead of throwing to prevent front-end crash
     return {
       available: 0,

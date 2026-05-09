@@ -37,8 +37,7 @@ const AdminLayout: React.FC = () => {
           label: 'COPRODUÇÃO',
           items: [
             { label: 'DASHBOARD DE VENDAS', path: '/comercial/coprodutor/dashboard' },
-            { label: 'MINHA CARTEIRA / SAQUES', path: '/comercial/coprodutor/dashboard' },
-            { label: 'MEUS PRODUTOS (COPRODUÇÃO)', path: '/admin/products' }
+            { label: 'MINHA CARTEIRA / SAQUES', path: '/comercial/coprodutor/dashboard' }
           ]
         }
       ];

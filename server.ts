@@ -3,7 +3,7 @@ import path from 'path';
 import { fetchPandaVideoTranscription } from './src/backend/services/pandaVideoService.js';
 import { generateStudyMaterial } from './src/backend/services/geminiService.js';
 import { getAdminConfig } from './src/backend/services/firebaseAdmin.js';
-import { provisionTictoPurchase, revokeTictoPurchase } from './src/backend/services/provisioningService.js';
+import { provisionExternalPurchase, revokePurchase } from './src/backend/services/provisioningService.js';
 import { createPagarmeOrder, handlePagarmeWebhook, getPagarmeOrderStatus, getPagarmeRecipientBalance, requestPagarmeTransfer } from './src/backend/services/pagarmeService.js';
 
 // const __filename = fileURLToPath(import.meta.url);
@@ -627,12 +627,12 @@ async function setupVite(app: any) {
       }
 
       const { status, customer, item } = payload;
-      console.log(`Webhook Ticto Recebido - Status: ${status} | Email: ${customer?.email} | Produto ID: ${item?.product_id}`);
+      console.log(`Webhook de Venda Recebido - Status: ${status} | Email: ${customer?.email} | Produto ID: ${item?.product_id}`);
 
       if (status === 'approved' || status === 'paid' || status === 'authorized') {
-        await provisionTictoPurchase(customer, String(item.product_id));
+        await provisionExternalPurchase(customer, String(item.product_id));
       } else if (['refunded', 'chargeback', 'canceled', 'overdue'].includes(status)) {
-        await revokeTictoPurchase(customer?.email, String(item.product_id));
+        await revokePurchase(customer?.email, String(item.product_id));
       } else {
         console.log(`Status '${status}' ignorado. Nenhuma ação de provisionamento necessária.`);
       }

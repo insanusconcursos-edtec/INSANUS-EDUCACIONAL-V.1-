@@ -28,13 +28,16 @@ export const StudentHome: React.FC = () => {
             <MessageSquare size={18} />
             Meus Chamados
           </button>
-          <button 
-            onClick={() => setIsEditProfileOpen(true)}
-            className="bg-red-600 hover:bg-red-700 text-white px-5 py-2.5 rounded-lg transition flex items-center gap-2 font-medium shadow-lg shadow-red-500/20"
-          >
-            <UserCircle size={20} />
-            EDITAR PERFIL
-          </button>
+          
+          {useAuth().userRole !== 'COPRODUTOR' && (
+            <button 
+              onClick={() => setIsEditProfileOpen(true)}
+              className="bg-red-600 hover:bg-red-700 text-white px-5 py-2.5 rounded-lg transition flex items-center gap-2 font-medium shadow-lg shadow-red-500/20"
+            >
+              <UserCircle size={20} />
+              EDITAR PERFIL
+            </button>
+          )}
         </div>
       </div>
 

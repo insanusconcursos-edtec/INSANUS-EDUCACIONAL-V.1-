@@ -23,7 +23,7 @@ interface UserAccess {
   id: string;
   type: string;
   targetId: string;
-  tictoId: string;
+  externalId: string;
   title: string;
   days: number;
   startDate: Timestamp | FieldValue;
@@ -49,7 +49,7 @@ interface Resources {
   liveEvents?: string[];
 }
 
-export const provisionPurchase = async (customerData: CustomerData, targetId: string, origin: 'ticto' | 'mp' | 'pagarme' = 'ticto') => {
+export const provisionPurchase = async (customerData: CustomerData, targetId: string, origin: 'ticto' | 'mp' | 'pagarme' = 'pagarme') => {
   const { dbAdmin, authAdmin } = getAdminConfig();
   try {
     const safeTargetId = String(targetId);
@@ -79,49 +79,46 @@ export const provisionPurchase = async (customerData: CustomerData, targetId: st
     };
     let productDocId = '';
 
-    if (origin === 'ticto') {
-      const productsSnapshot = await dbAdmin.collection('ticto_products')
-        .where('tictoId', '==', safeTargetId)
+    if (origin === 'ticto' || origin === 'mp' || origin === 'pagarme') {
+      // Tentar encontrar na coleção unificada de produtos primeiro
+      const productsSnapshot = await dbAdmin.collection('products')
+        .where('externalId', '==', safeTargetId)
         .limit(1)
         .get();
 
-      if (productsSnapshot.empty) {
-        throw new Error(`Produto Ticto com ID ${safeTargetId} não encontrado.`);
-      }
-
-      const productDoc = productsSnapshot.docs[0];
-      productDocId = productDoc.id;
-      const productData = productDoc.data();
-      productName = productData.name;
-      accessDays = productData.accessDays || 365;
-      linkedResources = productData.linkedResources || linkedResources;
-      
-      if (productData.liveEventIds && Array.isArray(productData.liveEventIds)) {
-        if (!linkedResources.liveEvents) linkedResources.liveEvents = [];
-        productData.liveEventIds.forEach((id: string) => {
-          if (!linkedResources.liveEvents.includes(id)) linkedResources.liveEvents.push(id);
-        });
-      }
-    } else {
-      // Mercado Pago ou Pagar.me: targetId is usually the ONLINE COURSE ID or a PRODUCT ID
-      // Let's assume for now it's a direct course if it's not found in ticto_products (or we can have a generic products collection)
-      // For now, let's look in online_courses if it's a courseId
-      const courseSnap = await dbAdmin.collection('online_courses').doc(safeTargetId).get();
-      if (courseSnap.exists) {
-        const courseData = courseSnap.data();
-        productName = courseData?.title || 'Curso Online';
-        linkedResources.onlineCourses.push(safeTargetId);
+      if (!productsSnapshot.empty) {
+        const productDoc = productsSnapshot.docs[0];
+        productDocId = productDoc.id;
+        const productData = productDoc.data();
+        productName = productData.name;
+        accessDays = productData.accessDays || 365;
+        linkedResources = productData.linkedResources || linkedResources;
+        
+        if (productData.liveEventIds && Array.isArray(productData.liveEventIds)) {
+          if (!linkedResources.liveEvents) linkedResources.liveEvents = [];
+          productData.liveEventIds.forEach((id: string) => {
+            if (!linkedResources.liveEvents.includes(id)) linkedResources.liveEvents.push(id);
+          });
+        }
       } else {
-        // Look if it's a ticto product being sold via MP (reusing the same mapping)
-        const productsSnapshot = await dbAdmin.collection('ticto_products').doc(safeTargetId).get();
-        if (productsSnapshot.exists) {
-          const productData = productsSnapshot.data();
-          productDocId = productsSnapshot.id;
-          productName = productData?.name || 'Produto';
-          accessDays = productData?.accessDays || 365;
-          linkedResources = productData?.linkedResources || linkedResources;
+        // Fallback para coleções diretas se não for um "Produto" (Combo)
+        const courseSnap = await dbAdmin.collection('online_courses').doc(safeTargetId).get();
+        if (courseSnap.exists) {
+          const courseData = courseSnap.data();
+          productName = courseData?.title || 'Curso Online';
+          linkedResources.onlineCourses.push(safeTargetId);
         } else {
-          console.warn(`Aviso: Alvo de provisionamento ${safeTargetId} não encontrado em coleções conhecidas.`);
+          // Tentar buscar por ID direto na coleção products
+          const directProductSnap = await dbAdmin.collection('products').doc(safeTargetId).get();
+          if (directProductSnap.exists) {
+            const productData = directProductSnap.data();
+            productDocId = directProductSnap.id;
+            productName = productData?.name || 'Produto';
+            accessDays = productData?.accessDays || 365;
+            linkedResources = productData?.linkedResources || linkedResources;
+          } else {
+            console.warn(`Aviso: Alvo de provisionamento ${safeTargetId} não encontrado em coleções conhecidas.`);
+          }
         }
       }
     }
@@ -135,13 +132,13 @@ export const provisionPurchase = async (customerData: CustomerData, targetId: st
     let productAccessId = '';
 
     // Se for um produto (combo), adiciona o cabeçalho do produto
-    if (origin === 'ticto' || productDocId) {
+    if (productDocId) {
       productAccessId = crypto.randomUUID();
       accessesToGrant.push({
         id: productAccessId,
         type: 'product',
-        targetId: productDocId || safeTargetId,
-        tictoId: origin === 'ticto' ? safeTargetId : '',
+        targetId: productDocId,
+        externalId: origin === 'ticto' ? safeTargetId : '',
         title: productName,
         days: accessDays,
         startDate: Timestamp.now(),
@@ -191,7 +188,7 @@ export const provisionPurchase = async (customerData: CustomerData, targetId: st
         title: realName,
         days: accessDays,
         isActive: true,
-        tictoId: origin === 'ticto' ? safeTargetId : '',
+        externalId: origin === 'ticto' ? safeTargetId : '',
         startDate: Timestamp.now(),
         endDate: Timestamp.fromDate(expirationDate),
         orderIndex: index,
@@ -282,22 +279,22 @@ export const provisionPurchase = async (customerData: CustomerData, targetId: st
   }
 };
 
-export const provisionTictoPurchase = async (customerData: CustomerData, tictoProductId: string) => {
-  return provisionPurchase(customerData, tictoProductId, 'ticto');
+export const provisionExternalPurchase = async (customerData: CustomerData, externalProductId: string) => {
+  return provisionPurchase(customerData, externalProductId, 'ticto');
 };
 
-export const revokeTictoPurchase = async (email: string, tictoProductId: string) => {
+export const revokePurchase = async (email: string, externalProductId: string) => {
   const { dbAdmin, authAdmin } = getAdminConfig();
   try {
-    const safeProductId = String(tictoProductId);
-    // 1. Busca o documento do produto na coleção ticto_products para saber quais recursos ele liberava
-    const productsSnapshot = await dbAdmin.collection('ticto_products')
-      .where('tictoId', '==', safeProductId)
+    const safeProductId = String(externalProductId);
+    // 1. Busca o documento do produto na coleção products para saber quais recursos ele liberava
+    const productsSnapshot = await dbAdmin.collection('products')
+      .where('externalId', '==', safeProductId)
       .limit(1)
       .get();
 
     if (productsSnapshot.empty) {
-      console.log(`[REVOGAÇÃO] Produto Ticto com ID ${safeProductId} não encontrado.`);
+      console.log(`[REVOGAÇÃO] Produto com externalId ${safeProductId} não encontrado.`);
     }
 
     // 2. Busca o utilizador na coleção users através do e-mail
@@ -330,11 +327,11 @@ export const revokeTictoPurchase = async (email: string, tictoProductId: string)
     let hasChanges = false;
     
     // Primeiro, identificamos o ID do registro de acesso do produto principal
-    const productAccessItems = currentAccess.filter(acc => acc.tictoId === safeProductId && acc.type === 'product');
+    const productAccessItems = currentAccess.filter(acc => acc.externalId === safeProductId && acc.type === 'product');
     const productAccessIds = productAccessItems.map(p => p.id);
 
     const updatedAccess = currentAccess.map((acc: UserAccess) => {
-      const isDirectMatch = acc.tictoId === safeProductId;
+      const isDirectMatch = acc.externalId === safeProductId;
       const isChildMatch = acc.sourceProductId && productAccessIds.includes(acc.sourceProductId);
 
       if ((isDirectMatch || isChildMatch) && acc.isActive !== false) {
