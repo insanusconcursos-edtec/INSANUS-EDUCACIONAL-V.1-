@@ -13,7 +13,7 @@
     <!-- ReactFlow CSS Injection (Correção de MIME Type) -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reactflow@11.11.4/dist/style.css" />
 
-    <link rel="manifest" href="/manifest.json" />
+    <link rel="manifest" href="/manifest.json" crossorigin="use-credentials" />
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -27,10 +27,19 @@
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('/sw.js')
-            .then(reg => console.log('SW Registered!', reg))
-            .catch(err => console.log('SW Registration failed: ', err));
+            .then(reg => console.log('✅ SW registrado com sucesso:', reg.scope))
+            .catch(err => console.error('❌ Falha ao registrar SW:', err));
         });
       }
+
+      // Help debug PWA installability
+      window.addEventListener('beforeinstallprompt', (e) => {
+        console.log('📱 Evento beforeinstallprompt disparado - O App é instalável!');
+      });
+
+      window.addEventListener('appinstalled', (e) => {
+        console.log('🎉 PWA instalado com sucesso!');
+      });
     </script>
     <script>
       tailwind.config = {
