@@ -62,6 +62,74 @@ const PORT = 3000;
 // Middleware para JSON
 app.use(express.json());
 
+// Rota dinâmica para o manifest.json (Prioridade Máxima)
+app.get('/manifest.json', async (req, res) => {
+  console.log('📦 Solicitando manifest.json...');
+  try {
+    const { dbAdmin } = getAdminConfig();
+    const settingsSnap = await dbAdmin.collection('settings').doc('appearance').get();
+    const settings = settingsSnap.data() || {};
+    
+    console.log('🎨 Settings recuperados:', settings ? 'Sim' : 'Não');
+    const defaultLogo = "https://firebasestorage.googleapis.com/v0/b/planner-insanus.appspot.com/o/logo_insanus_circular.png?alt=media";
+    const pwaLogo = settings.pwaLogoUrl || settings.logoUrl || defaultLogo;
+
+    const manifest = {
+      "short_name": "Insanus",
+      "name": "Insanus Educacional",
+      "description": "Gestão de Estudos de Alta Performance",
+      "icons": [
+        {
+          "src": pwaLogo,
+          "sizes": "192x192",
+          "type": "image/png",
+          "purpose": "any maskable"
+        },
+        {
+          "src": pwaLogo,
+          "sizes": "512x512",
+          "type": "image/png",
+          "purpose": "any maskable"
+        }
+      ],
+      "start_url": "/",
+      "display": "standalone",
+      "theme_color": "#000000",
+      "background_color": "#000000"
+    };
+
+    console.log('✅ Manifest gerado com sucesso');
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    return res.status(200).send(JSON.stringify(manifest, null, 2));
+  } catch (error) {
+    console.error("❌ Erro ao gerar manifest.json:", error);
+    return res.status(200).json({
+      "short_name": "Insanus",
+      "name": "Insanus Educacional",
+      "start_url": "/",
+      "display": "standalone",
+      "theme_color": "#000000",
+      "background_color": "#000000"
+    });
+  }
+});
+
+// Rota de redirecionamento para o ícone PWA
+app.get('/pwa-icon.png', async (req, res) => {
+  try {
+    const { dbAdmin } = getAdminConfig();
+    const settingsSnap = await dbAdmin.collection('settings').doc('appearance').get();
+    const settings = settingsSnap.data() || {};
+    const defaultLogo = "https://firebasestorage.googleapis.com/v0/b/planner-insanus.appspot.com/o/logo_insanus_circular.png?alt=media";
+    const pwaLogo = settings.pwaLogoUrl || settings.logoUrl || defaultLogo;
+    return res.redirect(pwaLogo);
+  } catch (error) {
+    return res.redirect("https://firebasestorage.googleapis.com/v0/b/planner-insanus.appspot.com/o/logo_insanus_circular.png?alt=media");
+  }
+});
+
 async function setupVite(app: any) {
   // Vite middleware para desenvolvimento
   if (process.env.NODE_ENV !== 'production') {
@@ -909,69 +977,6 @@ async function setupVite(app: any) {
       return url;
     }
   }
-
-  // Rota dinâmica para o manifest.json
-  app.get('/manifest.json', async (req, res) => {
-    try {
-      const { dbAdmin } = getAdminConfig();
-      const settingsSnap = await dbAdmin.collection('settings').doc('appearance').get();
-      const settings = settingsSnap.data() || {};
-      
-      const defaultLogo = "https://firebasestorage.googleapis.com/v0/b/planner-insanus.appspot.com/o/logo_insanus_circular.png?alt=media";
-      const pwaLogo = settings.pwaLogoUrl || settings.logoUrl || defaultLogo;
-
-      const manifest = {
-        "name": "Insanus Educacional",
-        "short_name": "Insanus",
-        "description": "Gestão de Estudos de Alta Performance",
-        "start_url": "/",
-        "display": "standalone",
-        "background_color": "#000000",
-        "theme_color": "#000000",
-        "icons": [
-          {
-            "src": pwaLogo,
-            "sizes": "192x192",
-            "type": "image/png",
-            "purpose": "any maskable"
-          },
-          {
-            "src": pwaLogo,
-            "sizes": "512x512",
-            "type": "image/png",
-            "purpose": "any maskable"
-          }
-        ]
-      };
-
-      res.setHeader('Content-Type', 'application/json');
-      return res.json(manifest);
-    } catch (error) {
-      console.error("Erro ao gerar manifest.json:", error);
-      return res.status(200).json({
-        "name": "Insanus Educacional",
-        "short_name": "Insanus",
-        "start_url": "/",
-        "display": "standalone",
-        "background_color": "#000000",
-        "theme_color": "#000000"
-      });
-    }
-  });
-
-  // Rota de redirecionamento para o ícone PWA (para ser usado no apple-touch-icon)
-  app.get('/pwa-icon.png', async (req, res) => {
-    try {
-      const { dbAdmin } = getAdminConfig();
-      const settingsSnap = await dbAdmin.collection('settings').doc('appearance').get();
-      const settings = settingsSnap.data() || {};
-      const defaultLogo = "https://firebasestorage.googleapis.com/v0/b/planner-insanus.appspot.com/o/logo_insanus_circular.png?alt=media";
-      const pwaLogo = settings.pwaLogoUrl || settings.logoUrl || defaultLogo;
-      return res.redirect(pwaLogo);
-    } catch (error) {
-      return res.redirect("https://firebasestorage.googleapis.com/v0/b/planner-insanus.appspot.com/o/logo_insanus_circular.png?alt=media");
-    }
-  });
 
 async function startServer() {
   await setupVite(app);
