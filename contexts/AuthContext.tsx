@@ -10,6 +10,7 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../services/firebase';
+import { requestNotificationPermission } from '../services/notificationService';
 
 interface UserData {
   role?: string;
@@ -55,6 +56,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setCurrentUser(user);
       
       if (user) {
+        // Solicitar permissão de notificação (PWA Push)
+        requestNotificationPermission(user.uid);
+
         try {
             // Fetch User Data from Firestore
             const userDocRef = doc(db, 'users', user.uid);

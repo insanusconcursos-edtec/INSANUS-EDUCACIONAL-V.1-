@@ -1,6 +1,7 @@
 
 import { provisionPurchase } from './provisioningService.js';
 import { getAdminConfig } from './firebaseAdmin.js';
+import { sendPushNotification } from './notificationAdminService.js';
 
 const PAGARME_API_URL = 'https://api.pagar.me/core/v5/orders';
 
@@ -579,6 +580,15 @@ async function recordAffiliateCommission(orderData: any) {
       createdAt: new Date().toISOString()
     });
 
+    // Enviar Notificação Push para o Afiliado/Vendedor
+    const valFormatted = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(commissionEarned / 100);
+    await sendPushNotification(
+      affiliateId,
+      "VENDA REALIZADA! 🚀",
+      `Você acabou de ganhar uma comissão de ${valFormatted}. Confira seu saldo!`,
+      "/comercial/dashboard-afiliado"
+    );
+
     console.log(`✅ [DEBUG COMISSÃO] Afiliado: ${affiliateId} | Pedido: ${orderData.id} | Valor: ${commissionEarned} centavos`);
   } catch (error) {
     console.error('❌ [ERRO COMISSÃO] Falha ao salvar no Firestore:', error);
@@ -744,6 +754,19 @@ async function recordCoproductionCommissions(orderData: any) {
               commissionValue,
               createdAt: new Date().toISOString()
             });
+
+            // Enviar Notificação Push para o Coprodutor
+            const coproId = copro.coproducerId || copro.userId || copro.id;
+            if (coproId && coproId !== 'unknown') {
+              const valFormatted = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(commissionValue / 100);
+              sendPushNotification(
+                coproId,
+                "COMISSÃO DE COPRODUÇÃO! 🚀",
+                `Venda realizada! Você acaba de receber ${valFormatted} em comissão.`,
+                "/comercial/dashboard-coprodutor"
+              ).catch(e => console.error("Erro push copro:", e));
+            }
+
             hasEntries = true;
           }
         }

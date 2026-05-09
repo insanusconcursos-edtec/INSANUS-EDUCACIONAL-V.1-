@@ -4,6 +4,7 @@ import { getAuth } from 'firebase/auth';
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { getAnalytics } from 'firebase/analytics';
+import { getMessaging } from 'firebase/messaging';
 
 // CONFIGURAÇÃO OFICIAL (Validada pelo Console)
 export const firebaseConfig = {
@@ -33,6 +34,9 @@ export const db = initializeFirestore(app, {
 
 export const storage = getStorage(app);
 export const analytics = getAnalytics(app);
+
+// Adicionando suporte a Mensagens (Messaging)
+export const messaging = typeof window !== 'undefined' ? getMessaging(app) : null;
 
 console.log("Firebase conectado com sucesso: ", firebaseConfig.projectId);
 
