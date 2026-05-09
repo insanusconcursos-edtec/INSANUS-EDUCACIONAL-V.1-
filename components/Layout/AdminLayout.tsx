@@ -36,9 +36,7 @@ const AdminLayout: React.FC = () => {
           id: 'coproduction',
           label: 'COPRODUÇÃO',
           items: [
-            { label: 'MEU FATURAMENTO', path: '/comercial/coprodutor/dashboard' },
-            { label: 'MINHA CARTEIRA', path: '/comercial/coprodutor/dashboard' },
-            { label: 'MEUS PRODUTOS', path: '/comercial/coprodutor/dashboard' }
+            { label: 'DASHBOARD', path: '/comercial/coprodutor/dashboard' }
           ]
         }
       ];
@@ -48,11 +46,10 @@ const AdminLayout: React.FC = () => {
       return [
         {
           id: 'vendedor',
-          label: 'VENDEDOR / AFILIADO',
+          label: 'Comercial',
           items: [
-            { label: 'MINHAS VENDAS', path: '/comercial/dashboard-afiliado' },
-            { label: 'LINKS DE AFILIADO', path: '/comercial/dashboard-afiliado' },
-            { label: 'PRODUTOS DISPONÍVEIS', path: '/comercial/dashboard-afiliado' }
+            { label: 'Meu Desempenho', path: '/admin/afiliado' },
+            { label: 'Catálogo de Vendas', path: '/admin/vendas' }
           ]
         }
       ];
@@ -92,7 +89,7 @@ const AdminLayout: React.FC = () => {
       groups[1].items.push({ label: 'VENDAS', path: '/admin/vendas' });
     }
     if (isAdmin || userRole === 'SELLER' || perms.vendas) {
-      groups[1].items.push({ label: 'DASHBOARD AFILIADO', path: '/admin/afiliado' });
+      groups[1].items.push({ label: 'Meu Desempenho', path: '/admin/afiliado' });
     }
     if (isAdmin || perms.vendas) {
       groups[1].items.push({ label: 'RELATÓRIO DE COPRODUÇÃO', path: '/admin/coproducao' });

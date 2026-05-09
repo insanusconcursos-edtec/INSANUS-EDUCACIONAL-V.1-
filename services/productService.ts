@@ -3,7 +3,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from './firebase';
 import { Product } from '../types/product';
 
-const COLLECTION_NAME = 'products';
+const COLLECTION_NAME = 'ticto_products';
 
 export const uploadProductCover = async (file: File): Promise<string> => {
   const storageRef = ref(storage, `products/covers/${Date.now()}_${file.name}`);

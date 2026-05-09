@@ -44,22 +44,37 @@ const LoginPage: React.FC = () => {
     e.preventDefault();
     setError('');
     
-    // Lógica de Login Inteligente
-    let authIdentifier = email.trim();
+    const rawInput = email.trim();
+    const isSlug = rawInput && !rawInput.includes('@');
     
-    // Se não tiver '@', é um slug. Concatena com o sufixo padronizado
-    // Se tiver '@', usa o e-mail exato (suporta gmail, hotmail, etc)
-    if (authIdentifier && !authIdentifier.includes('@')) {
-        authIdentifier = `${authIdentifier}${AUTH_CONFIG.DOMAIN_SUFFIX}`;
-    }
+    // 1. Primeira Tentativa (Domínio Novo)
+    const authIdentifier = isSlug ? `${rawInput}${AUTH_CONFIG.DOMAIN_NEW}` : rawInput;
 
     try {
-      // 1. Autentica no Firebase Auth
-      const userCredential = await login(authIdentifier, password);
+      console.log(`[AUTH] Tentando login: ${authIdentifier}`);
+      let userCredential;
+      
+      try {
+        userCredential = await login(authIdentifier, password);
+        console.log(`[AUTH] Sucesso com domínio principal: ${AUTH_CONFIG.DOMAIN_NEW}`);
+      } catch (firstErr) {
+        const error = firstErr as any;
+        // Se for um slug e deu erro de credenciais/user, tenta o legado
+        if (isSlug && (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-email')) {
+            const legacyIdentifier = `${rawInput}${AUTH_CONFIG.DOMAIN_LEGACY}`;
+            console.log(`[AUTH] Fallback: Tentando domínio legado: ${legacyIdentifier}`);
+            userCredential = await login(legacyIdentifier, password);
+            console.log(`[AUTH] Sucesso com domínio legado: ${AUTH_CONFIG.DOMAIN_LEGACY}`);
+        } else {
+            throw firstErr;
+        }
+      }
+
+      if (!userCredential) throw new Error("Falha na autenticação");
+
       const uid = userCredential.user.uid;
 
       // 2. Busca dados do Firestore IMEDIATAMENTE para decidir o redirect
-      // (Não esperamos o AuthContext atualizar pois pode haver delay no redirect)
       const userDocRef = doc(db, 'users', uid);
       const userSnap = await getDoc(userDocRef);
 
@@ -70,20 +85,23 @@ const LoginPage: React.FC = () => {
       } else {
           // Fallback para Admins Seeded (que não têm doc no firestore ainda)
           if (authIdentifier.includes('insanusconcursos') || authIdentifier.includes('kelsen')) {
-              navigate('/admin/planos');
+              navigate('/admin/dashboard');
           } else {
               navigate('/'); // Deixa o RootRedirect do App.tsx decidir
           }
       }
 
     } catch (err) {
-      const error = err as Error;
-      console.error("Login failed:", error);
+      const error = err as any;
+      console.error("Login failed after all attempts:", error);
       const errorMessage = error.message || 'Erro desconhecido';
-      // @ts-expect-error - code is not a standard property of Error
       const errorCode = error.code || 'sem-codigo';
       
-      const friendlyMessage = `Erro ao conectar: ${errorCode}. Detalhes: ${errorMessage}`;
+      let friendlyMessage = `Erro ao conectar: ${errorCode}. Detalhes: ${errorMessage}`;
+      
+      if (errorCode === 'auth/invalid-credential' || errorCode === 'auth/user-not-found' || errorCode === 'auth/wrong-password') {
+          friendlyMessage = "Usuário ou senha incorretos. Verifique suas credenciais.";
+      }
       
       setError(friendlyMessage);
     }

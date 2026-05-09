@@ -1,4 +1,5 @@
 
 export const AUTH_CONFIG = {
-  DOMAIN_SUFFIX: '@insanus.com.br',
+  DOMAIN_NEW: '@insanus.com.br',
+  DOMAIN_LEGACY: '@insanus.internal',
 };

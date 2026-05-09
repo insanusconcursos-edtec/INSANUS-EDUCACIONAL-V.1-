@@ -13,7 +13,24 @@
     <!-- ReactFlow CSS Injection (Correção de MIME Type) -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reactflow@11.11.4/dist/style.css" />
 
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Insanus">
+    <link rel="apple-touch-icon" href="/pwa-icon.png">
+    <meta name="theme-color" content="#000000">
+
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      // Service Worker Registration
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then(reg => console.log('SW Registered!', reg))
+            .catch(err => console.log('SW Registration failed: ', err));
+        });
+      }
+    </script>
     <script>
       tailwind.config = {
         darkMode: 'class',

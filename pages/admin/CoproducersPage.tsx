@@ -19,6 +19,7 @@ import {
 import { coproducerService } from '../../services/coproducerService';
 import { Coproducer } from '../../types/coproducer';
 import { toast } from 'react-hot-toast';
+import { AUTH_CONFIG } from '../../services/authConstants';
 
 const CoproducersPage: React.FC = () => {
   const [coproducers, setCoproducers] = useState<Coproducer[]>([]);
@@ -286,7 +287,7 @@ const CoproducersPage: React.FC = () => {
                     placeholder="ex: joaosilva"
                   />
                 </div>
-                <p className="text-[10px] text-gray-600 mt-1 uppercase font-bold tracking-tighter">Login: {formData.username || '...'}{'@insanus.com.br'}</p>
+                <p className="text-[10px] text-gray-600 mt-1 uppercase font-bold tracking-tighter">Login: {formData.username || '...'}{AUTH_CONFIG.DOMAIN_NEW}</p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">

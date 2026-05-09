@@ -26,6 +26,8 @@ import { useNavigate } from 'react-router-dom';
 import { useSpacedReviewModal } from '../../contexts/SpacedReviewModalContext';
 import { PlanHeroBanner } from '../../components/student/PlanHeroBanner';
 import { SupportFloatingButton } from '../../components/student/support/SupportFloatingButton';
+import { usePWAInstall } from '../../hooks/usePWAInstall';
+import { Smartphone, Download } from 'lucide-react';
 
 const StudentDashboard: React.FC = () => {
   const { currentUser } = useAuth();
@@ -552,6 +554,8 @@ const StudentDashboard: React.FC = () => {
 
   const { weekday, dayAndMonth } = getFormattedDate();
   
+  const { isInstallable, installApp } = usePWAInstall();
+
   const handleReviewNow = (disciplineId: string, topicId: string, goalId?: string) => {
     let url = `/app/edict?highlightDiscipline=${disciplineId}&highlightTopic=${topicId}`;
     if (goalId) {
@@ -849,6 +853,30 @@ const StudentDashboard: React.FC = () => {
 
   return (
     <div className="pb-20 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      {/* PWA INSTALL BANNER */}
+      {isInstallable && (
+        <div className="mx-auto max-w-[1600px] px-4 md:px-8 pt-4">
+          <div className="bg-brand-red/10 border border-brand-red/20 p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
+            <div className="flex items-center gap-4 text-center sm:text-left text-white">
+              <div className="p-3 bg-brand-red rounded-xl shrink-0">
+                <Smartphone className="w-6 h-6" />
+              </div>
+              <div>
+                <h4 className="text-sm font-black uppercase tracking-wider">Acesse como Aplicativo</h4>
+                <p className="text-xs text-zinc-400 font-medium">Instale para uma experiência mais fluida e acesso instantâneo.</p>
+              </div>
+            </div>
+            <button 
+              onClick={installApp}
+              className="w-full sm:w-auto px-6 py-3 bg-white text-black font-black uppercase text-[11px] tracking-widest rounded-xl hover:bg-gray-100 transition-all flex items-center justify-center gap-2"
+            >
+              <Download className="w-4 h-4" />
+              INSTALAR AGORA
+            </button>
+          </div>
+        </div>
+      )}
+
       
       {/* HERO BANNER */}
       {fullPlanData && (

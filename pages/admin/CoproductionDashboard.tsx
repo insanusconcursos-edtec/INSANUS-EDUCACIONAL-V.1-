@@ -20,10 +20,26 @@ import {
   User,
   Wallet,
   ArrowRightCircle,
-  Lock
+  Lock,
+  Clock,
+  ShoppingBag,
+  Calendar,
+  ChevronDown,
+  Smartphone,
+  Download
 } from 'lucide-react';
+import { 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer,
+  LineChart,
+  Line
+} from 'recharts';
 import { motion } from 'motion/react';
 import { Coproducer } from '../../types/coproducer';
+import { usePWAInstall } from '../../hooks/usePWAInstall';
 
 interface Commission {
   id: string;
@@ -76,6 +92,8 @@ const CoproductionDashboard: React.FC = () => {
   const [payoutMessage, setPayoutMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
   const isCoprodutorRole = userRole === 'COPRODUTOR';
+
+  const { isInstallable, installApp } = usePWAInstall();
 
   // Date Filtering State
   const [dateRange, setDateRange] = useState<'today' | '7d' | '30d' | 'month' | 'custom'>('30d');
@@ -292,9 +310,17 @@ const CoproductionDashboard: React.FC = () => {
 
     // 2. Listen to commissions (Filtered if Coprodutor)
     const commissionsCollection = collection(db, 'coproduction_commissions');
-    const commissionsQuery = isCoprodutorRole 
-      ? query(commissionsCollection, where('coproducerId', '==', currentUser.uid))
-      : commissionsCollection;
+    let commissionsQuery;
+    
+    if (isCoprodutorRole) {
+      // For coprodutor, we can optimize the query
+      commissionsQuery = query(
+        commissionsCollection, 
+        where('coproducerId', '==', currentUser.uid)
+      );
+    } else {
+      commissionsQuery = commissionsCollection;
+    }
 
     const unsubscribe = onSnapshot(commissionsQuery, 
       (snapshot) => {
@@ -313,7 +339,7 @@ const CoproductionDashboard: React.FC = () => {
     );
 
     return () => unsubscribe();
-  }, [currentUser]);
+  }, [currentUser, dateFilter, isCoprodutorRole]); // Added dateFilter visibility to ensure range is handled if we pivot to server-side range later. Local filtering is safer for now if createdAt storage format is inconsistent.
 
   // Main Logic: Group gains by Coproducer
   const coproducerGains = useMemo(() => {
@@ -470,10 +496,393 @@ const CoproductionDashboard: React.FC = () => {
     };
   }, [commissions, selectedProductId, dateFilter]);
 
+  // Dynamic Chart Data based on filtered commissions and date range
+  const chartData = useMemo(() => {
+    const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+    const days: Record<string, number> = {};
+    const start = new Date(dateFilter.start);
+    const end = new Date(dateFilter.end);
+    
+    // IF mobile and range is large, show only last 7 days for better visualization
+    let effectiveStart = start;
+    if (isMobile) {
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setHours(0, 0, 0, 0);
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6); // Today + 6 back = 7 days
+      
+      // Only cap if the selected filter is longer than 7 days
+      if (start < sevenDaysAgo) {
+        effectiveStart = sevenDaysAgo;
+      }
+    }
+
+    // Fill the range with zeroes
+    const temp = new Date(effectiveStart);
+    while (temp <= end) {
+      const dateStr = temp.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+      days[dateStr] = 0;
+      temp.setDate(temp.getDate() + 1);
+      
+      // Safety break for long ranges
+      if (Object.keys(days).length > 60) break; 
+    }
+
+    commissions.forEach(c => {
+      if (!isDateInRange(c.createdAt, effectiveStart, end)) return;
+      if (selectedProductId !== 'all' && c.courseId !== selectedProductId) return;
+
+      const dateStr = new Date(c.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+      if (days[dateStr] !== undefined) {
+        days[dateStr] += c.commissionValue / 100;
+      }
+    });
+
+    return Object.entries(days).map(([date, value]) => ({ date, value }));
+  }, [commissions, dateFilter, selectedProductId]);
+
+  const formatCurrency = (val: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(val);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-blue"></div>
+      </div>
+    );
+  }
+
+  if (isCoprodutorRole) {
+    return (
+      <div className="space-y-6 md:space-y-8 pb-12">
+        {/* PWA INSTALL BANNER */}
+        {isInstallable && (
+          <div className="bg-green-400/10 border border-green-400/20 p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
+            <div className="flex items-center gap-4 text-center sm:text-left text-white">
+              <div className="p-3 bg-green-400 rounded-xl shrink-0">
+                <Smartphone className="w-6 h-6 text-black" />
+              </div>
+              <div>
+                <h4 className="text-sm font-black uppercase tracking-wider">Acesse como Aplicativo</h4>
+                <p className="text-xs text-gray-400 font-medium">Instale para acompanhar sua coprodução com mais agilidade.</p>
+              </div>
+            </div>
+            <button 
+              onClick={installApp}
+              className="w-full sm:w-auto px-6 py-3 bg-green-400 text-black font-black uppercase text-[11px] tracking-widest rounded-xl hover:bg-green-500 transition-all flex items-center justify-center gap-2"
+            >
+              <Download className="w-4 h-4" />
+              INSTALAR AGORA
+            </button>
+          </div>
+        )}
+        {/* Header Section */}
+        <div className="flex flex-col gap-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex flex-col gap-1">
+              <h1 className="text-2xl md:text-3xl font-black tracking-tight text-white uppercase flex items-center gap-3">
+                <div className="p-2 bg-green-400 rounded-xl md:hidden">
+                  <Wallet className="w-5 h-5 text-black" />
+                </div>
+                Minha <span className="text-green-400">Coprodução</span>
+              </h1>
+              <p className="text-gray-400 text-xs md:text-sm font-medium">Acompanhe seus ganhos e saldo em tempo real.</p>
+            </div>
+            <div className="hidden md:flex items-center gap-2 bg-[#1a1a1a] px-4 py-2 rounded-xl border border-[#222]">
+              <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+              <span className="text-[10px] text-gray-400 uppercase font-black tracking-widest">Sincronizado Pagar.me</span>
+            </div>
+          </div>
+
+          {/* Toolbar - Dark Glass Style */}
+          <div className="bg-[#111] border border-[#222] p-2 md:p-2.5 rounded-2xl flex flex-col lg:flex-row lg:items-center justify-between gap-3 shadow-2xl backdrop-blur-xl">
+            <div className="flex flex-col sm:flex-row items-center gap-2 flex-grow">
+              {/* Product Filter */}
+              <div className="relative w-full sm:w-auto min-w-[200px]">
+                <Package className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
+                <select
+                  value={selectedProductId}
+                  onChange={(e) => setSelectedProductId(e.target.value)}
+                  className="w-full pl-10 pr-10 py-3 bg-[#1a1a1a] border border-[#222] rounded-xl text-white focus:outline-none focus:border-green-400/50 transition-all appearance-none cursor-pointer text-[10px] font-black uppercase tracking-widest"
+                >
+                  <option value="all">📊 TODOS OS PRODUTOS</option>
+                  {products.map(p => (
+                    <option key={p.id} value={p.id}>{p.name.toUpperCase()}</option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600 w-4 h-4 pointer-events-none" />
+              </div>
+
+              {/* Date Filter */}
+              <div className="relative w-full sm:w-auto min-w-[200px]">
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
+                <select
+                  value={dateRange}
+                  onChange={(e) => setDateRange(e.target.value as any)}
+                  className="w-full pl-10 pr-10 py-3 bg-[#1a1a1a] border border-[#222] rounded-xl text-white focus:outline-none focus:border-green-400/50 transition-all appearance-none cursor-pointer text-[10px] font-black uppercase tracking-widest"
+                >
+                  <option value="today">HOJE</option>
+                  <option value="7d">ÚLTIMOS 7 DIAS</option>
+                  <option value="30d">ÚLTIMOS 30 DIAS</option>
+                  <option value="month">ESTE MÊS</option>
+                  <option value="custom">INTERVALO PERSONALIZADO</option>
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600 w-4 h-4 pointer-events-none" />
+              </div>
+
+              {dateRange === 'custom' && (
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <input
+                    type="date"
+                    value={customStartDate}
+                    onChange={(e) => setCustomStartDate(e.target.value)}
+                    className="bg-[#1a1a1a] border border-[#222] rounded-xl px-3 py-3 text-[10px] text-white font-black uppercase"
+                  />
+                  <input
+                    type="date"
+                    value={customEndDate}
+                    onChange={(e) => setCustomEndDate(e.target.value)}
+                    className="bg-[#1a1a1a] border border-[#222] rounded-xl px-3 py-3 text-[10px] text-white font-black uppercase"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Payout Button */}
+            <motion.button 
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setShowPayoutModal(true)}
+              disabled={!balance?.available || balance.available <= 0 || loadingBalance || requestingPayout}
+              className="w-full lg:w-auto px-8 py-3.5 bg-green-400 hover:bg-green-500 disabled:opacity-30 disabled:hover:bg-green-400 text-black font-black uppercase text-[11px] tracking-[0.2em] rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-green-400/20 active:scale-95"
+            >
+              <Wallet className="w-4 h-4" />
+              SACAR AGORA
+            </motion.button>
+          </div>
+        </div>
+
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Card 1: Saldo Disponível */}
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+            className="bg-[#111] p-6 rounded-xl border border-[#222] relative overflow-hidden group hover:border-green-400/30 transition-colors"
+          >
+            <div className="flex justify-between items-start mb-4">
+              <div className="p-2 bg-green-400/10 rounded-lg">
+                <Wallet className="w-5 h-5 text-green-400" />
+              </div>
+            </div>
+            <p className="text-[10px] text-gray-500 font-bold tracking-[0.2em] uppercase mb-1">Saldo Disponível</p>
+            <h3 className="text-2xl font-black text-green-400 tracking-tighter">
+              {loadingBalance ? "..." : formatCurrency((balance?.available || 0) / 100)}
+            </h3>
+            <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+               <Wallet className="w-24 h-24" />
+            </div>
+          </motion.div>
+
+          {/* Card 2: A Receber */}
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
+            className="bg-[#111] p-6 rounded-xl border border-[#222] relative overflow-hidden group hover:border-amber-400/30 transition-colors"
+          >
+            <div className="flex justify-between items-start mb-4">
+              <div className="p-2 bg-amber-400/10 rounded-lg">
+                <Lock className="w-5 h-5 text-amber-400" />
+              </div>
+            </div>
+            <p className="text-[10px] text-gray-500 font-bold tracking-[0.2em] uppercase mb-1">A Receber</p>
+            <h3 className="text-2xl font-black text-amber-400 tracking-tighter">
+              {loadingBalance ? "..." : formatCurrency((balance?.waiting_funds || 0) / 100)}
+            </h3>
+            <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+               <Lock className="w-24 h-24" />
+            </div>
+          </motion.div>
+
+          {/* Card 3: Total Vendas */}
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
+            className="bg-[#111] p-6 rounded-xl border border-[#222] relative overflow-hidden group hover:border-green-400/30 transition-colors"
+          >
+            <div className="flex justify-between items-start mb-4">
+              <div className="p-2 bg-green-400/10 rounded-lg">
+                <ShoppingBag className="w-5 h-5 text-green-400" />
+              </div>
+            </div>
+            <p className="text-[10px] text-gray-500 font-bold tracking-[0.2em] uppercase mb-1">Total de Vendas</p>
+            <h3 className="text-2xl font-black text-white tracking-tighter">
+              {globalStats.count}
+            </h3>
+            <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+               <ShoppingBag className="w-24 h-24" />
+            </div>
+          </motion.div>
+
+          {/* Card 4: Comissão Total */}
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
+            className="bg-[#111] p-6 rounded-xl border border-[#222] relative overflow-hidden group hover:border-green-400/30 transition-colors"
+          >
+            <div className="flex justify-between items-start mb-4">
+              <div className="p-2 bg-green-400/10 rounded-lg">
+                <DollarSign className="w-5 h-5 text-green-400" />
+              </div>
+            </div>
+            <p className="text-[10px] text-gray-500 font-bold tracking-[0.2em] uppercase mb-1">Comissão Acumulada</p>
+            <h3 className="text-2xl font-black text-green-400 tracking-tighter">
+              {formatCurrency(globalStats.total)}
+            </h3>
+            <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+               <DollarSign className="w-24 h-24" />
+            </div>
+          </motion.div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-8">
+          {/* Gráfico de Evolução */}
+          <div className="bg-[#111] p-5 md:p-6 rounded-xl border border-[#222]">
+            <div className="flex items-center justify-between mb-8">
+              <h3 className="text-base md:text-lg font-bold text-white flex items-center gap-2 uppercase tracking-tight">
+                <TrendingUp className="w-5 h-5 text-green-400" />
+                Evolução de Ganhos
+              </h3>
+              <span className="text-[9px] md:text-[10px] text-gray-500 font-black uppercase tracking-widest hidden sm:block">
+                {window.innerWidth < 768 ? 'Últimos 7 dias' : 'Consolidado'}
+              </span>
+            </div>
+            <div className="h-[250px] md:h-[300px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#222" vertical={false} />
+                  <XAxis 
+                    dataKey="date" 
+                    stroke="#444" 
+                    fontSize={10} 
+                    tickLine={false} 
+                    axisLine={false}
+                    interval={window.innerWidth < 768 ? 0 : 'preserveStartEnd'}
+                  />
+                  <YAxis hide={window.innerWidth < 480} stroke="#444" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => `R$${val}`} />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#111', border: '1px solid #333', borderRadius: '12px' }}
+                    itemStyle={{ color: '#4ade80', fontSize: '11px', fontWeight: 'bold' }}
+                    formatter={(val: number) => [formatCurrency(val), 'Comissão']}
+                  />
+                  <Line 
+                    type="monotone" dataKey="value" stroke="#4ade80" strokeWidth={3} 
+                    dot={{ fill: '#4ade80', strokeWidth: 1.5, r: 3 }} activeDot={{ r: 5, strokeWidth: 0 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+
+        {/* Recent Sales Table */}
+        <div className="bg-[#111] rounded-xl border border-[#222] overflow-hidden">
+          <div className="p-6 border-b border-[#222]">
+            <h3 className="text-lg font-bold text-white flex items-center gap-2 uppercase tracking-tight">
+              <Clock className="w-5 h-5 text-green-400" />
+              Vendas Recentes
+            </h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead className="bg-[#1a1a1a] text-gray-500 text-[10px] uppercase tracking-widest font-black">
+                <tr>
+                  <th className="px-6 py-4 font-black">Produto</th>
+                  <th className="px-6 py-4 font-black text-center">Data</th>
+                  <th className="px-6 py-4 font-black text-right">Minha Comissão</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#222]">
+                {commissions
+                  .filter(c => selectedProductId === 'all' || c.courseId === selectedProductId)
+                  .slice(0, 20)
+                  .map((c, i) => (
+                    <tr key={i} className="hover:bg-[#1a1a1a]/50 transition-colors">
+                      <td className="px-6 py-4">
+                        <p className="text-xs font-bold text-white line-clamp-1 uppercase tracking-tight">{c.courseName}</p>
+                      </td>
+                      <td className="px-6 py-4 text-[10px] font-black text-gray-400 text-center uppercase tracking-widest whitespace-nowrap">
+                        {new Date(c.createdAt).toLocaleDateString('pt-BR')}
+                      </td>
+                      <td className="px-6 py-4 text-sm font-black text-green-400 text-right uppercase tracking-tight">
+                        {formatCurrency(c.commissionValue / 100)}
+                      </td>
+                    </tr>
+                ))}
+                {commissions.length === 0 && (
+                  <tr>
+                    <td colSpan={3} className="px-6 py-12 text-center text-gray-700 uppercase font-black tracking-widest text-[10px]">
+                      Nenhuma comissão registrada ainda.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="pt-8 border-t border-[#222] flex flex-col items-center gap-2">
+          <p className="text-[10px] text-gray-600 font-black uppercase tracking-[0.3em] flex items-center gap-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
+            Sincronizado com Pagar.me em tempo real
+          </p>
+        </div>
+
+        {/* Reuse Modals */}
+        {showPayoutModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-[#111] border border-[#222] rounded-2xl p-8 max-w-md w-full shadow-2xl"
+            >
+              <div className="flex flex-col items-center text-center gap-4">
+                <div className="w-16 h-16 rounded-full bg-green-400/10 flex items-center justify-center border border-green-400/20">
+                  <Wallet className="w-8 h-8 text-green-400" />
+                </div>
+                <h3 className="text-xl font-bold text-white uppercase tracking-tight">Confirmar Saque</h3>
+                <p className="text-gray-400 text-sm font-medium">
+                  Deseja transferir <span className="text-white font-bold">{formatCurrency((balance?.available || 0) / 100)}</span> para sua conta bancária cadastrada na Pagar.me?
+                </p>
+
+                {payoutMessage && (
+                  <div className={`w-full p-4 rounded-xl text-[10px] font-black uppercase tracking-widest ${
+                    payoutMessage.type === 'success' ? 'bg-green-500/10 text-green-500 border border-green-500/20' : 'bg-red-500/10 text-red-500 border border-red-500/20'
+                  }`}>
+                    {payoutMessage.text}
+                  </div>
+                )}
+
+                <div className="flex gap-4 w-full mt-4">
+                  <button
+                    onClick={() => { setShowPayoutModal(false); setPayoutMessage(null); }}
+                    disabled={requestingPayout}
+                    className="flex-1 py-3 rounded-xl bg-[#222] text-gray-500 font-bold uppercase text-[10px] tracking-widest hover:bg-[#2a2a2a] transition-colors border border-[#333]"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleRequestPayout}
+                    disabled={requestingPayout}
+                    className="flex-1 py-3 rounded-xl bg-green-400 text-black font-black uppercase text-[10px] tracking-widest hover:bg-green-500 transition-all shadow-lg shadow-green-400/20"
+                  >
+                    {requestingPayout ? 'Processando' : 'Confirmar'}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
       </div>
     );
   }

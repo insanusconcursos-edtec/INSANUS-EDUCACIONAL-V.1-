@@ -910,6 +910,67 @@ async function setupVite(app: any) {
     }
   }
 
+  // Rota dinâmica para o manifest.json
+  app.get('/manifest.json', async (req, res) => {
+    try {
+      const { dbAdmin } = getAdminConfig();
+      const settingsSnap = await dbAdmin.collection('settings').doc('appearance').get();
+      const settings = settingsSnap.data() || {};
+      
+      const defaultLogo = "https://firebasestorage.googleapis.com/v0/b/planner-insanus.appspot.com/o/logo_insanus_circular.png?alt=media";
+      const pwaLogo = settings.pwaLogoUrl || settings.logoUrl || defaultLogo;
+
+      const manifest = {
+        "name": "Insanus Educacional",
+        "short_name": "Insanus",
+        "description": "Gestão de Estudos de Alta Performance",
+        "start_url": "/",
+        "display": "standalone",
+        "background_color": "#000000",
+        "theme_color": "#000000",
+        "icons": [
+          {
+            "src": pwaLogo,
+            "sizes": "192x192",
+            "type": "image/png"
+          },
+          {
+            "src": pwaLogo,
+            "sizes": "512x512",
+            "type": "image/png"
+          }
+        ]
+      };
+
+      res.setHeader('Content-Type', 'application/json');
+      return res.json(manifest);
+    } catch (error) {
+      console.error("Erro ao gerar manifest.json:", error);
+      return res.status(200).json({
+        "name": "Insanus Educacional",
+        "short_name": "Insanus",
+        "start_url": "/",
+        "display": "standalone",
+        "background_color": "#000000",
+        "theme_color": "#000000"
+      });
+    }
+  });
+
+  // Rota de redirecionamento para o ícone PWA (para ser usado no apple-touch-icon)
+  app.get('/pwa-icon.png', async (req, res) => {
+    try {
+      const { dbAdmin } = getAdminConfig();
+      const settingsSnap = await dbAdmin.collection('settings').doc('appearance').get();
+      const settings = settingsSnap.data() || {};
+      const defaultLogo = "https://firebasestorage.googleapis.com/v0/b/planner-insanus.appspot.com/o/logo_insanus_circular.png?alt=media";
+      const pwaLogo = settings.pwaLogoUrl || settings.logoUrl || defaultLogo;
+      return res.redirect(pwaLogo);
+    } catch (error) {
+      return res.redirect("https://firebasestorage.googleapis.com/v0/b/planner-insanus.appspot.com/o/logo_insanus_circular.png?alt=media");
+    }
+  });
+
 async function startServer() {
   await setupVite(app);
 

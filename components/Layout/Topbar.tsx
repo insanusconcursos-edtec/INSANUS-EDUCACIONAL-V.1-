@@ -117,7 +117,7 @@ const Topbar: React.FC<TopbarProps> = ({ navGroups, roleLabel, dashboardLabel })
       </div>
 
       {/* Tier 2: Submenu Bar */}
-      {activeGroup && (
+      {activeGroup && activeGroup.items.length > 1 && (
         <div className="h-12 px-6 flex items-center bg-zinc-950 border-b border-zinc-900/50 overflow-x-auto scrollbar-hide">
           <nav className="flex items-center gap-6">
             {activeGroup.items.map((item, index) => {

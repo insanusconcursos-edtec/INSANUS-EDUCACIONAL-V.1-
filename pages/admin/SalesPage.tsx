@@ -12,17 +12,43 @@ const SalesPage: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [copiedId, setCopiedId] = useState<string | null>(null);
     const [selectedProduct, setSelectedProduct] = useState<TictoProduct | null>(null);
-    const { currentUser } = useAuth();
+    const { currentUser, userRole } = useAuth();
 
     useEffect(() => {
         const fetchProducts = async () => {
             try {
                 const allProducts = await getProducts();
-                // Filter products that have at least one offer with affiliation enabled
-                const affiliatedProducts = allProducts.filter(p => 
-                    p.offers?.some(o => o.isAffiliationEnabled && o.isActive)
+                
+                // 1. Filtro de Coprodutor: Admin e Seller veem tudo. Coprodutor vê apenas o que ele participa.
+                let baseProducts = allProducts;
+                if (userRole === 'COPRODUTOR' && currentUser) {
+                    baseProducts = allProducts.filter(p => {
+                        const userUid = currentUser.uid;
+                        const userEmail = currentUser.email?.toLowerCase();
+                        
+                        const inTopLevel = (p.coproduction || []).some((cp: any) => 
+                            (cp.coproducerId || cp.userId || cp.id || cp.uid) === userUid ||
+                            (userEmail && (cp.coproducerEmail || cp.email)?.toLowerCase() === userEmail)
+                        );
+
+                        const inOffers = (p.offers || []).some((off: any) => 
+                            (off.coproducers || off.coproduction || []).some((cp: any) => 
+                                (cp.coproducerId || cp.userId || cp.id || cp.uid) === userUid ||
+                                (userEmail && (cp.coproducerEmail || cp.email)?.toLowerCase() === userEmail)
+                            )
+                        );
+
+                        return inTopLevel || inOffers;
+                    });
+                }
+
+                // 2. Filtro de Afiliação: 
+                // Mostramos apenas produtos com afiliação ativa ou campo affiliate_enabled TRUE.
+                const finalProducts = baseProducts.filter(p => 
+                    p.affiliate_enabled === true || p.offers?.some(o => o.isAffiliationEnabled && o.isActive)
                 );
-                setProducts(affiliatedProducts);
+
+                setProducts(finalProducts);
             } catch (error) {
                 console.error("Erro ao carregar catálogo de vendas:", error);
             } finally {

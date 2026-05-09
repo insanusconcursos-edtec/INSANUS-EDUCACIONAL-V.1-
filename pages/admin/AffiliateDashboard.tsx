@@ -162,14 +162,16 @@ const AffiliateDashboard: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-white mb-1">
-            DASHBOARD <span className="text-green-400">AFILIADO</span>
+          <h1 className="text-3xl font-bold tracking-tight text-white mb-1 uppercase">
+            Meu <span className="text-green-400">Desempenho</span>
           </h1>
-          <p className="text-gray-400 text-sm">Acompanhe seu desempenho e comissões em tempo real.</p>
+          <p className="text-gray-400 text-sm">Acompanhe suas vendas e comissões em tempo real.</p>
         </div>
-        <div className="flex items-center gap-2 bg-[#1a1a1a] px-4 py-2 rounded-lg border border-[#333]">
-          <Clock className="w-4 h-4 text-green-400" />
-          <span className="text-xs text-gray-300">Atualizado agora</span>
+        <div className="flex items-center gap-4">
+          <div className="hidden md:flex items-center gap-2 bg-[#1a1a1a] px-4 py-2 rounded-lg border border-[#333]">
+            <Clock className="w-4 h-4 text-green-400" />
+            <span className="text-xs text-gray-300 uppercase font-bold">Atualizado agora</span>
+          </div>
         </div>
       </div>
 
@@ -209,9 +211,9 @@ const AffiliateDashboard: React.FC = () => {
         {/* Gráfico de Evolução */}
         <div className="lg:col-span-2 bg-[#111] p-6 rounded-xl border border-[#222]">
           <div className="flex items-center justify-between mb-8">
-            <h3 className="text-lg font-bold text-white flex items-center gap-2">
+            <h3 className="text-lg font-bold text-white flex items-center gap-2 uppercase tracking-tight">
               <TrendingUp className="w-5 h-5 text-green-400" />
-              EVOLUÇÃO DIÁRIA (15 DIAS)
+              Evolução de Ganhos
             </h3>
           </div>
           <div className="h-[300px] w-full">
@@ -252,9 +254,9 @@ const AffiliateDashboard: React.FC = () => {
 
         {/* Ranking de Produtos */}
         <div className="bg-[#111] p-6 rounded-xl border border-[#222]">
-          <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
+          <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2 uppercase tracking-tight">
             <Award className="w-5 h-5 text-green-400" />
-            TOP PRODUTOS
+            Top Produtos
           </h3>
           <div className="space-y-4">
             {productRanking.length > 0 ? productRanking.map((p, i) => (
@@ -264,8 +266,8 @@ const AffiliateDashboard: React.FC = () => {
                     {i + 1}º
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-white line-clamp-1">{p.name}</p>
-                    <p className="text-[10px] text-gray-500">{p.sales} vendas realizadas</p>
+                    <p className="text-sm font-medium text-white line-clamp-1 uppercase tracking-tight">{p.name}</p>
+                    <p className="text-[10px] text-gray-500 uppercase font-bold">{p.sales} vendas</p>
                   </div>
                 </div>
                 <div className="text-right">
@@ -275,7 +277,7 @@ const AffiliateDashboard: React.FC = () => {
             )) : (
               <div className="text-center py-12">
                 <ShoppingBag className="w-12 h-12 text-gray-800 mx-auto mb-4" />
-                <p className="text-sm text-gray-600">Nenhuma venda registrada ainda.</p>
+                <p className="text-sm text-gray-600 uppercase font-black tracking-widest">Sem vendas</p>
               </div>
             )}
           </div>
@@ -285,20 +287,20 @@ const AffiliateDashboard: React.FC = () => {
       {/* Recent Sales Table */}
       <div className="bg-[#111] rounded-xl border border-[#222] overflow-hidden">
         <div className="p-6 border-b border-[#222]">
-          <h3 className="text-lg font-bold text-white flex items-center gap-2">
+          <h3 className="text-lg font-bold text-white flex items-center gap-2 uppercase tracking-tight">
             <Clock className="w-5 h-5 text-green-400" />
-            VENDAS RECENTES
+            Vendas Recentes
           </h3>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left">
-            <thead className="bg-[#1a1a1a] text-gray-500 text-xs uppercase tracking-widest">
+            <thead className="bg-[#1a1a1a] text-gray-500 text-[10px] uppercase tracking-widest font-black">
               <tr>
                 <th className="px-6 py-4 font-medium">Produto</th>
                 <th className="px-6 py-4 font-medium">Cliente</th>
                 <th className="px-6 py-4 font-medium">Contato</th>
-                <th className="px-6 py-4 font-medium">Data</th>
-                <th className="px-6 py-4 font-medium">Pagamento</th>
+                <th className="px-6 py-4 font-medium text-center">Data</th>
+                <th className="px-6 py-4 font-medium text-center">Pagamento</th>
                 <th className="px-6 py-4 font-medium">Valor Bruto</th>
                 <th className="px-6 py-4 font-medium text-right">Comissão</th>
               </tr>
@@ -307,12 +309,12 @@ const AffiliateDashboard: React.FC = () => {
               {commissions.slice(0, 10).map((c, i) => (
                 <tr key={i} className="hover:bg-[#1a1a1a]/50 transition-colors">
                   <td className="px-6 py-4">
-                    <p className="text-sm font-medium text-white line-clamp-1">{c.courseName}</p>
+                    <p className="text-xs font-bold text-white line-clamp-1 uppercase tracking-tight">{c.courseName}</p>
                   </td>
                   <td className="px-6 py-4">
-                    <div className="flex flex-col">
-                      <span className="text-sm font-bold text-gray-200 truncate max-w-[150px]">{c.customerName || 'N/A'}</span>
-                      <span className="text-[10px] text-gray-500 flex items-center gap-1">
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-xs font-black text-gray-200 uppercase tracking-tight truncate max-w-[150px]">{c.customerName || 'N/A'}</span>
+                      <span className="text-[9px] text-gray-500 font-medium flex items-center gap-1 uppercase">
                         <Mail size={10} /> {c.customerEmail || 'N/A'}
                       </span>
                     </div>
@@ -326,31 +328,31 @@ const AffiliateDashboard: React.FC = () => {
                         className="flex items-center gap-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 px-2 py-1 rounded-lg border border-emerald-500/20 transition-all group w-fit"
                       >
                         <MessageSquare size={12} className="group-hover:scale-110 transition-transform" />
-                        <span className="text-[10px] font-black uppercase">Chamar</span>
+                        <span className="text-[9px] font-black uppercase">Chamar</span>
                       </a>
                     ) : (
-                      <span className="text-[10px] text-zinc-700 italic">Sem fone</span>
+                      <span className="text-[10px] text-zinc-700 italic font-bold uppercase tracking-tighter">Sem fone</span>
                     )}
                   </td>
-                  <td className="px-6 py-4 text-xs text-gray-400 whitespace-nowrap">
+                  <td className="px-6 py-4 text-[10px] font-black text-gray-400 text-center uppercase tracking-widest whitespace-nowrap">
                     {new Date(c.createdAt).toLocaleDateString('pt-BR')}
                   </td>
-                  <td className="px-6 py-4">
-                    <span className="px-2 py-1 rounded-full text-[10px] font-bold uppercase bg-[#222] text-gray-300">
+                  <td className="px-6 py-4 text-center">
+                    <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-[#222] text-gray-400 border border-[#333]">
                       {c.paymentMethod}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-400">
+                  <td className="px-6 py-4 text-xs font-bold text-gray-400">
                     {formatCurrency(c.grossValue / 100)}
                   </td>
-                  <td className="px-6 py-4 text-sm font-bold text-green-400 text-right">
+                  <td className="px-6 py-4 text-sm font-black text-green-400 text-right uppercase tracking-tight">
                     {formatCurrency(c.commissionEarned / 100)}
                   </td>
                 </tr>
               ))}
               {commissions.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-gray-600">
+                  <td colSpan={7} className="px-6 py-12 text-center text-gray-600 uppercase font-black tracking-[.2em] text-[10px]">
                     Nenhum registro de comissão encontrado.
                   </td>
                 </tr>

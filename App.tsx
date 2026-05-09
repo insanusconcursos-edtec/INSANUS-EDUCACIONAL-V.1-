@@ -74,6 +74,9 @@ const AdminRoleGuard = ({ children, permission, strictlyAdmin = false }: { child
     const { userRole, userData } = useAuth();
     if (userRole === 'ADMIN') return <>{children}</>;
     
+    // Sellers can access common admin areas like Sales and Affiliate Dashboard
+    if (userRole === 'SELLER') return <>{children}</>;
+    
     if (strictlyAdmin && userRole !== 'ADMIN') {
         return <Navigate to="/comercial/coprodutor/dashboard" replace />;
     }
