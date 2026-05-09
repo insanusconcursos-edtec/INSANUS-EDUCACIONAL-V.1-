@@ -35,7 +35,7 @@ interface TopicItemProps {
   onToggleGoal?: (goal: Meta) => void;
   onBatchToggle?: (ids: string[], status: boolean) => void; // NEW PROP FOR BATCH UPDATE
   onPlayVideo?: (url: string) => void;
-  onOpenNotes?: (id: string, title: string, linkedGoals?: any) => void;
+  onOpenNotes?: (id: string, title: string, linkedGoals?: any, initialPdfUrl?: string) => void;
   onOpenFlashcards?: (id: string, title: string) => void;
   onOpenMindMap?: (id: string, title: string) => void;
   highlightGoalId?: string | null;
@@ -345,6 +345,7 @@ const TopicItem: React.FC<TopicItemProps> = ({
                         planId={planId}
                         onToggleComplete={onToggleGoal || (() => {})}
                         onPlayVideo={onPlayVideo}
+                        onOpenPdfInNotebook={(url) => onOpenNotes?.(String(item.id), item.name, item.linkedGoals, url)}
                         isHighlighted={String(meta.id) === String(highlightGoalId)}
                     />
                 );

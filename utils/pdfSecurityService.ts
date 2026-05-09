@@ -6,20 +6,7 @@ interface UserWatermarkData {
   cpf: string;
 }
 
-export const openWatermarkedPdf = async (pdfUrl: string, userData: UserWatermarkData) => {
-  try {
-    // 1. Fetch do PDF original com modo CORS explícito
-    const response = await fetch(pdfUrl, { 
-        method: 'GET',
-        mode: 'cors'
-    });
-
-    if (!response.ok) {
-        throw new Error(`Falha ao baixar o arquivo: ${response.statusText}`);
-    }
-
-    const existingPdfBytes = await response.arrayBuffer();
-
+export const applyWatermarkToPdf = async (existingPdfBytes: ArrayBuffer, userData: UserWatermarkData): Promise<Uint8Array> => {
     // 2. Carregar o documento
     const pdfDoc = await PDFDocument.load(existingPdfBytes);
     
@@ -27,16 +14,12 @@ export const openWatermarkedPdf = async (pdfUrl: string, userData: UserWatermark
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
     // 4. Configuração da Marca D'água (Visual Refinado & Seguro)
-    
-    // TRUQUE ANTI-LINK (ASCII SAFE):
-    // Substitui '@' por ' @ ' e '.' por ' . ' para evitar detecção de link e problemas de encoding WinAnsi.
-    // Isso usa apenas caracteres padrão suportados pela fonte Helvetica.
     const safeEmail = userData.email.replace('@', ' @ ').replace(/\./g, ' . ');
-    const watermarkText = `CPF: ${userData.cpf} • ${safeEmail}`;
+    const watermarkText = `CPF: ${userData.cpf || '---'} • ${safeEmail}`;
     
-    const textSize = 10; // Pequeno
-    const textColor = rgb(0.8, 0, 0); // Vermelho Insanus (RGB 0.8, 0, 0)
-    const textOpacity = 0.15; // Bem transparente para não atrapalhar leitura
+    const textSize = 10;
+    const textColor = rgb(0.8, 0, 0);
+    const textOpacity = 0.15;
     const textRotation = degrees(45);
 
     // 5. Iterar sobre todas as páginas e aplicar Grid
@@ -44,9 +27,8 @@ export const openWatermarkedPdf = async (pdfUrl: string, userData: UserWatermark
     
     pages.forEach((page) => {
       const { width, height } = page.getSize();
-      const step = 200; // Espaçamento entre as repetições
+      const step = 200;
 
-      // Grid para cobrir toda a área da página (começando fora da borda para garantir cobertura na rotação)
       for (let x = -50; x < width + 50; x += step) {
         for (let y = -50; y < height + 50; y += step) {
           page.drawText(watermarkText, {
@@ -62,8 +44,23 @@ export const openWatermarkedPdf = async (pdfUrl: string, userData: UserWatermark
       }
     });
 
-    // 6. Salvar o PDF modificado
-    const pdfBytes = await pdfDoc.save();
+    return await pdfDoc.save();
+};
+
+export const openWatermarkedPdf = async (pdfUrl: string, userData: UserWatermarkData) => {
+  try {
+    // 1. Fetch do PDF original com modo CORS explícito
+    const response = await fetch(pdfUrl, { 
+        method: 'GET',
+        mode: 'cors'
+    });
+
+    if (!response.ok) {
+        throw new Error(`Falha ao baixar o arquivo: ${response.statusText}`);
+    }
+
+    const existingPdfBytes = await response.arrayBuffer();
+    const pdfBytes = await applyWatermarkToPdf(existingPdfBytes, userData);
 
     // 7. Criar Blob e URL
     const blob = new Blob([pdfBytes], { type: 'application/pdf' });

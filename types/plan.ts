@@ -43,6 +43,7 @@ export interface Plan {
   isEdictEnabled?: boolean;
   isActiveUserMode?: boolean;
   linkedSimuladoClassId?: string;
+  simuladosVinculados?: string[];
   linkedMentors?: string[]; // IDs dos mentores vinculados
   createdAt?: any;
   lastModifiedAt?: any;

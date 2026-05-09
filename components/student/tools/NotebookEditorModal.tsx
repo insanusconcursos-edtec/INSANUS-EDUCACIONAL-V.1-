@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Save, Loader2 } from 'lucide-react';
+import { X, Loader2 } from 'lucide-react';
 import { TipTapEditor } from '../../ui/TipTapEditor';
 
 interface NotebookEditorModalProps {
@@ -20,20 +20,32 @@ export const NotebookEditorModal: React.FC<NotebookEditorModalProps> = ({
   readOnly = false
 }) => {
   const [content, setContent] = useState(initialData || '');
-  const [isSaving, setIsSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   // Sync initialData if it changes from outside
   useEffect(() => {
     setContent(initialData || '');
   }, [initialData]);
 
-  const handleSave = async () => {
-    setIsSaving(true);
+  // Autosave logic
+  useEffect(() => {
+    if (readOnly || content === initialData) return;
+
+    const timeoutId = setTimeout(() => {
+      handleAutosave();
+    }, 1500);
+
+    return () => clearTimeout(timeoutId);
+  }, [content]);
+
+  const handleAutosave = async () => {
+    setSaveStatus('saving');
     try {
       await onSave(content);
-      // We don't auto-close here because the parent might want to stay open (NOTEBOOK behavior in LinkedGoalItem)
-    } finally {
-      setIsSaving(false);
+      setSaveStatus('saved');
+    } catch (error) {
+      console.error("Erro no autosave:", error);
+      setSaveStatus('error');
     }
   };
 
@@ -43,9 +55,31 @@ export const NotebookEditorModal: React.FC<NotebookEditorModalProps> = ({
         
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-white/10 bg-[#121214]">
-          <div>
-            <h2 className="text-xl font-black text-white uppercase tracking-tight">{title}</h2>
-            <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest mt-0.5">Editor de Caderno Personalizado</p>
+          <div className="flex items-center gap-4">
+            <div>
+              <h2 className="text-xl font-black text-white uppercase tracking-tight">{title}</h2>
+              <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest mt-0.5">Editor de Caderno Personalizado</p>
+            </div>
+            {saveStatus !== 'idle' && (
+              <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-white/5 border border-white/10 animate-in fade-in duration-300">
+                {saveStatus === 'saving' ? (
+                  <>
+                    <Loader2 size={12} className="animate-spin text-zinc-500" />
+                    <span className="text-[9px] font-black uppercase text-zinc-500 tracking-wider">Salvando...</span>
+                  </>
+                ) : saveStatus === 'saved' ? (
+                  <>
+                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    <span className="text-[9px] font-black uppercase text-emerald-500 tracking-wider">Salvo</span>
+                  </>
+                ) : (
+                  <>
+                    <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                    <span className="text-[9px] font-black uppercase text-red-500 tracking-wider">Erro</span>
+                  </>
+                )}
+              </div>
+            )}
           </div>
           <button 
             onClick={onClose}
@@ -64,19 +98,7 @@ export const NotebookEditorModal: React.FC<NotebookEditorModalProps> = ({
            />
         </div>
 
-        {/* Footer */}
-        {!readOnly && (
-          <div className="p-4 bg-[#121214] border-t border-white/5 flex justify-end">
-            <button 
-              onClick={handleSave}
-              disabled={isSaving}
-              className="px-8 py-2.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-xl shadow-lg shadow-red-600/20 font-black text-xs uppercase tracking-widest transition-all flex items-center gap-2"
-            >
-              {isSaving ? <Loader2 size={16} className="animate-spin" /> : 'Salvar Caderno'}
-            </button>
-          </div>
-        )}
-
+        {/* Footer Removed for Clean UI Autosave */}
       </div>
     </div>,
     document.body

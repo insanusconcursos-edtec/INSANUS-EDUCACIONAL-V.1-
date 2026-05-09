@@ -10,6 +10,7 @@ interface DelayedGoalsSectionProps {
   isReplanning: boolean;
   onToggleComplete: (goal: StudentGoal) => Promise<void>;
   onRefresh: () => Promise<void>;
+  onPdfClick?: (goal: StudentGoal, fileUrl: string, index: number) => void;
 }
 
 export const DelayedGoalsSection: React.FC<DelayedGoalsSectionProps> = ({
@@ -18,7 +19,8 @@ export const DelayedGoalsSection: React.FC<DelayedGoalsSectionProps> = ({
   onReplan,
   isReplanning,
   onToggleComplete,
-  onRefresh
+  onRefresh,
+  onPdfClick
 }) => {
   const hasDelays = overdueReviews.length > 0 || overdueGeneral.length > 0;
 
@@ -66,6 +68,7 @@ export const DelayedGoalsSection: React.FC<DelayedGoalsSectionProps> = ({
                     goal={goal} 
                     onToggleComplete={onToggleComplete}
                     onRefresh={onRefresh}
+                    onPdfClick={onPdfClick}
                     isDelayed={true}
                   />
                 ))}
@@ -85,6 +88,7 @@ export const DelayedGoalsSection: React.FC<DelayedGoalsSectionProps> = ({
                     goal={goal} 
                     onToggleComplete={onToggleComplete}
                     onRefresh={onRefresh}
+                    onPdfClick={onPdfClick}
                     isDelayed={true}
                   />
                 ))}

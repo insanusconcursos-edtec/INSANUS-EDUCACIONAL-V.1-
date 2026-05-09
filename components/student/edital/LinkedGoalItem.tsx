@@ -20,6 +20,7 @@ interface LinkedGoalItemProps {
   planId?: string; // Required for User Content
   onToggleComplete: (goal: Meta) => void;
   onPlayVideo?: (url: string) => void;
+  onOpenPdfInNotebook?: (url: string) => void;
   isHighlighted?: boolean;
 }
 
@@ -40,6 +41,7 @@ const LinkedGoalItem: React.FC<LinkedGoalItemProps> = ({
   planId,
   onToggleComplete,
   onPlayVideo,
+  onOpenPdfInNotebook,
   isHighlighted
 }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -74,6 +76,12 @@ const LinkedGoalItem: React.FC<LinkedGoalItemProps> = ({
   const hasAdminFlashcards = isReview && goal.flashcardConfig?.cards && goal.flashcardConfig.cards.length > 0;
 
   const handleOpenPdf = async (url: string) => {
+    // Redireciona para o caderno interno se for meta de MATERIAL ou LEI SECA e o callback estiver disponível
+    if (onOpenPdfInNotebook && (goal.type === 'material' || goal.type === 'law')) {
+      onOpenPdfInNotebook(url);
+      return;
+    }
+
     if (!currentUser || loadingPdf) return;
     setLoadingPdf(true);
     try {

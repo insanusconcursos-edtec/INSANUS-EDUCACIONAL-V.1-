@@ -88,6 +88,7 @@ interface StudentGoalCardProps {
   onStart?: (goal: StudentGoal) => void;
   onToggleComplete?: (goal: StudentGoal) => void;
   onRefresh?: () => void; // Callback to refresh dashboard after merge
+  onPdfClick?: (goal: StudentGoal, fileUrl: string, index: number) => void; // New prop
   isDelayed?: boolean;
 }
 
@@ -102,7 +103,7 @@ const TYPE_CONFIG: Record<GoalType, { label: string; color: string; icon: any }>
   free_study: { label: 'ESTUDO LIVRE', color: '#10b981', icon: Trophy },
 };
 
-export const StudentGoalCard: React.FC<StudentGoalCardProps> = ({ goal, onStart, onToggleComplete, onRefresh, isDelayed }) => {
+export const StudentGoalCard: React.FC<StudentGoalCardProps> = ({ goal, onStart, onToggleComplete, onRefresh, onPdfClick, isDelayed }) => {
   const { userData, currentUser } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   
@@ -345,6 +346,15 @@ export const StudentGoalCard: React.FC<StudentGoalCardProps> = ({ goal, onStart,
   const handleFileClick = async (fileUrl: string, index: number) => {
     if (!fileUrl) return;
     if (loadingPdfIndex !== null) return;
+
+    // INTERCEPTAGEM PARA INTEGRAÇÃO COM CADERNO
+    const isPdf = fileUrl.toLowerCase().includes('.pdf');
+    const isMaterialOrLaw = goal.type === 'material' || goal.type === 'law';
+
+    if (isPdf && isMaterialOrLaw && onPdfClick) {
+        onPdfClick(goal, fileUrl, index);
+        return;
+    }
 
     setLoadingPdfIndex(index);
     

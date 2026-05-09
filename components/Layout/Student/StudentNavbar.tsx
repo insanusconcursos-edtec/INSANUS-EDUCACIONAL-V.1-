@@ -78,6 +78,12 @@ const StudentNavbar: React.FC = () => {
       icon: <Video className="w-4 h-4" />,
       isSpecial: true 
     },
+    { 
+      label: 'SIMULADOS', 
+      path: '/app/dashboard?tab=simulados', 
+      icon: <GraduationCap className="w-4 h-4" />,
+      isSpecial: true 
+    },
     { label: 'CONFIGURAÇÃO', path: '/app/config', icon: <Settings className="w-4 h-4" /> },
   ];
 

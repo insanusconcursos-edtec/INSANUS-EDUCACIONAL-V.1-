@@ -58,12 +58,14 @@ const EditalVerticalizado: React.FC = () => {
     materials: any[];
     editalNode?: any;
     metaLookup?: Record<string, Meta>;
+    initialPdfUrl?: string | null;
   }>({
     isOpen: false,
     nodeId: '',
     nodeTitle: '',
     type: 'note',
-    materials: []
+    materials: [],
+    initialPdfUrl: null
   });
 
   const [flashcardModal, setFlashcardModal] = useState({
@@ -78,7 +80,7 @@ const EditalVerticalizado: React.FC = () => {
     nodeTitle: ''
   });
 
-  const openNotebook = (nodeId: string, nodeTitle: string, type: NoteType, linkedGoals?: any, nodeData?: any) => {
+  const openNotebook = (nodeId: string, nodeTitle: string, type: NoteType, linkedGoals?: any, nodeData?: any, initialPdfUrl?: string) => {
     // 1. Coleta Profunda de Materiais (PDFs) em todas as categorias de metas
     const relatedMaterials: any[] = [];
     
@@ -136,7 +138,8 @@ const EditalVerticalizado: React.FC = () => {
       type,
       materials: relatedMaterials,
       editalNode: nodeData,
-      metaLookup
+      metaLookup,
+      initialPdfUrl: initialPdfUrl || null
     });
   };
 
@@ -621,7 +624,7 @@ const EditalVerticalizado: React.FC = () => {
                                                 onToggleGoal={handleToggleGoal}
                                                 onBatchToggle={handleBatchToggle}
                                                 onPlayVideo={setActiveVideo}
-                                                onOpenNotes={(id, title, goals) => openNotebook(id, title, 'note', goals, topic)}
+                                                onOpenNotes={(id, title, goals, pdfUrl) => openNotebook(id, title, 'note', goals, topic, pdfUrl)}
                                                 onOpenFlashcards={(id, title) => setFlashcardModal({ isOpen: true, nodeId: id, nodeTitle: title })}
                                                 onOpenMindMap={(id, title) => setMindMapModal({ isOpen: true, nodeId: id, nodeTitle: title })}
                                                 highlightGoalId={activeHighlightGoal}
@@ -678,6 +681,7 @@ const EditalVerticalizado: React.FC = () => {
             materials={noteModal.materials}
             editalNode={noteModal.editalNode}
             metaLookup={noteModal.metaLookup}
+            initialPdfUrl={noteModal.initialPdfUrl}
         />
 
         {/* --- MODAL DE FLASHCARDS --- */}

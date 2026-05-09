@@ -2,10 +2,10 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { 
-  X, Plus, FileText, Trash2, Save, 
+  X, Plus, FileText, Trash2, 
   Loader2, AlertCircle, BookOpen, AlertTriangle, StickyNote,
   PanelLeftClose, PanelLeftOpen, ExternalLink, Link as LinkIcon,
-  ChevronDown
+  ChevronDown, Maximize2, Minimize2
 } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { notebookService, EditalNote, NoteType } from '../../../services/notebookService';
@@ -26,6 +26,7 @@ interface NotebookEditorModalProps {
   materials?: any[];
   editalNode?: EdictDiscipline | EdictTopic | EdictSubtopic;
   metaLookup?: Record<string, Meta>;
+  initialPdfUrl?: string | null;
 }
 
 type QuestionNode = {
@@ -104,7 +105,8 @@ export const EditalNotebookModal: React.FC<NotebookEditorModalProps> = ({
   topicTitle,
   materials = [],
   editalNode,
-  metaLookup
+  metaLookup,
+  initialPdfUrl
 }) => {
   const { currentUser } = useAuth();
   
@@ -112,7 +114,6 @@ export const EditalNotebookModal: React.FC<NotebookEditorModalProps> = ({
   const [notes, setNotes] = useState<EditalNote[]>([]);
   const [selectedNote, setSelectedNote] = useState<EditalNote | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
   
   // Questions Links State
   const [hierarchicalLinks, setHierarchicalLinks] = useState<QuestionNode[]>([]);
@@ -121,10 +122,14 @@ export const EditalNotebookModal: React.FC<NotebookEditorModalProps> = ({
   const [sidebarTab, setSidebarTab] = useState<'notes' | 'materials'>('notes');
   const [activePdfUrl, setActivePdfUrl] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isNotebookMinimized, setIsNotebookMinimized] = useState(false);
 
   // Editor State
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
+  const lastSavedRef = React.useRef({ title: '', content: '' });
   
   // Deletion State
   const [noteToDelete, setNoteToDelete] = useState<string | null>(null);
@@ -134,26 +139,33 @@ export const EditalNotebookModal: React.FC<NotebookEditorModalProps> = ({
   useEffect(() => {
     if (isOpen && currentUser) {
       loadNotes();
+
+      // Se houver PDF inicial, foca nele
+      if (initialPdfUrl) {
+          handleSetActivePdf(initialPdfUrl);
+          setSidebarTab('materials');
+          setIsNotebookMinimized(false);
+      }
       
       // Se for caderno de questões, extrai os links recursivamente de forma hierárquica
       if (type === 'questions' && editalNode && metaLookup) {
-        const results: QuestionNode[] = [];
-        const disc = editalNode as EdictDiscipline;
-        
-        if (disc.topics) {
-          disc.topics.forEach(t => {
-            const res = extractHierarchicalLinks(t);
+          const results: QuestionNode[] = [];
+          const disc = editalNode as EdictDiscipline;
+          
+          if (disc.topics) {
+            disc.topics.forEach(t => {
+              const res = extractHierarchicalLinks(t);
+              if (res) results.push(res);
+            });
+          } else {
+            const res = extractHierarchicalLinks(editalNode);
             if (res) results.push(res);
-          });
-        } else {
-          const res = extractHierarchicalLinks(editalNode);
-          if (res) results.push(res);
-        }
-        
-        setHierarchicalLinks(results);
+          }
+          
+          setHierarchicalLinks(results);
       }
     }
-  }, [isOpen, currentUser, editalNodeId, type, editalNode, metaLookup]);
+  }, [isOpen, currentUser, editalNodeId, type, initialPdfUrl]); // Adicionado initialPdfUrl aqui
 
   const extractHierarchicalLinks = (node: EdictDiscipline | EdictTopic | EdictSubtopic): QuestionNode | null => {
     const directLinks: { title: string; url: string }[] = [];
@@ -208,55 +220,64 @@ export const EditalNotebookModal: React.FC<NotebookEditorModalProps> = ({
     return nodes.reduce((acc, node) => acc + node.links.length + countTotalLinks(node.children), 0);
   };
 
-  const loadNotes = async () => {
-    if (!currentUser) return;
-    setIsLoading(true);
-    try {
-      const data = await notebookService.getNotes(currentUser.uid, planId, editalNodeId, type);
-      setNotes(data);
-      if (data.length > 0) {
-        handleSelectNote(data[0]);
-      } else {
-        handleNewNote();
-      }
-    } catch (error) {
-      console.error("Erro ao carregar cadernos:", error);
-      toast.error("Erro ao carregar anotações");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSelectNote = (note: EditalNote) => {
-    setSelectedNote(note);
-    setTitle(note.title);
-    setContent(note.content);
-  };
-
-  const handleNewNote = () => {
-    setSelectedNote(null);
-    setTitle('');
-    setContent('');
-  };
-
-  const handleSave = async () => {
-    if (!currentUser) return;
-    if (!title.trim()) {
-      toast.error("Insira um título para a anotação");
+  // Autosave logic
+  useEffect(() => {
+    // Prevent autosave if data hasn't finished loading yet OR if it's the initial load for this specific note
+    if (!currentUser || isLoading || !isDataLoaded) return;
+    
+    // Don't save if content is identical to last known state (either from DB or last successful save)
+    if (title === lastSavedRef.current.title && content === lastSavedRef.current.content) {
       return;
     }
 
-    setIsSaving(true);
+    // Only save if there's at least a title
+    if (!title.trim()) return;
+
+    const timeoutId = setTimeout(() => {
+      handleAutosave();
+    }, 1500);
+
+    return () => clearTimeout(timeoutId);
+  }, [title, content, isDataLoaded, isLoading]);
+
+  const handleAutosave = async () => {
+    if (!currentUser || !title.trim()) return;
+
+    // Local check to avoid unnecessary network calls
+    if (title === lastSavedRef.current.title && content === lastSavedRef.current.content) {
+      setSaveStatus('saved');
+      return;
+    }
+
+    setSaveStatus('saving');
     try {
       if (selectedNote?.id) {
-        // Update
+        // Fetch latest version before update to check for remote changes (Timestamp check)
+        const currentNotes = await notebookService.getNotes(currentUser.uid, planId, editalNodeId, type);
+        const remoteVersion = currentNotes.find(n => n.id === selectedNote.id);
+        
+        if (remoteVersion && remoteVersion.updatedAt?.toDate) {
+          const remoteTime = remoteVersion.updatedAt.toDate().getTime();
+          const localTime = selectedNote.updatedAt?.toDate?.()?.getTime() || 0;
+          
+          // If remote is significantly newer, we might want to warn or merge, 
+          // but for now, we'll just ensure we don't overwrite if it was changed elsewhere
+          if (remoteTime > localTime + 5000) { // 5 second buffer
+             console.warn("Versão remota é mais recente. Possível conflito.");
+             // For consistency in this studying context, we'll force update but you could handle merge here
+          }
+        }
+
         await notebookService.updateNote(selectedNote.id, { 
           title: title.trim(), 
           content 
         });
-        toast.success("Anotação atualizada");
+        
+        // Update local ref to current state
+        lastSavedRef.current = { title: title.trim(), content };
+        // Update selectedNote's content without triggering full reload
+        setSelectedNote({ ...selectedNote, title: title.trim(), content, updatedAt: { toDate: () => new Date() } as any });
       } else {
-        // Create
         const newNoteId = await notebookService.saveNote({
           userId: currentUser.uid,
           planId,
@@ -265,16 +286,110 @@ export const EditalNotebookModal: React.FC<NotebookEditorModalProps> = ({
           title: title.trim(),
           content
         });
-        toast.success("Nova anotação salva");
-        // Update local state is better by reloading
+        
+        const newNote: EditalNote = {
+          id: newNoteId,
+          userId: currentUser.uid,
+          planId,
+          editalNodeId,
+          type,
+          title: title.trim(),
+          content,
+          createdAt: { toDate: () => new Date() } as any,
+          updatedAt: { toDate: () => new Date() } as any
+        };
+
+        lastSavedRef.current = { title: title.trim(), content };
+        setSelectedNote(newNote);
+        // Refresh list
+        const updatedNotes = await notebookService.getNotes(currentUser.uid, planId, editalNodeId, type);
+        setNotes(updatedNotes);
       }
-      await loadNotes();
+      setSaveStatus('saved');
     } catch (error) {
-      console.error("Erro ao salvar:", error);
-      toast.error("Erro ao salvar anotação");
-    } finally {
-      setIsSaving(false);
+      console.error("Erro no autosave:", error);
+      setSaveStatus('error');
     }
+  };
+
+  const loadNotes = async () => {
+    if (!currentUser) return;
+    setIsLoading(true);
+    setIsDataLoaded(false); 
+    try {
+      const data = await notebookService.getNotes(currentUser.uid, planId, editalNodeId, type);
+      setNotes(data);
+      if (data.length > 0) {
+        // If we already had a selected note, try to maintain selection or take the first one
+        const currentlySelectedId = selectedNote?.id;
+        const matchingNote = currentlySelectedId ? data.find(n => n.id === currentlySelectedId) : data[0];
+        
+        if (matchingNote) {
+          setSelectedNote(matchingNote);
+          setTitle(matchingNote.title);
+          setContent(matchingNote.content);
+          lastSavedRef.current = { title: matchingNote.title, content: matchingNote.content };
+        }
+      } else {
+        await handleNewNote();
+      }
+      // Force status to idle/saved for initial state
+      setSaveStatus('idle');
+      // Mark as ready for autosave
+      setTimeout(() => setIsDataLoaded(true), 150);
+    } catch (error) {
+      console.error("Erro ao carregar cadernos:", error);
+      toast.error("Erro ao carregar anotações");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSelectNote = async (note: EditalNote) => {
+    // 1. Idempotency Check: Don't do anything if this note is already active
+    if (selectedNote?.id === note.id) return;
+
+    // 2. Proteção de Carregamento (Dirty State Check)
+    const isDirty = title !== lastSavedRef.current.title || content !== lastSavedRef.current.content;
+    if (saveStatus === 'saving' || isDirty) {
+      await handleAutosave();
+    }
+
+    setIsDataLoaded(false); 
+    setSelectedNote(note);
+    setTitle(note.title);
+    setContent(note.content);
+    lastSavedRef.current = { title: note.title, content: note.content };
+    
+    // Ensure we mark as loaded after the state update has propagated to the editor
+    setTimeout(() => setIsDataLoaded(true), 100);
+  };
+
+  const handleSetActivePdf = async (url: string) => {
+    if (activePdfUrl === url) return;
+
+    // Antes de trocar o PDF, garante que as anotações atuais foram salvas se houver alterações
+    const isDirty = title !== lastSavedRef.current.title || content !== lastSavedRef.current.content;
+    if (saveStatus === 'saving' || isDirty) {
+      if (title.trim()) {
+        await handleAutosave();
+      }
+    }
+
+    setActivePdfUrl(url);
+  };
+
+  const handleNewNote = async () => {
+    // 2. Proteção de Carregamento (Dirty State Check)
+    const isDirty = title !== lastSavedRef.current.title || content !== lastSavedRef.current.content;
+    if (saveStatus === 'saving' || isDirty) {
+      if (title.trim()) await handleAutosave();
+    }
+
+    setSelectedNote(null);
+    setTitle('');
+    setContent('');
+    lastSavedRef.current = { title: '', content: '' };
   };
 
   const handleDelete = async () => {
@@ -310,9 +425,31 @@ export const EditalNotebookModal: React.FC<NotebookEditorModalProps> = ({
               {isQuestionsNotebook ? <AlertCircle size={24} /> : isErrorNotebook ? <AlertTriangle size={24} /> : <BookOpen size={24} />}
             </div>
             <div>
-              <h2 className="text-lg font-black text-white uppercase tracking-tight leading-tight">
-                {isQuestionsNotebook ? 'Caderno de Questões' : isErrorNotebook ? 'Caderno de Erros' : 'Caderno de Anotações'}
-              </h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-black text-white uppercase tracking-tight leading-tight">
+                  {isQuestionsNotebook ? 'Caderno de Questões' : isErrorNotebook ? 'Caderno de Erros' : 'Caderno de Anotações'}
+                </h2>
+                {saveStatus !== 'idle' && (
+                  <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white/5 border border-white/10 animate-in fade-in duration-300">
+                    {saveStatus === 'saving' ? (
+                      <>
+                        <Loader2 size={10} className="animate-spin text-zinc-500" />
+                        <span className="text-[8px] font-black uppercase text-zinc-500 tracking-tighter">Salvando...</span>
+                      </>
+                    ) : saveStatus === 'saved' ? (
+                      <>
+                        <div className="w-1 h-1 rounded-full bg-emerald-500" />
+                        <span className="text-[8px] font-black uppercase text-emerald-500 tracking-tighter">Salvo</span>
+                      </>
+                    ) : (
+                      <>
+                        <div className="w-1 h-1 rounded-full bg-red-500" />
+                        <span className="text-[8px] font-black uppercase text-red-500 tracking-tighter">Erro</span>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
               <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest mt-0.5">
                 Tópico: {topicTitle}
               </p>
@@ -458,7 +595,7 @@ export const EditalNotebookModal: React.FC<NotebookEditorModalProps> = ({
                     materials.map((mat, idx) => (
                         <div 
                             key={idx}
-                            onClick={() => setActivePdfUrl(mat.url)}
+                            onClick={() => handleSetActivePdf(mat.url)}
                             className={`group flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer ${
                                 activePdfUrl === mat.url 
                                   ? 'bg-red-500/10 border-red-500/30' 
@@ -485,23 +622,39 @@ export const EditalNotebookModal: React.FC<NotebookEditorModalProps> = ({
         </div>
 
           {/* Editor Area / PDF View Area */}
-          <div className="flex-1 flex overflow-hidden bg-[#09090b] transition-all duration-300">
+          <div className="flex-1 flex overflow-hidden bg-[#09090b] transition-all duration-300 relative">
              
              {/* PDF Viewer Column (Desktop Side-by-Side) */}
              {activePdfUrl && !isQuestionsNotebook && (
-                <div className={`flex-1 flex flex-col border-r border-white/5 bg-[#121214] animate-in slide-in-from-left duration-300 shrink-0 ${activePdfUrl ? 'w-full md:w-1/2' : 'w-0 overflow-hidden'}`}>
+                <div className={`flex-1 flex flex-col border-r border-white/5 bg-[#121214] animate-in slide-in-from-left duration-300 shrink-0 ${
+                  isNotebookMinimized ? 'w-full' : 'w-full md:w-1/2'
+                }`}>
                     <div className="flex items-center justify-between p-3 border-b border-white/10 bg-black/40">
                          <div className="flex items-center gap-2">
                              <FileText size={14} className="text-red-500" />
                              <span className="text-[10px] font-black uppercase text-zinc-400">Visualizador de Material</span>
                          </div>
-                         <button 
-                            onClick={() => setActivePdfUrl(null)}
-                            className="p-1.5 hover:bg-white/10 rounded-lg text-zinc-500 hover:text-white transition-all flex items-center gap-1.5 text-[9px] font-bold uppercase"
-                         >
-                            <X size={14} />
-                            Fechar
-                         </button>
+                         <div className="flex items-center gap-2">
+                            {isNotebookMinimized && (
+                              <button 
+                                onClick={() => setIsNotebookMinimized(false)}
+                                className="p-1.5 hover:bg-white/10 rounded-lg text-amber-500 hover:text-amber-400 transition-all flex items-center gap-1.5 text-[9px] font-bold uppercase border border-amber-500/20"
+                              >
+                                <StickyNote size={14} />
+                                Abrir Anotações
+                              </button>
+                            )}
+                            <button 
+                                onClick={() => {
+                                  setActivePdfUrl(null);
+                                  setIsNotebookMinimized(false);
+                                }}
+                                className="p-1.5 hover:bg-white/10 rounded-lg text-zinc-500 hover:text-white transition-all flex items-center gap-1.5 text-[9px] font-bold uppercase"
+                            >
+                                <X size={14} />
+                                Fechar
+                            </button>
+                         </div>
                     </div>
                     <div className="flex-1 bg-zinc-900 relative overflow-hidden">
                         <InsanusPdfViewer url={activePdfUrl} />
@@ -510,7 +663,25 @@ export const EditalNotebookModal: React.FC<NotebookEditorModalProps> = ({
              )}
 
              {/* Editor Column */}
-             <div className={`flex-1 flex flex-col relative transition-all ${activePdfUrl && !isQuestionsNotebook ? 'w-full md:w-1/2 hidden md:flex' : 'w-full flex'}`}>
+             <div className={`flex-1 flex flex-col relative transition-all ${
+               activePdfUrl && !isQuestionsNotebook 
+                 ? (isNotebookMinimized ? 'hidden' : 'w-full md:w-1/2 hidden md:flex') 
+                 : 'w-full flex'
+             }`}>
+                {/* Editor Header Actions - Focus Mode Toggle */}
+                {activePdfUrl && !isQuestionsNotebook && !isNotebookMinimized && (
+                   <div className="flex items-center justify-end px-6 pt-4 shrink-0">
+                      <button 
+                        onClick={() => setIsNotebookMinimized(true)}
+                        className="flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-zinc-400 hover:text-white transition-all text-[10px] font-black uppercase tracking-widest group"
+                        title="Focar no PDF (Minimizar Editor)"
+                      >
+                        <Minimize2 size={14} className="group-hover:scale-110 transition-transform" />
+                        Minimizar Editor
+                      </button>
+                   </div>
+                )}
+
                 {/* Title Input */}
                 <div className="p-6 pb-2 shrink-0">
                     <input 
@@ -531,27 +702,33 @@ export const EditalNotebookModal: React.FC<NotebookEditorModalProps> = ({
                     />
                 </div>
 
-                {/* Footer Actions */}
-                <div className="p-4 bg-[#121214] border-t border-white/5 flex justify-end shrink-0">
-                    <button 
-                      onClick={handleSave}
-                      disabled={isSaving || !title.trim()}
-                      className="px-6 py-2.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:hover:bg-red-600 text-white rounded-xl shadow-lg shadow-red-600/20 font-black text-xs uppercase tracking-widest transition-all flex items-center gap-2"
-                    >
-                      {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                      Salvar Anotação
-                    </button>
-                </div>
+                {/* Footer Actions Removed for Clean UI Autosave */}
              </div>
 
              {/* Mobile Float Switch Button */}
-             {activePdfUrl && !isQuestionsNotebook && (
+             {activePdfUrl && !isQuestionsNotebook && !isNotebookMinimized && (
                 <button 
                     onClick={() => setActivePdfUrl(null)}
                     className="md:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-[120] bg-zinc-950 border border-white/10 px-6 py-3 rounded-full flex items-center gap-3 shadow-2xl text-white animate-in slide-in-from-bottom-8 duration-300"
                 >
                     <StickyNote size={18} className="text-red-500" />
                     <span className="text-[10px] font-black uppercase tracking-widest">Voltar para Anotação</span>
+                </button>
+             )}
+
+             {/* Floating Restore Button (Focus Mode) - Desktop & Tablet */}
+             {activePdfUrl && !isQuestionsNotebook && isNotebookMinimized && (
+                <button 
+                  onClick={() => setIsNotebookMinimized(false)}
+                  className="fixed bottom-6 right-6 z-[130] bg-[#1a1a1e] hover:bg-[#252529] border border-amber-500/30 hover:border-amber-500/50 px-5 py-3 rounded-2xl hidden md:flex items-center gap-3 shadow-[0_20px_50px_rgba(0,0,0,0.5)] text-white animate-in slide-in-from-right-12 duration-500 transition-all group"
+                >
+                  <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center border border-amber-500/20 group-hover:bg-amber-500 group-hover:text-black transition-all">
+                    <Maximize2 size={18} />
+                  </div>
+                  <div className="flex flex-col items-start leading-none text-left">
+                    <span className="text-[10px] font-black uppercase tracking-[0.15em] text-amber-500">Anotações</span>
+                    <span className="text-[8px] font-bold uppercase tracking-widest text-zinc-500 mt-0.5">Restaurar Editor</span>
+                  </div>
                 </button>
              )}
           </div>

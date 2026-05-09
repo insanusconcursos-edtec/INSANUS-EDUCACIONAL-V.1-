@@ -382,7 +382,8 @@ export const getDashboardData = async (uid: string): Promise<{
   planId: string, 
   overdue: ScheduledEvent[], 
   today: ScheduledEvent[],
-  lastScheduledDate: string | null
+  lastScheduledDate: string | null,
+  hasFuturePendingGoals: boolean
 }> => {
   // 1. Get Current Plan ID
   const userRef = doc(db, 'users', uid);
@@ -509,6 +510,19 @@ export const getDashboardData = async (uid: string): Promise<{
   const enrichedOverdue = await enrichWithMeta(overdueEvents);
   const enrichedToday = await enrichWithMeta(todayEvents);
 
+  // Check for any future pending goals for this plan
+  let hasFuturePendingGoals = false;
+  const futurePendingQ = query(schedulesRef, where('date', '>', todayStr));
+  const futurePendingSnap = await getDocs(futurePendingQ);
+  
+  for (const docSnap of futurePendingSnap.docs) {
+    if (hasFuturePendingGoals) break;
+    const items = docSnap.data().items || [];
+    hasFuturePendingGoals = items.some((item: any) => 
+      item.planId === currentPlanId && item.status === 'pending'
+    );
+  }
+
   // Fetch last scheduled date
   let lastScheduledDate = null;
   const lastScheduleQuery = query(schedulesRef, orderBy(documentId(), 'desc'), limit(1));
@@ -521,7 +535,8 @@ export const getDashboardData = async (uid: string): Promise<{
     planId: currentPlanId, 
     overdue: enrichedOverdue, 
     today: enrichedToday,
-    lastScheduledDate
+    lastScheduledDate,
+    hasFuturePendingGoals
   };
 };
 

@@ -10,6 +10,9 @@ import { StudentGoalCard, StudentGoal } from '../../components/student/StudentGo
 import { DelayedGoalsSection } from '../../components/student/dashboard/DelayedGoalsSection';
 import { getDashboardData, toggleGoalStatus, getStudentConfig, getStudentCompletedMetas, getLocalISODate, checkAndUnlockSimulados, getStudentPlans } from '../../services/studentService';
 import { fetchFullPlanData, scheduleUserSimulado, anticipateAndShiftGoals, generateSchedule, rescheduleOverdueTasks } from '../../services/scheduleService';
+import { getAllPlanMetas, Meta } from '../../services/metaService';
+import { EditalNotebookModal } from '../../components/student/tools/EditalNotebookModal';
+import { NoteType } from '../../services/notebookService';
 import { useAuth } from '../../contexts/AuthContext';
 import { getEdict, EdictStructure } from '../../services/edictService';
 import { SimuladoDashboardCard, ComputedSimulado } from '../../components/student/SimuladoDashboardCard';
@@ -19,6 +22,7 @@ import { getExams } from '../../services/simulatedService';
 import { SimuladoFocusMode } from '../../components/student/goals/SimuladoFocusMode';
 import StudentMentorshipViewer from '../../components/student/mentorship/StudentMentorshipViewer';
 import StudentChatView from '../../components/student/chat/StudentChatView';
+import { SimuladosTabContent } from '../../components/student/dashboard/SimuladosTabContent';
 import { CourseReviewDashboard } from '../../components/student/courses/reviews/CourseReviewDashboard';
 import { courseReviewService } from '../../services/courseReviewService';
 import { useNavigate } from 'react-router-dom';
@@ -71,10 +75,31 @@ const StudentDashboard: React.FC = () => {
 
   // Rolling Window State
   const [lastScheduledDate, setLastScheduledDate] = useState<string | null>(null);
+  const [hasFuturePendingGoals, setHasFuturePendingGoals] = useState(false);
   const [isPlanCompleted, setIsPlanCompleted] = useState(false);
   const [isGeneratingNext, setIsGeneratingNext] = useState(false);
   const [completedMetaIds, setCompletedMetaIds] = useState<Set<string>>(new Set());
   const [fullPlanData, setFullPlanData] = useState<any>(null);
+  const [metaLookup, setMetaLookup] = useState<Record<string, Meta>>({});
+  
+  // NOTEBOOK MODAL STATE
+  const [notebookModal, setNotebookModal] = useState<{
+    isOpen: boolean;
+    nodeId: string;
+    nodeTitle: string;
+    type: NoteType;
+    materials: any[];
+    editalNode?: any;
+    initialPdfUrl?: string | null;
+  }>({
+    isOpen: false,
+    nodeId: '',
+    nodeTitle: '',
+    type: 'note',
+    materials: [],
+    initialPdfUrl: null
+  });
+  
   const [isMentorshipPlayerActive, setIsMentorshipPlayerActive] = useState(false);
   const lastToggleRef = React.useRef<{ id: string, time: number } | null>(null);
   
@@ -84,18 +109,27 @@ const StudentDashboard: React.FC = () => {
     if (!currentUser) return;
     setLoading(true);
     try {
-        const { planId, overdue, today, lastScheduledDate: fetchedLastDate } = await getDashboardData(currentUser.uid);
+        const { planId, overdue, today, lastScheduledDate: fetchedLastDate, hasFuturePendingGoals: fetchedHasFuture } = await getDashboardData(currentUser.uid);
         setCurrentPlanId(planId);
         setLastScheduledDate(fetchedLastDate);
+        setHasFuturePendingGoals(fetchedHasFuture);
 
         // Fetch Scholarship Status
-        const [plans, edict] = await Promise.all([
+        const [plans, edict, allMetas] = await Promise.all([
             getStudentPlans(currentUser.uid),
-            getEdict(planId)
+            getEdict(planId),
+            getAllPlanMetas(planId)
         ]);
         const currentPlan = plans.find(p => p.id === planId);
         setIsScholarship(currentPlan?.isScholarship || false);
         setEdictStructure(edict);
+
+        // Build Meta Lookup
+        const lookup: Record<string, Meta> = {};
+        allMetas.forEach(m => {
+            if (m.id) lookup[m.id] = m;
+        });
+        setMetaLookup(lookup);
         
         // Helper Mapper
         const mapToGoal = (event: any): StudentGoal => {
@@ -556,6 +590,63 @@ const StudentDashboard: React.FC = () => {
   
   const { isInstallable, installApp } = usePWAInstall();
 
+  const handleOpenMaterial = (goal: StudentGoal, fileUrl: string) => {
+    if (!edictStructure) {
+        toast.error("Edital não carregado.");
+        return;
+    }
+
+    const target = findTargetTopic(goal.topicId, goal.metaId, edictStructure.disciplines, goal.topic, fileUrl, metaLookup);
+    
+    if (target) {
+        // Encontrou vínculo no Edital!
+        const targetTopic = target.topic;
+        const relatedMaterials: any[] = [];
+        
+        if (targetTopic.linkedGoals && metaLookup) {
+            Object.keys(targetTopic.linkedGoals).forEach(category => {
+                const goalIds = targetTopic.linkedGoals[category];
+                if (Array.isArray(goalIds)) {
+                    goalIds.forEach((goalId: string) => {
+                        const m = metaLookup[goalId];
+                        if (m && m.files) {
+                            const pdfFiles = m.files
+                                .filter((f: any) => (f.url || f.fileUrl)?.toLowerCase().includes('.pdf'))
+                                .map((f: any) => ({
+                                    ...f,
+                                    url: f.url || f.fileUrl,
+                                    goalContext: m.title
+                                }));
+                            relatedMaterials.push(...pdfFiles);
+                        }
+                    });
+                }
+            });
+        }
+
+        setNotebookModal({
+            isOpen: true,
+            nodeId: targetTopic.id,
+            nodeTitle: targetTopic.name,
+            type: 'note',
+            materials: relatedMaterials,
+            editalNode: targetTopic,
+            initialPdfUrl: fileUrl
+        });
+    } else {
+        // Não vinculado
+        toast.error("Material não vinculado ao Edital Verticalizado", {
+            icon: '⚠️',
+            style: {
+                borderRadius: '10px',
+                background: '#18181b',
+                color: '#fff',
+                border: '1px solid #3f3f46'
+            }
+        });
+    }
+  };
+
   const handleReviewNow = (disciplineId: string, topicId: string, goalId?: string) => {
     let url = `/app/edict?highlightDiscipline=${disciplineId}&highlightTopic=${topicId}`;
     if (goalId) {
@@ -564,19 +655,59 @@ const StudentDashboard: React.FC = () => {
     navigate(url);
   };
 
-  // Helper to find topic recursively (by topicId, metaId or Name)
-  const findTargetTopic = (topicId: string | undefined, metaId: string | undefined, disciplines: any[], goalTopicName?: string): { topic: any, discipline: any } | null => {
+  const findTargetTopic = (
+    topicId: string | undefined, 
+    metaId: string | undefined, 
+    disciplines: any[], 
+    goalTopicName?: string,
+    fileUrl?: string,
+    metaLookup?: Record<string, Meta>
+  ): { topic: any, discipline: any } | null => {
     if (!disciplines || !Array.isArray(disciplines)) return null;
 
     const searchMetaId = metaId ? String(metaId) : null;
     const searchTopicId = topicId ? String(topicId) : null;
+
+    const normalizeUrl = (url: string) => {
+        try {
+            const u = new URL(url);
+            u.searchParams.delete('token');
+            return u.toString().split('&token=')[0].toLowerCase().trim();
+        } catch (e) {
+            return url.toLowerCase().trim();
+        }
+    };
+
+    const normalizeName = (name: string) => {
+        return name.trim().toLowerCase()
+            .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+            .replace(/[^\w\s]/gi, '');
+    };
+
+    const targetUrl = fileUrl ? normalizeUrl(fileUrl) : null;
+    const targetNameNormalized = goalTopicName ? normalizeName(goalTopicName) : null;
 
     for (const disc of disciplines) {
       if (!disc.topics) continue;
       
       for (const topic of disc.topics) {
         const isMatch = (item: any, depth: number = 0): boolean => {
-          // 1. PRIORIDADE MÁXIMA: Check Linked Goals (O Vínculo Real)
+          // 1. PRIORIDADE MÁXIMA: Check URL Identity (O Vínculo Real pelo arquivo)
+          if (targetUrl && item.linkedGoals && metaLookup) {
+              const allLinkedIds = Object.values(item.linkedGoals).flat().map(String);
+              for (const linkedId of allLinkedIds) {
+                  const meta = metaLookup[linkedId];
+                  if (meta && meta.files) {
+                      const hasUrlMatch = meta.files.some((f: any) => {
+                          const fUrl = f.url || f.fileUrl;
+                          return fUrl && normalizeUrl(fUrl) === targetUrl;
+                      });
+                      if (hasUrlMatch) return true;
+                  }
+              }
+          }
+
+          // 2. Check Linked Goals (IDs)
           if (item.linkedGoals) {
             const allLinkedIds = [
                 ...Object.keys(item.linkedGoals).map(String),
@@ -589,17 +720,15 @@ const StudentDashboard: React.FC = () => {
             }
           }
 
-          // 2. Check ID do item do edital
+          // 3. Check ID do item do edital
           if (searchTopicId && String(item.id) === searchTopicId) return true;
 
-          // 3. Check Name (Fallback Inteligente - Contém ou é Contido)
-          if (goalTopicName && item.name) {
-            const normalizedItemName = item.name.trim().toLowerCase();
-            const normalizedGoalName = goalTopicName.trim().toLowerCase();
-            
-            if (normalizedItemName === normalizedGoalName || 
-                normalizedItemName.includes(normalizedGoalName) || 
-                normalizedGoalName.includes(normalizedItemName)) {
+          // 4. Check Name (Fallback Normalizado)
+          if (targetNameNormalized && item.name) {
+            const normalizedItemName = normalizeName(item.name);
+            if (normalizedItemName === targetNameNormalized || 
+                normalizedItemName.includes(targetNameNormalized) || 
+                targetNameNormalized.includes(normalizedItemName)) {
               return true;
             }
           }
@@ -705,6 +834,8 @@ const StudentDashboard: React.FC = () => {
             checkAndUnlockSimulados(currentUser.uid, currentPlanId, undefined, undefined, new Set([...Array.from(completedMetaIds), goalToToggle.metaId || goalToToggle.id]));
             checkAndTriggerAnticipation(novaListaDeMetasAtualizada);
         }
+
+        fetchSchedule();
 
         // Update local completed IDs set optimistically
         const mId = goalToToggle.metaId || goalToToggle.id;
@@ -842,6 +973,23 @@ const StudentDashboard: React.FC = () => {
       );
   }
 
+  // --- RENDERIZAÇÃO DA ABA DE SIMULADOS ---
+  if (currentTab === 'simulados') {
+      return (
+          <div className="relative w-full min-h-screen bg-zinc-950 flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-700">
+            {fullPlanData && (
+              <PlanHeroBanner currentTab="simulados" planData={fullPlanData} />
+            )}
+            <div className="relative z-10 w-full max-w-[1600px] mx-auto px-4 md:px-8 flex-1 flex flex-col mb-10 pt-8 md:pt-12 -mt-10 md:-mt-20">
+              <SimuladosTabContent 
+                planId={currentPlanId} 
+                simuladosVinculados={fullPlanData?.simuladosVinculados} 
+              />
+            </div>
+          </div>
+      );
+  }
+
   if (loading) {
       return (
           <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
@@ -960,7 +1108,8 @@ const StudentDashboard: React.FC = () => {
       </div>
 
       {/* CTA ROLLING WINDOW */}
-      {lastScheduledDate && !isPlanCompleted && new Date(lastScheduledDate) < new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) && (
+      {((lastScheduledDate && !isPlanCompleted && !hasFuturePendingGoals && todayGoals.every(g => g.isCompleted)) || 
+        (lastScheduledDate && !isPlanCompleted && new Date(lastScheduledDate) < new Date(Date.now() + 2 * 24 * 60 * 60 * 1000))) && (
         <div className="mb-8 bg-gradient-to-r from-[var(--plan-theme)]/20 to-transparent border border-[var(--plan-theme)]/30 rounded-2xl p-6 flex flex-col md:flex-row items-center justify-between gap-6 animate-in fade-in slide-in-from-top-4">
             <div className="flex items-center gap-4">
                 <div className="p-4 bg-[var(--plan-theme)]/20 text-[var(--plan-theme)] rounded-full">
@@ -968,7 +1117,7 @@ const StudentDashboard: React.FC = () => {
                 </div>
                 <div>
                     <h3 className="text-white font-black text-xl uppercase tracking-tighter">Parabéns! Você concluiu seu ciclo atual.</h3>
-                    <p className="text-zinc-400 text-sm mt-1">Suas metas agendadas estão acabando. Libere as próximas semanas para continuar evoluindo.</p>
+                    <p className="text-zinc-400 text-sm mt-1">Suas metas agendadas acabaram ou foram concluídas antecipadamente. Libere as próximas metas para continuar evoluindo.</p>
                 </div>
             </div>
             <button 
@@ -979,11 +1128,16 @@ const StudentDashboard: React.FC = () => {
                 {isGeneratingNext ? (
                     <><Loader2 className="w-5 h-5 animate-spin" /> Gerando...</>
                 ) : (
-                    <><RefreshCw className="w-5 h-5" /> Gerar Próximas Semanas</>
+                    <><RefreshCw className="w-5 h-5" /> Gerar Próximas Metas</>
                 )}
             </button>
         </div>
       )}
+
+      <div className="mb-4 flex items-center gap-2 text-[10px] font-bold text-zinc-500 uppercase tracking-widest bg-zinc-900/40 w-fit px-3 py-1.5 rounded-lg border border-zinc-800/50">
+          <Clock size={12} className="text-[var(--plan-theme)]" />
+          Cronograma otimizado para a semana atual (até Sábado).
+      </div>
 
       {/* --- SEÇÃO DE ATRASOS (NOVA) --- */}
       <DelayedGoalsSection 
@@ -993,6 +1147,7 @@ const StudentDashboard: React.FC = () => {
         isReplanning={isReplanning}
         onToggleComplete={handleToggleComplete}
         onRefresh={fetchSchedule}
+        onPdfClick={handleOpenMaterial}
       />
 
       {/* --- SEÇÃO 1: REVISÕES ESPAÇADAS (OCULTA SE HOUVER ATRASOS PARA EVITAR DUPLICIDADE) --- */}
@@ -1031,6 +1186,7 @@ const StudentDashboard: React.FC = () => {
                                     goal={goal} 
                                     onToggleComplete={(g) => handleToggleComplete(g)}
                                     onRefresh={fetchSchedule}
+                                    onPdfClick={handleOpenMaterial}
                                 />
                             ))}
                         </div>
@@ -1077,6 +1233,7 @@ const StudentDashboard: React.FC = () => {
                                         goal={goal} 
                                         onToggleComplete={(g) => handleToggleComplete(g)}
                                         onRefresh={fetchSchedule}
+                                        onPdfClick={handleOpenMaterial}
                                         onStart={goal.type === 'simulado' ? handleStartSimulado : undefined}
                                     />
                                 </React.Fragment>
@@ -1250,6 +1407,22 @@ const StudentDashboard: React.FC = () => {
             name: fullPlanData?.title || 'Meu Plano de Estudos'
           }}
         />
+      )}
+
+      {/* MODAL DE CADERNO DE ANOTAÇÕES (EDIIAL VERTICALIZADO) */}
+      {notebookModal.isOpen && (
+          <EditalNotebookModal 
+            isOpen={notebookModal.isOpen}
+            onClose={() => setNotebookModal(prev => ({ ...prev, isOpen: false }))}
+            planId={currentPlanId}
+            editalNodeId={notebookModal.nodeId}
+            topicTitle={notebookModal.nodeTitle}
+            type={notebookModal.type}
+            materials={notebookModal.materials}
+            editalNode={notebookModal.editalNode}
+            metaLookup={metaLookup}
+            initialPdfUrl={notebookModal.initialPdfUrl}
+          />
       )}
     </div>
   );

@@ -85,6 +85,23 @@ const cleanObject = (obj: any): any => {
   return newObj;
 };
 
+export const getScheduleLimitDate = (currentDate: Date): Date => {
+  const limitDate = new Date(currentDate);
+  const dayOfWeek = limitDate.getDay(); // 0 (Sun) to 6 (Sat)
+  
+  // Rule 2: Se hoje for SÁBADO (6), agendar até o PRÓXIMO sábado (hoje + 7 dias)
+  if (dayOfWeek === 6) {
+    limitDate.setDate(limitDate.getDate() + 7);
+  } else {
+    // Rule 1: Agendar até o Sábado da semana atual
+    const daysUntilSaturday = 6 - dayOfWeek;
+    limitDate.setDate(limitDate.getDate() + daysUntilSaturday);
+  }
+  
+  limitDate.setHours(23, 59, 59, 999);
+  return limitDate;
+};
+
 export const generateSpacedReviews = async (userId: string, planId: string, parentTask: any, completionDateStr: string) => {
   // Verifica se a meta pai possui o campo de intervalos (ex: "1,7,15,30")
   if (!parentTask.spacedReviewIntervals) return;
@@ -500,9 +517,7 @@ export const generateSchedule = async (
 
   // FASE 3: Bin Packing (Allocation)
   const currentDate = new Date();
-  const SCHEDULE_WINDOW_DAYS = 21;
-  const limitDate = new Date(currentDate);
-  limitDate.setDate(limitDate.getDate() + SCHEDULE_WINDOW_DAYS);
+  const limitDate = getScheduleLimitDate(currentDate);
   
   const getMinutesForDate = (date: Date, isFirstDay: boolean = false): number => {
     const dayOfWeek = date.getDay(); 
@@ -1233,8 +1248,9 @@ export const scheduleSimuladoManual = async (
   batch.set(targetDocRef, cleanObject({ date: targetDateStr, items: targetDateItemsToKeep }), { merge: true });
 
   const currentDate = new Date(targetDateStr + 'T00:00:00'); 
+  const limitDate = getScheduleLimitDate(currentDate);
   currentDate.setDate(currentDate.getDate() + 1);
-
+  
   let currentDayOfWeek = currentDate.getDay();
   let currentDateStr = currentDate.toISOString().split('T')[0];
   
@@ -1260,6 +1276,8 @@ export const scheduleSimuladoManual = async (
     
     // Simplistic bin packing for displaced tasks
     while (remainingDuration > 0) {
+      if (currentDate > limitDate) break;
+
       let dayCapacity = safeRoutine[currentDayOfWeek] || 0;
       let existingItems = futureDaysMap.get(currentDateStr) || [];
       let usedCapacity = existingItems.reduce((acc: number, item: any) => acc + (Number(item.calculatedDuration) || Number(item.duration) || 0), 0);
@@ -1542,6 +1560,7 @@ export const anticipateAndShiftGoals = async (
 
   // 3. Efeito Empuxo (Reagendar o resto para o futuro)
   const currentDate = new Date(todayStr + 'T00:00:00');
+  const limitDate = getScheduleLimitDate(currentDate);
   currentDate.setDate(currentDate.getDate() + 1);
   let currentDayCapacity = safeRoutine[currentDate.getDay()] || 0;
   const newFutureSchedules = new Map<string, any[]>();
@@ -1549,6 +1568,8 @@ export const anticipateAndShiftGoals = async (
   // Devolve as metas fixas exatamente para os dias em que já estavam agendadas
   for (const fixedTask of fixedTasks) {
     const originalDate = fixedTask.date; 
+    if (new Date(originalDate + 'T12:00:00') > limitDate) continue; // Respect limit
+
     if (!newFutureSchedules.has(originalDate)) {
       newFutureSchedules.set(originalDate, []);
     }
@@ -1556,6 +1577,8 @@ export const anticipateAndShiftGoals = async (
   }
 
   for (const task of tasksToShift) {
+    if (currentDate > limitDate) break;
+
     const normalizedType = task.type || 'lesson';
     
     let currentPart = task.startingPart || task.part || 1;
