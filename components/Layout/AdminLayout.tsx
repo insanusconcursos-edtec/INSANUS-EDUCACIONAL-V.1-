@@ -53,6 +53,9 @@ const AdminLayout: React.FC = () => {
     }
 
     // COMERCIAL Group
+    if (isAdmin) {
+      groups[1].items.push({ label: 'DASHBOARD EMPRESA', path: '/admin/dashboard' });
+    }
     if (isAdmin || perms.produtos) {
       groups[1].items.push({ label: 'PRODUTOS', path: '/admin/products' });
     }
@@ -61,6 +64,9 @@ const AdminLayout: React.FC = () => {
     }
     if (isAdmin || userRole === 'SELLER' || perms.vendas) {
       groups[1].items.push({ label: 'DASHBOARD AFILIADO', path: '/admin/afiliado' });
+    }
+    if (isAdmin || perms.vendas) {
+      groups[1].items.push({ label: 'RELATÓRIO DE COPRODUÇÃO', path: '/admin/coproducao' });
     }
 
     // ADMINISTRATIVO Group

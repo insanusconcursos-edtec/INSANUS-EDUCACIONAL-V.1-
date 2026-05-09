@@ -653,48 +653,104 @@ async function setupVite(app: any) {
     }
   });
 
-  // Rota de Migração Temporária para Sincronizar Dados de Afiliados (Follow-up)
+  // Rota de Migração Temporária para Sincronizar Dados de Afiliados (Follow-up) - VERSÃO ROBUSTA
   app.get('/api/admin/migrations/sync-commissions', async (req, res) => {
     try {
       const { dbAdmin } = getAdminConfig();
-      // Buscamos todos para filtrar os que não tem o campo de e-mail (legado)
+      // Buscamos todos para garantir que nada ficou para trás
       const snapshot = await dbAdmin.collection('affiliate_commissions').get();
-      const legacyDocs = snapshot.docs.filter(doc => !doc.data().customerEmail);
+      const docs = snapshot.docs;
 
-      console.log(`[Migration] Iniciando sincronia de ${legacyDocs.length} documentos.`);
+      console.log(`[Migration] Iniciando varredura total em ${docs.length} documentos.`);
 
       let updatedCount = 0;
+      let skippedCount = 0;
       let failedCount = 0;
 
-      for (const doc of legacyDocs) {
-        const orderId = doc.data().orderId;
-        if (orderId) {
+      for (const doc of docs) {
+        const docData = doc.data();
+        
+        // Se já tem dados válidos, podemos optar por pular para economizar processamento
+        if (docData.customerEmail && docData.customerEmail !== 'N/A' && docData.customerName && docData.customerPhone && docData.customerPhone !== 'N/A') {
+          skippedCount++;
+          continue;
+        }
+
+        const orderId = docData.orderId;
+        if (!orderId) {
+          failedCount++;
+          continue;
+        }
+
+        console.log(`[Migration] Sincronizando Pedido: ${orderId}...`);
+        let customerInfo: any = null;
+
+        // --- FONTE 1: Coleção local 'orders' ---
+        try {
+          const orderDoc = await dbAdmin.collection('orders').doc(orderId).get();
+          if (orderDoc.exists) {
+            const data = orderDoc.data();
+            customerInfo = data?.customer || data?.payer || data;
+          } else {
+             const orderQuery = await dbAdmin.collection('orders').where('orderId', '==', orderId).limit(1).get();
+             if (!orderQuery.empty) {
+               const data = orderQuery.docs[0].data();
+               customerInfo = data?.customer || data?.payer || data;
+             }
+          }
+        } catch (e) { /* ignore */ }
+
+        // --- FONTE 2: Pagar.me API ---
+        if (!customerInfo) {
           try {
             const orderDetails = await getPagarmeOrderStatus(orderId);
-            const customer = orderDetails.customer;
-            
-            if (customer) {
-              await doc.ref.update({
-                customerName: customer.name || 'Cliente',
-                customerEmail: customer.email || 'N/A',
-                customerPhone: customer.phones?.mobile_phone 
-                  ? `+${customer.phones.mobile_phone.country_code}${customer.phones.mobile_phone.area_code}${customer.phones.mobile_phone.number}`
-                  : 'N/A'
-              });
-              updatedCount++;
+            if (orderDetails && orderDetails.customer) {
+              customerInfo = orderDetails.customer;
             }
-          } catch (err) {
-            console.error(`[Migration] Erro no pedido ${orderId}:`, err);
-            failedCount++;
+          } catch (e) { /* ignore */ }
+        }
+
+        // --- FONTE 3: Coleção 'users' ---
+        if (!customerInfo) {
+          try {
+            // Tenta buscar usuário que tenha este orderId vinculado (seja em metadata ou no email)
+            const userByEmail = await dbAdmin.collection('users').where('email', '==', docData.customerEmail).limit(1).get();
+            if (!userByEmail.empty) {
+              customerInfo = userByEmail.docs[0].data();
+            }
+          } catch (e) { /* ignore */ }
+        }
+
+        if (customerInfo) {
+          const name = customerInfo.name || customerInfo.userName || customerInfo.displayName || 'Cliente';
+          const email = customerInfo.email || customerInfo.userEmail || 'N/A';
+          
+          let phone = customerInfo.phone || customerInfo.userPhone || customerInfo.whatsapp || customerInfo.contact || 'N/A';
+          if (customerInfo.phones?.mobile_phone) {
+            const mp = customerInfo.phones.mobile_phone;
+            phone = `+${mp.country_code}${mp.area_code}${mp.number}`;
           }
+
+          await doc.ref.update({
+            customerName: name,
+            customerEmail: email,
+            customerPhone: phone
+          });
+
+          console.log(`[Migration] ✅ Sincronizado: Pedido ${orderId} -> Cliente ${name}`);
+          updatedCount++;
+        } else {
+          console.warn(`[Migration] ❌ Dados nao encontrados para o pedido ${orderId}`);
+          failedCount++;
         }
       }
 
       return res.status(200).json({ 
         success: true, 
-        message: 'Migração de follow-up concluída',
-        found: legacyDocs.length,
+        message: 'Migração de follow-up concluída com multi-fonte',
+        total: docs.length,
         updated: updatedCount,
+        skipped: skippedCount,
         failed: failedCount
       });
     } catch (error) {

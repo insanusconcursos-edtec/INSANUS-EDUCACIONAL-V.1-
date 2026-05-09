@@ -19,6 +19,8 @@ import { AdminLiveRoom } from './pages/admin/AdminLiveRoom'; // Nova Importaçã
 import AffiliateDashboard from './pages/admin/AffiliateDashboard';
 import FinancePage from './pages/admin/FinancePage';
 import SalesPage from './pages/admin/SalesPage';
+import AdminDashboard from './pages/admin/AdminDashboard';
+import CoproductionDashboard from './pages/admin/CoproductionDashboard';
 import { StudentCoursesTab } from './components/student/courses/StudentCoursesTab'; // Nova Importação Student
 import { StudentPresentialTab } from './components/student/presential/StudentPresentialTab'; // Nova Importação Presential
 import { StudentPresentialDetails } from './pages/student/presential/StudentPresentialDetails'; // Nova Importação Detalhes Presencial
@@ -66,9 +68,13 @@ const RootRedirect = () => {
 };
 
 // Helper component to restrict access within Admin area
-const AdminRoleGuard = ({ children, permission }: { children: React.ReactNode, permission?: keyof CollaboratorPermissions }) => {
+const AdminRoleGuard = ({ children, permission, strictlyAdmin = false }: { children: React.ReactNode, permission?: keyof CollaboratorPermissions, strictlyAdmin?: boolean }) => {
     const { userRole, userData } = useAuth();
     if (userRole === 'ADMIN') return <>{children}</>;
+    
+    if (strictlyAdmin) {
+        return <Navigate to="/admin" replace />;
+    }
     
     const perms = userData?.permissions || {};
     
@@ -83,7 +89,7 @@ const AdminRoleGuard = ({ children, permission }: { children: React.ReactNode, p
 const AdminIndexRedirect = () => {
     const { userRole, userData } = useAuth();
     if (userRole === 'SELLER') return <Navigate to="afiliado" replace />;
-    if (userRole === 'ADMIN') return <Navigate to="planos" replace />;
+    if (userRole === 'ADMIN') return <Navigate to="dashboard" replace />;
     
     const perms = userData?.permissions || {};
     if (perms.vendas) return <Navigate to="afiliado" replace />;
@@ -126,12 +132,14 @@ const App: React.FC = () => {
               </PrivateRoute>
           }>
               <Route index element={<AdminIndexRedirect />} />
+              <Route path="dashboard" element={<AdminRoleGuard strictlyAdmin><AdminDashboard /></AdminRoleGuard>} />
               <Route path="vendas" element={<AdminRoleGuard permission="vendas"><SalesPage /></AdminRoleGuard>} />
               <Route path="afiliado" element={<AffiliateDashboard />} />
               <Route path="planos" element={<AdminRoleGuard permission="planos"><PlansPage /></AdminRoleGuard>} />
               <Route path="plans/:planId" element={<AdminRoleGuard permission="planos"><PlanEditor /></AdminRoleGuard>} />
               
               <Route path="products" element={<AdminRoleGuard permission="produtos"><ProductsManager /></AdminRoleGuard>} />
+              <Route path="coproducao" element={<CoproductionDashboard />} />
               <Route path="financeiro" element={<FinancePage />} />
 
               <Route path="cursos" element={<AdminRoleGuard permission="cursos_online"><AdminCoursesTab /></AdminRoleGuard>} /> {/* Nova Rota */}

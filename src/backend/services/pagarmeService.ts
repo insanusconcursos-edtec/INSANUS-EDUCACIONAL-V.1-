@@ -320,8 +320,10 @@ export const createPagarmeOrder = async (orderData: any, initialCoproducers: any
           await provisionPurchase(customerData, String(productId), 'pagarme');
           console.log('[Pagarme] Immediate provisioning success for:', customerData.email);
           
-          // Registrar comissão para o afiliado/vendedor
+          // Registrar comissão para o afiliado/vendedor e relatório admin
           await recordAffiliateCommission(result);
+          await recordAdminSalesReport(result);
+          await recordCoproductionCommissions(result);
         } catch (err) {
           console.error('[Pagarme] Error provisioning immediate access:', err);
         }
@@ -397,11 +399,13 @@ export const handlePagarmeWebhook = async (payload: Record<string, any>) => {
       if (productId) {
         await provisionPurchase(customerData, String(productId), 'pagarme');
         
-        // Novo: Registrar comissão no histórico do afiliado
+        // Novo: Registrar comissão no histórico do afiliado e relatório admin
         try {
           await recordAffiliateCommission(orderData);
+          await recordAdminSalesReport(orderData);
+          await recordCoproductionCommissions(orderData);
         } catch (commErr) {
-          console.error('⚠️ [Pagarme] Erro ao registrar comissão (não fatal):', commErr);
+          console.error('⚠️ [Pagarme] Erro ao registrar relatórios (não fatal):', commErr);
         }
 
         return { success: true, message: 'Provisioning triggered' };
@@ -499,5 +503,179 @@ async function recordAffiliateCommission(orderData: any) {
     console.log(`✅ [DEBUG COMISSÃO] Afiliado: ${affiliateId} | Pedido: ${orderData.id} | Valor: ${commissionEarned} centavos`);
   } catch (error) {
     console.error('❌ [ERRO COMISSÃO] Falha ao salvar no Firestore:', error);
+  }
+}
+
+/**
+ * Registra inteligência financeira detalhada para o administrador.
+ * Calcula o lucro líquido real da empresa após todas as deduções (taxas, afiliados, coprodutores).
+ */
+async function recordAdminSalesReport(orderData: any) {
+  const { dbAdmin } = getAdminConfig();
+  const metadata = orderData.metadata || {};
+  
+  const courseId = metadata.courseId || metadata.productId;
+  const offerId = metadata.offerId;
+
+  if (!courseId) {
+    console.warn(`[AdminReport] Pedido ${orderData.id} ignorado (sem courseId).`);
+    return;
+  }
+
+  try {
+    // 1. Busca as regras do produto para cálculos precisos
+    const productDoc = await dbAdmin.collection('ticto_products').doc(courseId).get();
+    if (!productDoc.exists) return;
+
+    const courseData = productDoc.data();
+    const offersArray = courseData?.offers || [];
+    const currentOffer = offersArray.find((offer: any) => String(offer.id) === String(offerId));
+
+    const grossAmount = orderData.amount; // Valor em centavos
+    const paymentMethod = orderData.charges?.[0]?.payment_method || orderData.payment_method || 'unknown';
+
+    // 2. Cálculo de Taxa Gateway (estimativa baseada nas constantes do serviço)
+    let gatewayFee = GATEWAY_FEE;
+    if (paymentMethod === 'pix') {
+      gatewayFee += Math.round(grossAmount * PIX_RATE);
+    } else if (paymentMethod === 'credit_card') {
+      gatewayFee += Math.round(grossAmount * 0.0499); // 4.99% estimativa média
+    } else {
+      gatewayFee += BOLETO_FEE;
+    }
+
+    const netGatewayValue = grossAmount - gatewayFee;
+
+    // 3. Cálculo da Parte do Vendedor (Afiliado)
+    const affiliatePercentage = currentOffer && currentOffer.isAffiliationEnabled 
+      ? (Number(currentOffer.affiliateCommission) || 0) 
+      : 0;
+    const affiliatePart = Math.floor(netGatewayValue * (affiliatePercentage / 100));
+
+    // 4. Cálculo da Parte dos Coprodutores (Split Cascade)
+    let coproductionPart = 0;
+    const coproducerBase = netGatewayValue - affiliatePart;
+    const coproducers = currentOffer?.coproducers || courseData?.coproduction || [];
+    
+    if (Array.isArray(coproducers)) {
+      coproducers.forEach((copro: any) => {
+        const percentage = Number(copro.percentage) || 0;
+        if (percentage > 0) {
+          coproductionPart += Math.floor(coproducerBase * (percentage / 100));
+        }
+      });
+    }
+
+    // 5. O SANTOGRÁAL: Lucro Líquido da Insanus (Empresa)
+    // Bruto - Taxas - Afiliado - Coprodutores
+    const netCompanyValue = grossAmount - gatewayFee - affiliatePart - coproductionPart;
+
+    // 6. Dados do Cliente para Follow-up do Admin
+    const customerData = {
+      name: orderData.metadata?.userName || orderData.customer?.name || 'Cliente',
+      email: orderData.metadata?.userEmail || orderData.customer?.email || 'N/A',
+      phone: orderData.metadata?.userPhone || 
+        (orderData.customer?.phones?.mobile_phone 
+          ? `+${orderData.customer.phones.mobile_phone.country_code}${orderData.customer.phones.mobile_phone.area_code}${orderData.customer.phones.mobile_phone.number}`
+          : 'N/A')
+    };
+
+    // 7. Salva o relatório financeiro mestre
+    await dbAdmin.collection('admin_sales_report').add({
+      orderId: orderData.id,
+      courseId,
+      courseName: currentOffer?.title || courseData?.name || 'Produto Digital',
+      grossValue: grossAmount,
+      gatewayFee,
+      affiliatePart,
+      coproductionPart,
+      netCompanyValue,
+      customerData,
+      createdAt: new Date().toISOString()
+    });
+
+    console.log(`✅ [ADMIN REPORT] Venda registrada. Líquido Insanus: ${netCompanyValue} centavos`);
+  } catch (error) {
+    console.error('❌ [ADMIN REPORT ERROR] Falha ao registrar relatório financeiro:', error);
+  }
+}
+
+/**
+ * Registra comissões individuais para cada coprodutor no Firestore.
+ */
+async function recordCoproductionCommissions(orderData: any) {
+  const { dbAdmin } = getAdminConfig();
+  const metadata = orderData.metadata || {};
+  
+  const courseId = metadata.courseId || metadata.productId;
+  const offerId = metadata.offerId;
+
+  if (!courseId) return;
+
+  try {
+    // 1. Busca as regras do produto para cálculos precisos
+    const productDoc = await dbAdmin.collection('ticto_products').doc(courseId).get();
+    if (!productDoc.exists) return;
+
+    const courseData = productDoc.data();
+    const offersArray = courseData?.offers || [];
+    const currentOffer = offersArray.find((offer: any) => String(offer.id) === String(offerId));
+
+    const grossAmount = orderData.amount; // Valor em centavos
+    const paymentMethod = orderData.charges?.[0]?.payment_method || orderData.payment_method || 'unknown';
+
+    // 2. Cálculo de Taxa Gateway (estimativa baseada nas constantes do serviço)
+    let gatewayFee = GATEWAY_FEE;
+    if (paymentMethod === 'pix') {
+      gatewayFee += Math.round(grossAmount * PIX_RATE);
+    } else if (paymentMethod === 'credit_card') {
+      gatewayFee += Math.round(grossAmount * 0.0499); // 4.99% estimativa média
+    } else {
+      gatewayFee += BOLETO_FEE;
+    }
+
+    const netGatewayValue = grossAmount - gatewayFee;
+
+    // 3. Cálculo da Parte do Vendedor (Afiliado) para determinar a base de coprodução
+    const affiliatePercentage = currentOffer && currentOffer.isAffiliationEnabled 
+      ? (Number(currentOffer.affiliateCommission) || 0) 
+      : 0;
+    const affiliatePart = Math.floor(netGatewayValue * (affiliatePercentage / 100));
+
+    // 4. Cálculo e Registro da Parte dos Coprodutores
+    const coproducerBase = netGatewayValue - affiliatePart;
+    const coproducers = currentOffer?.coproducers || courseData?.coproduction || [];
+    
+    if (Array.isArray(coproducers) && coproducers.length > 0) {
+      const batch = dbAdmin.batch();
+      let hasEntries = false;
+
+      coproducers.forEach((copro: any) => {
+        const percentage = Number(copro.percentage) || 0;
+        if (percentage > 0) {
+          const commissionValue = Math.floor(coproducerBase * (percentage / 100));
+          if (commissionValue > 0) {
+            const commRef = dbAdmin.collection('coproduction_commissions').doc();
+            batch.set(commRef, {
+              coproducerId: copro.userId || copro.id || 'unknown',
+              coproducerName: copro.name || 'Coprodutor',
+              orderId: orderData.id,
+              courseId,
+              courseName: currentOffer?.title || courseData?.name || 'Produto Digital',
+              commissionValue,
+              createdAt: new Date().toISOString()
+            });
+            hasEntries = true;
+          }
+        }
+      });
+
+      if (hasEntries) {
+        await batch.commit();
+        console.log(`✅ [COPRO REPORT] ${coproducers.length} comissões individuais de coprodução registradas para o pedido ${orderData.id}`);
+      }
+    }
+  } catch (error) {
+    console.error('❌ [COPRO REPORT ERROR] Falha ao registrar comissões de coprodução:', error);
   }
 }
