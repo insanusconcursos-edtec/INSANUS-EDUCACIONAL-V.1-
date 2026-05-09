@@ -1,3 +1,4 @@
+// SW v2
 self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
