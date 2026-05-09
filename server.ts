@@ -4,7 +4,7 @@ import { fetchPandaVideoTranscription } from './src/backend/services/pandaVideoS
 import { generateStudyMaterial } from './src/backend/services/geminiService.js';
 import { getAdminConfig } from './src/backend/services/firebaseAdmin.js';
 import { provisionTictoPurchase, revokeTictoPurchase } from './src/backend/services/provisioningService.js';
-import { createPagarmeOrder, handlePagarmeWebhook, getPagarmeOrderStatus } from './src/backend/services/pagarmeService.js';
+import { createPagarmeOrder, handlePagarmeWebhook, getPagarmeOrderStatus, getPagarmeRecipientBalance, requestPagarmeTransfer } from './src/backend/services/pagarmeService.js';
 
 // const __filename = fileURLToPath(import.meta.url);
 // __dirname is not used in this file, but kept for reference if needed
@@ -366,39 +366,136 @@ async function setupVite(app: any) {
 
   app.post('/api/admin/coproducers', async (req, res) => {
     try {
-      const { dbAdmin } = getAdminConfig();
-      const data = req.body;
+      const { dbAdmin, authAdmin } = getAdminConfig();
+      const { name, username, password, document, pagarmeRecipientId } = req.body;
       const now = new Date().toISOString();
+
+      if (!username) {
+          return res.status(400).json({ success: false, error: "Usuário é obrigatório." });
+      }
+
+      const domain = "@insanus.com.br";
+      const email = `${username.toLowerCase().trim()}${domain}`;
       
-      const newDoc = await dbAdmin.collection('coproducers').add({
-        ...data,
+      // 1. Criar usuário no Firebase Auth (se for novo)
+      let uid;
+      try {
+        const userRecord = await authAdmin.createUser({
+          email,
+          password,
+          displayName: name,
+        });
+        uid = userRecord.uid;
+      } catch (authError: any) {
+        if (authError.code === 'auth/email-already-in-use') {
+          const existingUser = await authAdmin.getUserByEmail(email);
+          uid = existingUser.uid;
+        } else {
+          throw authError;
+        }
+      }
+
+      // 2. Criar perfil na coleção 'users' com a role correta
+      await dbAdmin.collection('users').doc(uid).set({
+        uid,
+        name,
+        email,
+        username: username.toLowerCase().trim(),
+        role: 'coprodutor',
+        pagarmeRecipientId: pagarmeRecipientId || null,
+        document: document || null,
+        status: 'active',
         createdAt: now,
-        updatedAt: now,
-        isActive: true
+        updatedAt: now
+      }, { merge: true });
+
+      // 3. Adicionar à coleção 'coproducers' para compatibilidade com buscas existentes
+      await dbAdmin.collection('coproducers').doc(uid).set({
+        id: uid,
+        name,
+        username: username.toLowerCase().trim(),
+        email,
+        document,
+        pagarmeRecipientId,
+        isActive: true,
+        createdAt: now,
+        updatedAt: now
       });
 
-      return res.status(201).json({ success: true, id: newDoc.id });
-    } catch (error) {
+      return res.status(201).json({ success: true, id: uid });
+    } catch (error: any) {
       console.error("Erro ao criar coprodutor:", error);
-      return res.status(500).json({ success: false, error: "Erro ao criar coprodutor." });
+      return res.status(500).json({ success: false, error: error.message || "Erro ao criar coprodutor." });
     }
   });
 
   app.put('/api/admin/coproducers/:id', async (req, res) => {
     try {
-      const { dbAdmin } = getAdminConfig();
+      const { dbAdmin, authAdmin } = getAdminConfig();
       const { id } = req.params;
-      const data = req.body;
+      const { name, username, password, document, pagarmeRecipientId, isActive } = req.body;
       
-      await dbAdmin.collection('coproducers').doc(id).update({
-        ...data,
+      const domain = "@insanus.com.br";
+      const updateData: any = {
         updatedAt: new Date().toISOString()
-      });
+      };
+
+      if (name) updateData.name = name;
+      if (username) {
+        updateData.username = username.toLowerCase().trim();
+        updateData.email = `${updateData.username}${domain}`;
+      }
+      if (document) updateData.document = document;
+      if (pagarmeRecipientId !== undefined) updateData.pagarmeRecipientId = pagarmeRecipientId;
+      if (isActive !== undefined) updateData.isActive = isActive;
+
+      // Update Auth if password or username provided
+      if (username || password) {
+        const docSnap = await dbAdmin.collection('coproducers').doc(id).get();
+        const currentData = docSnap.data();
+        const usernameToUse = username || currentData?.username;
+        
+        if (usernameToUse) {
+          const emailToUse = `${usernameToUse.toLowerCase().trim()}${domain}`;
+
+          try {
+            const authUpdate: any = {};
+            if (password) authUpdate.password = password;
+            if (username) authUpdate.email = emailToUse;
+            if (name) authUpdate.displayName = name;
+            
+            await authAdmin.updateUser(id, authUpdate);
+          } catch (authError: any) {
+            if (authError.code === 'auth/user-not-found') {
+              // Creating Auth retroactively
+              if (password) {
+                await authAdmin.createUser({
+                  uid: id,
+                  email: emailToUse,
+                  password: password,
+                  displayName: name || currentData?.name || 'Coprodutor'
+                });
+              }
+            } else {
+              throw authError;
+            }
+          }
+        }
+      }
+      
+      await dbAdmin.collection('coproducers').doc(id).update(updateData);
+      
+      // Sync with users collection
+      await dbAdmin.collection('users').doc(id).set({
+          ...updateData,
+          uid: id,
+          role: 'coprodutor'
+      }, { merge: true });
 
       return res.status(200).json({ success: true });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erro ao atualizar coprodutor:", error);
-      return res.status(500).json({ success: false, error: "Erro ao atualizar coprodutor." });
+      return res.status(500).json({ success: false, error: error.message || "Erro ao atualizar coprodutor." });
     }
   });
 
@@ -626,6 +723,38 @@ async function setupVite(app: any) {
     } catch (error) {
       console.error("Erro ao consultar status Pagar.me:", error);
       return res.status(500).json({ success: false, error: 'Internal Server Error' });
+    }
+  });
+
+  // Rota de consulta de saldo Pagar.me
+  app.get('/api/payments/pagarme/balance', async (req, res) => {
+    try {
+      const recipientId = req.query.recipientId as string;
+      if (!recipientId) {
+        return res.status(400).json({ success: false, error: 'recipientId é obrigatório' });
+      }
+      const balance = await getPagarmeRecipientBalance(recipientId);
+      return res.status(200).json({ success: true, balance });
+    } catch (error: any) {
+      console.error("Erro ao consultar saldo Pagar.me:", error);
+      return res.status(500).json({ success: false, error: error.message || 'Erro interno no servidor' });
+    }
+  });
+
+  // Rota de solicitação de saque Pagar.me
+  app.post('/api/payments/pagarme/request-payout', async (req, res) => {
+    try {
+      const { recipientId, amount } = req.body;
+      
+      if (!recipientId || !amount) {
+        return res.status(400).json({ success: false, error: 'recipientId e amount são obrigatórios' });
+      }
+
+      const transfer = await requestPagarmeTransfer(recipientId, amount);
+      return res.status(200).json({ success: true, transfer });
+    } catch (error: any) {
+      console.error("Erro ao solicitar saque Pagar.me:", error);
+      return res.status(500).json({ success: false, error: error.message || 'Erro interno no servidor' });
     }
   });
 

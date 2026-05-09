@@ -20,7 +20,7 @@ import {
 import { db, firebaseConfig } from './firebase';
 
 // === CONSTANTS ===
-const INTERNAL_SUFFIX = "@insanus.internal";
+const INTERNAL_SUFFIX = "@insanus.com.br";
 
 // === TYPES ===
 

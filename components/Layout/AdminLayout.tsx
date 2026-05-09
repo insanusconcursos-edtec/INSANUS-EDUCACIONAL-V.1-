@@ -10,6 +10,7 @@ const AdminLayout: React.FC = () => {
   const adminNav = useMemo(() => {
     const perms = userData?.permissions || {} as any;
     const isAdmin = userRole === 'ADMIN';
+    const isCoprodutor = userRole === 'COPRODUTOR';
 
     const groups = [
       {
@@ -28,6 +29,20 @@ const AdminLayout: React.FC = () => {
         items: [] as { label: string; path: string }[]
       }
     ];
+
+    if (isCoprodutor) {
+      return [
+        {
+          id: 'coproduction',
+          label: 'COPRODUÇÃO',
+          items: [
+            { label: 'DASHBOARD DE VENDAS', path: '/comercial/coprodutor/dashboard' },
+            { label: 'MINHA CARTEIRA / SAQUES', path: '/comercial/coprodutor/dashboard' },
+            { label: 'MEUS PRODUTOS (COPRODUÇÃO)', path: '/admin/products' }
+          ]
+        }
+      ];
+    }
 
     // PEDAGÓGICO Group
     if (isAdmin || perms.planos) {
@@ -88,7 +103,7 @@ const AdminLayout: React.FC = () => {
     <div className="flex flex-col h-screen bg-brand-black text-white font-sans overflow-hidden">
       <Topbar 
         navGroups={adminNav} 
-        roleLabel={userRole === 'ADMIN' ? 'Administrador' : (userRole === 'SELLER' ? 'Vendedor' : 'Colaborador')}
+        roleLabel={userRole === 'ADMIN' ? 'Administrador' : (userRole === 'SELLER' ? 'Vendedor' : (userRole === 'COPRODUTOR' ? 'Coprodutor' : 'Colaborador'))}
         dashboardLabel="Painel de Controle"
         userEmail={currentUser?.email || 'Admin'}
       />

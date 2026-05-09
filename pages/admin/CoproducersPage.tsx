@@ -11,7 +11,10 @@ import {
   AlertCircle,
   X,
   Check,
-  Link
+  Link,
+  Eye,
+  EyeOff,
+  User as UserIcon
 } from 'lucide-react';
 import { coproducerService } from '../../services/coproducerService';
 import { Coproducer } from '../../types/coproducer';
@@ -27,11 +30,15 @@ const CoproducersPage: React.FC = () => {
   // Form State
   const [formData, setFormData] = useState({
     name: '',
-    email: '',
+    username: '',
+    password: '',
+    confirmPassword: '',
     document: '',
     pagarmeRecipientId: '',
     isActive: true
   });
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   useEffect(() => {
     loadCoproducers();
@@ -51,11 +58,15 @@ const CoproducersPage: React.FC = () => {
   };
 
   const handleOpenModal = (coproducer?: Coproducer) => {
+    setShowPassword(false);
+    setShowConfirmPassword(false);
     if (coproducer) {
       setEditingCoproducer(coproducer);
       setFormData({
         name: coproducer.name,
-        email: coproducer.email,
+        username: coproducer.username || '',
+        password: '', 
+        confirmPassword: '',
         document: coproducer.document,
         pagarmeRecipientId: coproducer.pagarmeRecipientId || '',
         isActive: coproducer.isActive
@@ -64,7 +75,9 @@ const CoproducersPage: React.FC = () => {
       setEditingCoproducer(null);
       setFormData({
         name: '',
-        email: '',
+        username: '',
+        password: '',
+        confirmPassword: '',
         document: '',
         pagarmeRecipientId: '',
         isActive: true
@@ -75,6 +88,15 @@ const CoproducersPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (formData.password && formData.password !== formData.confirmPassword) {
+      return toast.error('As senhas não coincidem!');
+    }
+
+    if (!editingCoproducer && formData.password.length < 6) {
+      return toast.error('A senha deve ter no mínimo 6 caracteres.');
+    }
+
     try {
       if (editingCoproducer) {
         await coproducerService.update(editingCoproducer.id, formData);
@@ -104,6 +126,7 @@ const CoproducersPage: React.FC = () => {
 
   const filteredCoproducers = coproducers.filter(c => 
     c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (c.username && c.username.toLowerCase().includes(searchTerm.toLowerCase())) ||
     c.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
     c.document.includes(searchTerm)
   );
@@ -170,7 +193,10 @@ const CoproducersPage: React.FC = () => {
                     <td className="px-6 py-4">
                       <div>
                         <div className="font-bold text-white group-hover:text-emerald-400 transition-colors uppercase text-sm tracking-tight">{coproducer.name}</div>
-                        <div className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
+                        <div className="text-xs text-gray-500 flex items-center gap-1.5 mt-0.5">
+                          <UserIcon size={12} className="text-emerald-500/50" />
+                          <span className="font-mono">{coproducer.username}</span>
+                          <span className="text-white/10">|</span>
                           <Mail size={12} />
                           {coproducer.email}
                         </div>
@@ -236,11 +262,11 @@ const CoproducersPage: React.FC = () => {
 
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div>
-                <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-1.5">Nome Completo</label>
+                <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-1.5 font-sans">Nome Completo</label>
                 <input 
                   type="text"
                   required
-                  className="w-full px-4 py-2 bg-brand-black border border-white/10 rounded-lg focus:ring-2 focus:ring-emerald-500/50 outline-none transition-all text-white"
+                  className="w-full px-4 py-2 bg-brand-black border border-white/10 rounded-lg focus:ring-2 focus:ring-emerald-500/50 outline-none transition-all text-white placeholder:text-gray-700"
                   value={formData.name}
                   onChange={(e) => setFormData({...formData, name: e.target.value})}
                   placeholder="Ex: João Silva da Silva"
@@ -248,15 +274,67 @@ const CoproducersPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-1.5">E-mail</label>
-                <input 
-                  type="email"
-                  required
-                  className="w-full px-4 py-2 bg-brand-black border border-white/10 rounded-lg focus:ring-2 focus:ring-emerald-500/50 outline-none transition-all text-white"
-                  value={formData.email}
-                  onChange={(e) => setFormData({...formData, email: e.target.value})}
-                  placeholder="joao@exemplo.com"
-                />
+                <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-1.5 font-sans">Usuário (Login)</label>
+                <div className="relative">
+                  <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+                  <input 
+                    type="text"
+                    required
+                    className="w-full pl-10 pr-4 py-2 bg-brand-black border border-white/10 rounded-lg focus:ring-2 focus:ring-emerald-500/50 outline-none transition-all text-white font-mono placeholder:text-gray-700"
+                    value={formData.username}
+                    onChange={(e) => setFormData({...formData, username: e.target.value.toLowerCase().replace(/\s/g, '')})}
+                    placeholder="ex: joaosilva"
+                  />
+                </div>
+                <p className="text-[10px] text-gray-600 mt-1 uppercase font-bold tracking-tighter">Este será usado para login: {formData.username || '...'}</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-1.5 font-sans">Senha</label>
+                  <div className="relative">
+                    <input 
+                      type={showPassword ? "text" : "password"}
+                      required={!editingCoproducer}
+                      className="w-full px-4 py-2 bg-brand-black border border-white/10 rounded-lg focus:ring-2 focus:ring-emerald-500/50 outline-none transition-all text-white placeholder:text-gray-700"
+                      value={formData.password}
+                      onChange={(e) => setFormData({...formData, password: e.target.value})}
+                      placeholder="••••••"
+                    />
+                    <button 
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors"
+                    >
+                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-1.5 font-sans">Confirmar Senha</label>
+                  <div className="relative">
+                    <input 
+                      type={showConfirmPassword ? "text" : "password"}
+                      required={!!formData.password}
+                      className={`w-full px-4 py-2 bg-brand-black border rounded-lg focus:ring-2 outline-none transition-all text-white placeholder:text-gray-700 ${
+                        formData.confirmPassword && formData.password !== formData.confirmPassword 
+                          ? 'border-red-500/50 focus:ring-red-500/50' 
+                          : 'border-white/10 focus:ring-emerald-500/50'
+                      }`}
+                      value={formData.confirmPassword}
+                      onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})}
+                      placeholder="••••••"
+                    />
+                    <button 
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors"
+                    >
+                      {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -308,7 +386,12 @@ const CoproducersPage: React.FC = () => {
                 </button>
                 <button 
                   type="submit"
-                  className="flex-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-all font-bold text-xs uppercase tracking-widest shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-2 active:scale-95"
+                  disabled={formData.password !== formData.confirmPassword || (!editingCoproducer && !formData.password)}
+                  className={`flex-1 px-4 py-2 rounded-lg transition-all font-bold text-xs uppercase tracking-widest shadow-lg flex items-center justify-center gap-2 active:scale-95 ${
+                    (formData.password !== formData.confirmPassword || (!editingCoproducer && !formData.password))
+                      ? 'bg-gray-800 text-gray-500 cursor-not-allowed opacity-50'
+                      : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20'
+                  }`}
                 >
                    {editingCoproducer ? <Check size={16} /> : <UserPlus size={16} />}
                    {editingCoproducer ? 'Salvar' : 'Criar'}

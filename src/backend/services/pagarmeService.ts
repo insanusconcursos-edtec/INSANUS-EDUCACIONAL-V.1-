@@ -20,8 +20,8 @@ const INSTALLMENT_MULTIPLIERS: Record<number, number> = {
 };
 
 const getHeaders = () => {
-  const secretKey = process.env.PAGARME_SECRET_KEY;
-  if (!secretKey) throw new Error('PAGARME_SECRET_KEY not found in environment');
+  const secretKey = process.env.PAGARME_API_KEY || process.env.PAGARME_SECRET_KEY;
+  if (!secretKey) throw new Error('PAGARME_SECRET_KEY/PAGARME_API_KEY not found in environment');
   
   const auth = Buffer.from(`${secretKey}:`).toString('base64');
   return {
@@ -47,7 +47,7 @@ export const createPagarmeOrder = async (orderData: any, initialCoproducers: any
     
     if (productId) {
       console.log(`[Pagarme] Buscando regras no Produto: ${productId}`);
-      const productDoc = await dbAdmin.collection('ticto_products').doc(productId).get();
+      const productDoc = await dbAdmin.collection('products').doc(productId).get();
       
       if (productDoc.exists) {
         const courseData = productDoc.data();
@@ -351,6 +351,73 @@ export const createPagarmeRecipient = async (data: Record<string, any>) => {
   throw new Error('Pagar.me service integration pending.');
 };
 
+export const getPagarmeRecipientBalance = async (recipientId: string) => {
+  if (!recipientId || recipientId === 'undefined' || recipientId === 'null') {
+    console.error('[Pagarme] Error: No recipientId provided for balance check');
+    return { available: 0, waiting_funds: 0, transferred: 0 };
+  }
+
+  const url = `https://api.pagar.me/core/v5/recipients/${recipientId.trim()}/balances`;
+  console.log("[Pagarme] URL chamada:", url);
+  
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: getHeaders()
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[Pagarme] Balance Check API Error (${response.status}):`, errorText);
+      throw new Error(`Erro na API da Pagarme: ${response.status}`);
+    }
+
+    const result = await response.json();
+    console.log("[Pagarme] Saldo recebido:", JSON.stringify(result));
+
+    return {
+      available: result.available_amount || 0,
+      waiting_funds: result.waiting_funds_amount || 0,
+      transferred: result.transferred_amount || 0
+    };
+  } catch (error) {
+    console.error('[Pagarme] Error getting recipient balance:', error);
+    // Return empty balance instead of throwing to prevent front-end crash
+    return {
+      available: 0,
+      waiting_funds: 0,
+      transferred: 0
+    };
+  }
+};
+
+export const requestPagarmeTransfer = async (recipientId: string, amount: number) => {
+  console.log(`[Pagarme] Requesting transfer for recipient: ${recipientId}, amount: ${amount}`);
+  
+  try {
+    const response = await fetch(`https://api.pagar.me/core/v5/transfers`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({
+        amount: amount,
+        source_id: recipientId
+      })
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      console.error('[Pagarme] Transfer API Error:', result);
+      throw new Error(result.message || 'Erro ao processar transferência no Pagar.me');
+    }
+
+    return result;
+  } catch (error) {
+    console.error('[Pagarme] Error requesting transfer:', error);
+    throw error;
+  }
+};
+
 export const getPagarmeOrderStatus = async (orderId: string) => {
   console.log(`[Pagarme] Checking status for order: ${orderId}`);
   
@@ -441,7 +508,7 @@ async function recordAffiliateCommission(orderData: any) {
 
   try {
     // 1. Busca as regras do produto para garantir que estamos aplicando o percentual correto
-    const productDoc = await dbAdmin.collection('ticto_products').doc(courseId).get();
+    const productDoc = await dbAdmin.collection('products').doc(courseId).get();
     if (!productDoc.exists) {
       console.error(`[Commission] Produto ${courseId} não encontrado.`);
       return;
@@ -524,7 +591,7 @@ async function recordAdminSalesReport(orderData: any) {
 
   try {
     // 1. Busca as regras do produto para cálculos precisos
-    const productDoc = await dbAdmin.collection('ticto_products').doc(courseId).get();
+    const productDoc = await dbAdmin.collection('products').doc(courseId).get();
     if (!productDoc.exists) return;
 
     const courseData = productDoc.data();
@@ -614,7 +681,7 @@ async function recordCoproductionCommissions(orderData: any) {
 
   try {
     // 1. Busca as regras do produto para cálculos precisos
-    const productDoc = await dbAdmin.collection('ticto_products').doc(courseId).get();
+    const productDoc = await dbAdmin.collection('products').doc(courseId).get();
     if (!productDoc.exists) return;
 
     const courseData = productDoc.data();

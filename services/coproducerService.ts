@@ -65,6 +65,7 @@ export const coproducerService = {
     const normalizedTerm = term.toLowerCase();
     return all.filter(c => 
       c.name.toLowerCase().includes(normalizedTerm) || 
+      (c.username && c.username.toLowerCase().includes(normalizedTerm)) ||
       c.email.toLowerCase().includes(normalizedTerm) ||
       c.document.includes(normalizedTerm)
     );

@@ -57,8 +57,9 @@ const RootRedirect = () => {
     if (loading) return null;
     if (!currentUser) return <Navigate to="/login" replace />;
     
-    if (userRole === 'ADMIN' || userRole === 'COLLABORATOR' || userRole === 'SELLER') {
+    if (userRole === 'ADMIN' || userRole === 'COLLABORATOR' || userRole === 'SELLER' || userRole === 'COPRODUTOR') {
         const perms = userData?.permissions || {};
+        if (userRole === 'COPRODUTOR') return <Navigate to="/comercial/coprodutor/dashboard" replace />;
         if (userRole === 'SELLER') return <Navigate to="/admin/afiliado" replace />;
         if (userRole === 'ADMIN' || perms.planos) return <Navigate to="/admin/planos" replace />;
         if (perms.vendas) return <Navigate to="/admin/vendas" replace />;
@@ -72,9 +73,16 @@ const AdminRoleGuard = ({ children, permission, strictlyAdmin = false }: { child
     const { userRole, userData } = useAuth();
     if (userRole === 'ADMIN') return <>{children}</>;
     
-    if (strictlyAdmin) {
-        return <Navigate to="/admin" replace />;
+    if (strictlyAdmin && userRole !== 'ADMIN') {
+        return <Navigate to="/comercial/coprodutor/dashboard" replace />;
     }
+    
+    // Coprodutores só podem ver o que for explicitamente permitido ou rotas comuns
+    if (userRole === 'COPRODUTOR' && permission) {
+        return <Navigate to="/comercial/coprodutor/dashboard" replace />;
+    }
+    
+    if (userRole === 'COPRODUTOR') return <>{children}</>;
     
     const perms = userData?.permissions || {};
     
@@ -88,6 +96,7 @@ const AdminRoleGuard = ({ children, permission, strictlyAdmin = false }: { child
 // Helper to determine the first accessible admin route
 const AdminIndexRedirect = () => {
     const { userRole, userData } = useAuth();
+    if (userRole === 'COPRODUTOR') return <Navigate to="/comercial/coprodutor/dashboard" replace />;
     if (userRole === 'SELLER') return <Navigate to="afiliado" replace />;
     if (userRole === 'ADMIN') return <Navigate to="dashboard" replace />;
     
@@ -126,6 +135,15 @@ const App: React.FC = () => {
               </PrivateRoute>
           } />
 
+          <Route path="/comercial" element={
+              <PrivateRoute requiredRole="ADMIN">
+                  <AdminLayout />
+              </PrivateRoute>
+          }>
+              <Route path="coprodutor/dashboard" element={<CoproductionDashboard />} />
+              <Route path="perfil" element={<StudentHome />} />
+          </Route>
+
           <Route path="/admin" element={
               <PrivateRoute requiredRole="ADMIN">
                   <AdminLayout />
@@ -139,7 +157,7 @@ const App: React.FC = () => {
               <Route path="plans/:planId" element={<AdminRoleGuard permission="planos"><PlanEditor /></AdminRoleGuard>} />
               
               <Route path="products" element={<AdminRoleGuard permission="produtos"><ProductsManager /></AdminRoleGuard>} />
-              <Route path="coproducao" element={<CoproductionDashboard />} />
+              <Route path="coproducao" element={<Navigate to="/comercial/coprodutor/dashboard" replace />} />
               <Route path="financeiro" element={<FinancePage />} />
 
               <Route path="cursos" element={<AdminRoleGuard permission="cursos_online"><AdminCoursesTab /></AdminRoleGuard>} /> {/* Nova Rota */}

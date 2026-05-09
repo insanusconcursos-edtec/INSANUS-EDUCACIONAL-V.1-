@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Save, AlertCircle, Upload, ChevronDown, ChevronUp, Search, Plus, Trash2, Copy, Check, Globe, ArrowLeft } from 'lucide-react';
-import { TictoProduct, ProductType, ProductOffer, ProductSplit } from '../../../types/product';
+import { Product, ProductType, ProductOffer, ProductSplit } from '../../../types/product';
 import { createProduct, updateProduct, uploadProductCover } from '../../../services/productService';
 import { getPlans } from '../../../services/planService';
 import { Plan } from '../../../types/plan';
@@ -16,7 +16,7 @@ import { Coproducer } from '../../../types/coproducer';
 import { Users, DollarSign } from 'lucide-react';
 
 interface ProductFormModalProps {
-  product: TictoProduct | null;
+  product: Product | null;
   onClose: () => void;
   onSave: () => void;
 }
@@ -29,7 +29,7 @@ export default function ProductFormModal({ product, onClose, onSave }: ProductFo
   const [name, setName] = useState(product?.name || '');
   const [offers, setOffers] = useState<ProductOffer[]>(product?.offers || []);
   const [coproduction, setCoproduction] = useState<ProductSplit[]>(product?.coproduction || []);
-  const [tictoId, setTictoId] = useState(product?.tictoId || '');
+  const [gatewayId, setGatewayId] = useState(product?.gatewayId || '');
   const [type, setType] = useState<ProductType>(product?.type || 'COMBO');
   const [accessDays, setAccessDays] = useState(product?.accessDays || 365);
   const [coverUrl, setCoverUrl] = useState(product?.coverUrl || '');
@@ -83,7 +83,7 @@ export default function ProductFormModal({ product, onClose, onSave }: ProductFo
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    if (!name || !tictoId || !type || !accessDays) {
+    if (!name || !gatewayId || !type || !accessDays) {
       setError('Preencha todos os campos obrigatórios.');
       setLoading(false);
       return;
@@ -113,7 +113,7 @@ export default function ProductFormModal({ product, onClose, onSave }: ProductFo
       name,
       offers,
       coproduction,
-      tictoId,
+      gatewayId,
       type,
       accessDays,
       coverUrl,
@@ -290,12 +290,12 @@ export default function ProductFormModal({ product, onClose, onSave }: ProductFo
 
                 <div>
                   <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">
-                    ID na Ticto *
+                    ID de Checkout (URL) *
                   </label>
                   <input
                     type="text"
-                    value={tictoId}
-                    onChange={(e) => setTictoId(e.target.value)}
+                    value={gatewayId}
+                    onChange={(e) => setGatewayId(e.target.value)}
                     placeholder="Ex: 12345"
                     className="w-full bg-zinc-950 border border-zinc-800 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 font-mono transition-colors"
                     required

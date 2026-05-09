@@ -23,7 +23,7 @@ interface UserData {
 
 interface AuthContextType {
   currentUser: User | null;
-  userRole: 'ADMIN' | 'STUDENT' | 'COLLABORATOR' | 'SELLER' | null;
+  userRole: 'ADMIN' | 'STUDENT' | 'COLLABORATOR' | 'SELLER' | 'COPRODUTOR' | null;
   userData: UserData | null; // Stores full firestore document data (permissions, etc)
   loading: boolean;
   login: (email: string, password: string) => Promise<UserCredential>;
@@ -43,7 +43,7 @@ export const useAuth = () => {
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [userRole, setUserRole] = useState<'ADMIN' | 'STUDENT' | 'COLLABORATOR' | 'SELLER' | null>(null);
+  const [userRole, setUserRole] = useState<'ADMIN' | 'STUDENT' | 'COLLABORATOR' | 'SELLER' | 'COPRODUTOR' | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -67,11 +67,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 // Determine Role from Firestore Data
                 if (data.role === 'collaborator') {
                     setUserRole('COLLABORATOR');
-                } else if (data.role === 'seller') {
+                } else if (data.role === 'seller' || data.role === 'SELLER') {
                     setUserRole('SELLER');
-                } else if (data.role === 'student') {
+                } else if (data.role === 'coprodutor' || data.role === 'COPRODUTOR') {
+                    setUserRole('COPRODUTOR');
+                } else if (data.role === 'student' || data.role === 'STUDENT') {
                     setUserRole('STUDENT');
-                } else if (data.role === 'admin' || user.email === ADMIN_EMAIL) {
+                } else if (data.role === 'admin' || data.role === 'ADMIN' || user.email === ADMIN_EMAIL) {
                     setUserRole('ADMIN');
                 } else {
                     setUserRole('STUDENT'); // Fallback

@@ -19,10 +19,10 @@ const LoginPage: React.FC = () => {
   // Helper: Decide para onde ir baseado nas permissões
   const getInitialRoute = (userData: { role?: string; permissions?: Record<string, boolean> }): string => {
     // 1. Admin Supremo
-    if (userData.role === 'admin' || !userData.role) return '/admin/planos'; // Fallback to plans for admin
+    if (userData.role === 'admin' || userData.role === 'ADMIN' || !userData.role) return '/admin/planos';
 
-    // 2. Aluno
-    if (userData.role === 'student') return '/app/metas';
+    if (userData.role === 'coprodutor' || userData.role === 'COPRODUTOR') return '/comercial/coprodutor/dashboard';
+    if (userData.role === 'student' || userData.role === 'STUDENT') return '/app/home';
 
     // 3. Colaborador (Verifica Prioridade de Permissões)
     if (userData.role === 'collaborator') {
@@ -49,8 +49,9 @@ const LoginPage: React.FC = () => {
     let authIdentifier = email.trim();
     
     // Se não tiver '@', assume que é um colaborador (username) e adiciona o sufixo
+    const domain = "@insanus.com.br";
     if (!authIdentifier.includes('@')) {
-        authIdentifier = `${authIdentifier}@insanus.internal`;
+        authIdentifier = `${authIdentifier}${domain}`;
     }
 
     try {

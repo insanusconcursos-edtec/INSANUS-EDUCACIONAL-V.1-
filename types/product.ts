@@ -31,11 +31,11 @@ export interface ProductSplit {
   pagarmeRecipientId: string;
 }
 
-export interface TictoProduct {
+export interface Product {
   id?: string;
   name: string;
   price?: number; // Tornou-se opcional em favor das Offers
-  tictoId: string;
+  gatewayId: string;
   type: ProductType;
   accessDays: number;
   coverUrl?: string;

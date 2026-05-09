@@ -95,12 +95,12 @@ const Topbar: React.FC<TopbarProps> = ({ navGroups, roleLabel, dashboardLabel })
       {/* Tier 1: Main Sectors Bar */}
       <div className="h-14 px-6 flex items-center bg-brand-black border-b border-zinc-900/30 overflow-x-auto scrollbar-hide">
         <nav className="flex items-center gap-6 lg:gap-10">
-          {navGroups.map((group) => {
+          {navGroups.map((group, index) => {
             const isGroupActive = activeGroup?.id === group.id;
             
             return (
               <Link
-                key={group.id}
+                key={`${group.id}-${index}`}
                 to={group.items[0]?.path || '/admin'}
                 className={`relative h-14 flex items-center text-[11px] font-black tracking-tighter uppercase transition-all whitespace-nowrap px-1 ${
                   isGroupActive ? 'text-white' : 'text-zinc-600 hover:text-zinc-400'
@@ -108,7 +108,7 @@ const Topbar: React.FC<TopbarProps> = ({ navGroups, roleLabel, dashboardLabel })
               >
                 {group.label}
                 {isGroupActive && (
-                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand-red shadow-[0_0_12px_rgba(255,0,0,0.8)]"></div>
+                  <div key="active-indicator" className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand-red shadow-[0_0_12px_rgba(255,0,0,0.8)]"></div>
                 )}
               </Link>
             );
@@ -120,11 +120,11 @@ const Topbar: React.FC<TopbarProps> = ({ navGroups, roleLabel, dashboardLabel })
       {activeGroup && (
         <div className="h-12 px-6 flex items-center bg-zinc-950 border-b border-zinc-900/50 overflow-x-auto scrollbar-hide">
           <nav className="flex items-center gap-6">
-            {activeGroup.items.map((item) => {
+            {activeGroup.items.map((item, index) => {
               const isItemActive = location.pathname.startsWith(item.path);
               return (
                 <Link
-                  key={item.path}
+                  key={`${item.path}-${index}`}
                   to={item.path}
                   className={`text-[10px] font-bold uppercase tracking-widest transition-all px-2 py-1.5 rounded-md  ${
                     isItemActive 

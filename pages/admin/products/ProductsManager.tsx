@@ -1,31 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Search, Edit2, Trash2, Image, Copy, Check } from 'lucide-react';
-import { TictoProduct } from '../../../types/product';
+import { Product } from '../../../types/product';
 import { getProducts, deleteProduct } from '../../../services/productService';
 import ProductFormModal from './ProductFormModal';
 
 export default function ProductsManager() {
-  const [products, setProducts] = useState<TictoProduct[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [isFormView, setIsFormView] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<TictoProduct | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [productToDelete, setProductToDelete] = useState<any | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   
   // Pega o domínio atual do site dinamicamente
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
-  const tictoWebhookUrl = `${origin}/api/webhooks/ticto`;
   const pagarmeWebhookUrl = `${origin}/api/webhooks/pagarme`;
 
-  const [copiedTicto, setCopiedTicto] = useState(false);
   const [copiedPagarme, setCopiedPagarme] = useState(false);
-
-  const handleCopyTicto = () => {
-    navigator.clipboard.writeText(tictoWebhookUrl);
-    setCopiedTicto(true);
-    setTimeout(() => setCopiedTicto(false), 2000);
-  };
 
   const handleCopyPagarme = () => {
     navigator.clipboard.writeText(pagarmeWebhookUrl);
@@ -49,7 +41,7 @@ export default function ProductsManager() {
     loadProducts();
   }, []);
 
-  const handleEdit = (product: TictoProduct) => {
+  const handleEdit = (product: Product) => {
     setSelectedProduct(product);
     setIsFormView(true);
   };
@@ -71,7 +63,7 @@ export default function ProductsManager() {
 
   const filteredProducts = products.filter(product =>
     product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    product.tictoId.toLowerCase().includes(searchTerm.toLowerCase())
+    product.gatewayId.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   if (isFormView) {
@@ -105,34 +97,7 @@ export default function ProductsManager() {
 
 
       {/* Cards de Integração de Webhook */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        {/* Card Ticto */}
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 flex flex-col justify-between gap-4 shadow-sm">
-          <div>
-            <h3 className="text-sm font-bold text-zinc-300 flex items-center gap-2 uppercase tracking-tight">
-              🔗 URL do Webhook (Integração Ticto)
-            </h3>
-            <p className="text-[10px] text-zinc-500 mt-1 uppercase font-bold">
-              Copie a URL abaixo e cole no painel da Ticto para ativar a liberação automática.
-            </p>
-          </div>
-          
-          <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-lg p-1.5 overflow-hidden">
-            <code className="text-xs text-zinc-400 px-2 truncate flex-1 select-all font-mono">
-              {tictoWebhookUrl}
-            </code>
-            <button
-              onClick={handleCopyTicto}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-black uppercase rounded-md transition shrink-0 ${
-                copiedTicto ? 'bg-green-600/20 text-green-500' : 'bg-zinc-800 hover:bg-zinc-700 text-white'
-              }`}
-            >
-              {copiedTicto ? <Check size={14} /> : <Copy size={14} />}
-              {copiedTicto ? 'Copiado!' : 'Copiar'}
-            </button>
-          </div>
-        </div>
-
+      <div className="grid grid-cols-1 gap-4 mb-6">
         {/* Card Pagar.me */}
         <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 flex flex-col justify-between gap-4 shadow-sm">
           <div>
@@ -181,7 +146,7 @@ export default function ProductsManager() {
               <tr>
                 <th className="px-6 py-4 font-medium">Nome do Produto</th>
                 <th className="px-6 py-4 font-medium">Preço</th>
-                <th className="px-6 py-4 font-medium">ID Ticto</th>
+                <th className="px-6 py-4 font-medium">Link ID</th>
                 <th className="px-6 py-4 font-medium">Tipo</th>
                 <th className="px-6 py-4 font-medium">Acesso (Dias)</th>
                 <th className="px-6 py-4 font-medium text-right">Ações</th>
@@ -226,7 +191,7 @@ export default function ProductsManager() {
                         product.offers?.find(o => o.isDefault)?.price || product.price || 0
                       )}
                     </td>
-                    <td className="px-6 py-4 font-mono text-sm">{product.tictoId}</td>
+                    <td className="px-6 py-4 font-mono text-sm">{product.gatewayId}</td>
                     <td className="px-6 py-4">
                       <span className="px-2 py-1 bg-zinc-800 text-zinc-300 rounded text-xs font-medium">
                         {product.type}
