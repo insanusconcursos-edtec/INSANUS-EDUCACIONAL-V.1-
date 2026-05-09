@@ -17,7 +17,7 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Insanus">
-    <link rel="apple-touch-icon" href="https://firebasestorage.googleapis.com/v0/b/planner-insanus.appspot.com/o/logo_insanus_circular.png?alt=media">
+    <link rel="apple-touch-icon" href="/logo-pwa.png">
     <meta name="theme-color" content="#000000">
 
     <script src="https://cdn.tailwindcss.com"></script>
@@ -27,23 +27,19 @@
         if ('serviceWorker' in navigator) {
           window.addEventListener('load', () => {
             navigator.serviceWorker.register('/sw.js')
-              .then(reg => console.log('✅ SW registrado com sucesso:', reg.scope))
-              .catch(err => {
-                console.warn('⚠️ PWA: Falha no registro do SW (silencioso):', err);
-              });
+              .then(reg => console.log('✅ PWA pronto'))
+              .catch(() => {}); // Falha silenciosa
           });
         }
-      } catch (pwaError) {
-        console.error('❌ Erro crítico ao tentar registrar o PWA:', pwaError);
-      }
+      } catch (e) {}
 
       // Help debug PWA installability
       window.addEventListener('beforeinstallprompt', (e) => {
-        console.log('📱 Evento beforeinstallprompt disparado - O App é instalável!');
+        console.log('📱 App instalável');
       });
 
-      window.addEventListener('appinstalled', (e) => {
-        console.log('🎉 PWA instalado com sucesso!');
+      window.addEventListener('appinstalled', () => {
+        console.log('🎉 PWA instalado');
       });
     </script>
     <script>
