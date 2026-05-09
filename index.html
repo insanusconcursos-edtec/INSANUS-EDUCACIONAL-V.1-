@@ -17,30 +17,17 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Insanus">
-    <link rel="apple-touch-icon" href="/icon-pwa.png">
+    <link rel="apple-touch-icon" href="https://firebasestorage.googleapis.com/v0/b/planner-insanus.appspot.com/o/logo_insanus_circular.png?alt=media">
     <meta name="theme-color" content="#000000">
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
-      // Service Worker Registration (Modo Ultra-Seguro com Limpeza de Cache)
+      // Service Worker Registration (Modo Ultra-Seguro)
       try {
         if ('serviceWorker' in navigator) {
           window.addEventListener('load', () => {
             navigator.serviceWorker.register('/sw.js')
-              .then(reg => {
-                console.log('✅ PWA pronto');
-                // Força atualização se houver mudança no SW
-                reg.onupdatefound = () => {
-                  const installingWorker = reg.installing;
-                  if (installingWorker) {
-                    installingWorker.onstatechange = () => {
-                      if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                        window.location.reload();
-                      }
-                    };
-                  }
-                };
-              })
+              .then(reg => console.log('✅ PWA pronto'))
               .catch(() => {}); // Falha silenciosa
           });
         }

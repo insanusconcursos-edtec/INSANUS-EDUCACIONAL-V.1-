@@ -1,19 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Upload, Image as ImageIcon, Smartphone, Settings } from 'lucide-react';
-import { uploadSystemLogo, uploadPWALogo, uploadFavicon, subscribeToSettings } from '../../services/settingsService';
+import { uploadSystemLogo, uploadPWALogo, uploadFavicon } from '../../services/settingsService';
 
 const Maintenance: React.FC = () => {
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const [isUploadingPWA, setIsUploadingPWA] = useState(false);
   const [isUploadingFavicon, setIsUploadingFavicon] = useState(false);
-  const [settings, setSettings] = useState<any>({});
-
-  useEffect(() => {
-    const unsubscribe = subscribeToSettings((data) => {
-      setSettings(data);
-    });
-    return () => unsubscribe();
-  }, []);
 
   const handleUpload = async (file: File, type: 'logo' | 'pwa' | 'favicon') => {
     try {
@@ -52,11 +44,6 @@ const Maintenance: React.FC = () => {
             <ImageIcon className="text-red-500" /> Logo Principal
           </h3>
           <div className="flex flex-col gap-4">
-            {settings.logoUrl && (
-              <div className="border border-gray-800 rounded-lg p-2 bg-black flex justify-center">
-                <img src={settings.logoUrl} alt="Logo Atual" className="max-h-20 object-contain" />
-              </div>
-            )}
             <p className="text-sm text-gray-400">
               Cabelalho (250x60px).
             </p>
@@ -76,11 +63,6 @@ const Maintenance: React.FC = () => {
             <Settings className="text-red-500 w-5 h-5" /> Favicon (Aba)
           </h3>
           <div className="flex flex-col gap-4">
-            {settings.faviconUrl && (
-              <div className="border border-gray-800 rounded-lg p-2 bg-black flex justify-center">
-                <img src={settings.faviconUrl} alt="Favicon Atual" className="w-8 h-8 object-contain" />
-              </div>
-            )}
             <p className="text-sm text-gray-400">
               Aba do navegador (32x32px).
             </p>
@@ -100,11 +82,6 @@ const Maintenance: React.FC = () => {
             <Smartphone className="text-red-500" /> Logo Mobile (PWA)
           </h3>
           <div className="flex flex-col gap-4">
-            {settings.pwaLogoUrl && (
-              <div className="border border-gray-800 rounded-lg p-2 bg-black flex justify-center">
-                <img src={settings.pwaLogoUrl} alt="PWA Logo Atual" className="w-16 h-16 object-contain" />
-              </div>
-            )}
             <p className="text-sm text-gray-400">
               Ícone App (512x512px, PNG).
             </p>
