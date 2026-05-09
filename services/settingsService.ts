@@ -39,3 +39,14 @@ export const subscribeToLogo = (callback: (url: string | null) => void) => {
     }
   });
 };
+
+export const subscribeToSettings = (callback: (settings: any) => void) => {
+  const settingsRef = doc(db, 'settings', 'appearance');
+  return onSnapshot(settingsRef, (docSnap) => {
+    if (docSnap.exists()) {
+      callback(docSnap.data());
+    } else {
+      callback({});
+    }
+  });
+};

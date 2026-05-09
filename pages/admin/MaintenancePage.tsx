@@ -1,10 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Upload, Image as ImageIcon, Settings, Smartphone } from 'lucide-react';
-import { uploadSystemLogo, uploadPWALogo } from '../../services/settingsService';
+import { uploadSystemLogo, uploadPWALogo, subscribeToSettings } from '../../services/settingsService';
 
 export const BrandingSettings = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [isUploadingPWA, setIsUploadingPWA] = useState(false);
+  const [settings, setSettings] = useState<any>({});
+
+  useEffect(() => {
+    const unsubscribe = subscribeToSettings((data) => {
+      setSettings(data);
+    });
+    return () => unsubscribe();
+  }, []);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, type: 'system' | 'pwa') => {
     const file = e.target.files?.[0];
@@ -60,16 +68,25 @@ export const BrandingSettings = () => {
               <li>Formato ideal: PNG transparente ou SVG.</li>
             </ul>
             
-            <label className="relative inline-flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white text-sm font-bold rounded-lg cursor-pointer transition border border-zinc-700">
-              {isUploading ? 'Enviando...' : <><Upload size={16} /> Enviar Nova Logo</>}
-              <input 
-                type="file" 
-                accept="image/png, image/jpeg, image/svg+xml" 
-                className="hidden" 
-                onChange={(e) => handleFileChange(e, 'system')}
-                disabled={isUploading}
-              />
-            </label>
+            {settings.logoUrl && (
+              <div className="mb-4 p-4 bg-black/50 border border-zinc-800 rounded-lg inline-block text-center">
+                <p className="text-[10px] text-zinc-500 mb-2 uppercase font-bold tracking-widest">Visualização Atual</p>
+                <img src={settings.logoUrl} alt="Logo Atual" className="max-h-12 w-auto object-contain" />
+              </div>
+            )}
+            
+            <div className="flex items-center gap-3">
+              <label className="relative inline-flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white text-sm font-bold rounded-lg cursor-pointer transition border border-zinc-700">
+                {isUploading ? 'Enviando...' : <><Upload size={16} /> Enviar Nova Logo</>}
+                <input 
+                  type="file" 
+                  accept="image/png, image/jpeg, image/svg+xml" 
+                  className="hidden" 
+                  onChange={(e) => handleFileChange(e, 'system')}
+                  disabled={isUploading}
+                />
+              </label>
+            </div>
           </div>
         </div>
 
@@ -84,17 +101,26 @@ export const BrandingSettings = () => {
               <li>Tamanho recomendado: 512x512px (formato quadrado).</li>
               <li>Formato ideal: PNG com fundo sólido ou transparente.</li>
             </ul>
+
+            {settings.pwaLogoUrl && (
+              <div className="mb-4 p-4 bg-black/50 border border-zinc-800 rounded-lg inline-block text-center">
+                <p className="text-[10px] text-zinc-500 mb-2 uppercase font-bold tracking-widest">Ícone Atual</p>
+                <img src={settings.pwaLogoUrl} alt="PWA Logo Atual" className="w-16 h-16 object-contain" />
+              </div>
+            )}
             
-            <label className="relative inline-flex items-center gap-2 px-4 py-2 bg-brand-red/10 border border-brand-red/20 hover:bg-brand-red/20 text-brand-red text-sm font-bold rounded-lg cursor-pointer transition">
-              {isUploadingPWA ? 'Enviando...' : <><Smartphone size={16} /> Enviar Logo Mobile</>}
-              <input 
-                type="file" 
-                accept="image/png, image/jpeg" 
-                className="hidden" 
-                onChange={(e) => handleFileChange(e, 'pwa')}
-                disabled={isUploadingPWA}
-              />
-            </label>
+            <div className="flex items-center gap-3">
+              <label className="relative inline-flex items-center gap-2 px-4 py-2 bg-brand-red/10 border border-brand-red/20 hover:bg-brand-red/20 text-brand-red text-sm font-bold rounded-lg cursor-pointer transition">
+                {isUploadingPWA ? 'Enviando...' : <><Smartphone size={16} /> Enviar Logo Mobile</>}
+                <input 
+                  type="file" 
+                  accept="image/png, image/jpeg" 
+                  className="hidden" 
+                  onChange={(e) => handleFileChange(e, 'pwa')}
+                  disabled={isUploadingPWA}
+                />
+              </label>
+            </div>
           </div>
         </div>
       </div>
