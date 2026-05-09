@@ -12,7 +12,7 @@
     <!-- ReactFlow CSS Injection (Correção de MIME Type) -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reactflow@11.11.4/dist/style.css" />
 
-    <link rel="manifest" href="/manifest.json" />
+    <link rel="manifest" href='data:application/json,{"name":"Insanus Educacional","short_name":"Insanus","start_url":"/","display":"standalone","background_color":"#000000","theme_color":"#000000","icons":[{"src":"https://firebasestorage.googleapis.com/v0/b/planner-insanus.appspot.com/o/logo_insanus_circular.png?alt=media","sizes":"512x512","type":"image/png"}]}'>
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -26,6 +26,13 @@
       try {
         if ('serviceWorker' in navigator) {
           window.addEventListener('load', () => {
+            // Limpeza preventiva de caches antigos
+            if ('caches' in window) {
+              caches.keys().then(names => {
+                for (let name of names) caches.delete(name);
+              }).catch(() => {});
+            }
+
             navigator.serviceWorker.register('/sw.js')
               .then(reg => console.log('✅ PWA pronto'))
               .catch(() => {}); // Falha silenciosa

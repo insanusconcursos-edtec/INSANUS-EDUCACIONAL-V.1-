@@ -7,8 +7,5 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Pass-through: Let the browser handle everything normally.
-  // We only intercept to handle offline fallback if needed, but for "ultra-safe" 
-  // we prefer letting the network handle it.
-  return;
+  event.respondWith(fetch(event.request).catch(() => {}));
 });
