@@ -1,19 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Upload, Image as ImageIcon, Smartphone, Settings } from 'lucide-react';
-import { uploadSystemLogo, uploadPWALogo, uploadFavicon, subscribeToAppearance } from '../../services/settingsService';
+import { uploadSystemLogo, uploadPWALogo, uploadFavicon } from '../../services/settingsService';
 
 const Maintenance: React.FC = () => {
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const [isUploadingPWA, setIsUploadingPWA] = useState(false);
   const [isUploadingFavicon, setIsUploadingFavicon] = useState(false);
-  const [settings, setSettings] = useState<any>({});
-
-  useEffect(() => {
-    const unsub = subscribeToAppearance((data) => {
-      setSettings(data);
-    });
-    return () => unsub();
-  }, []);
 
   const handleUpload = async (file: File, type: 'logo' | 'pwa' | 'favicon') => {
     try {
@@ -53,16 +45,8 @@ const Maintenance: React.FC = () => {
           </h3>
           <div className="flex flex-col gap-4">
             <p className="text-sm text-gray-400">
-              Cabeçalho (250x60px sugerido).
+              Cabelalho (250x60px).
             </p>
-            
-            {/* Preview da Logo */}
-            {settings.logoUrl && (
-              <div className="w-full h-24 bg-gray-950 rounded-lg border border-gray-800 flex items-center justify-center p-4 overflow-hidden">
-                <img src={settings.logoUrl} alt="Logo Principal Preview" className="max-w-full max-h-full object-contain" />
-              </div>
-            )}
-
             <label className="relative inline-flex items-center justify-center gap-2 w-full px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white text-sm font-bold rounded-lg cursor-pointer transition border border-gray-700">
               {isUploadingLogo ? 'Enviando...' : <><Upload size={16} /> Upload Logo</>}
               <input type="file" accept="image/*" className="hidden" onChange={(e) => {
@@ -80,16 +64,8 @@ const Maintenance: React.FC = () => {
           </h3>
           <div className="flex flex-col gap-4">
             <p className="text-sm text-gray-400">
-              Aba do navegador (32x32px sugerido).
+              Aba do navegador (32x32px).
             </p>
-
-            {/* Preview do Favicon */}
-            {settings.faviconUrl && (
-              <div className="w-16 h-16 bg-gray-950 rounded-lg border border-gray-800 flex items-center justify-center p-2 mx-auto">
-                <img src={settings.faviconUrl} alt="Favicon Preview" className="w-8 h-8 object-contain" />
-              </div>
-            )}
-
             <label className="relative inline-flex items-center justify-center gap-2 w-full px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white text-sm font-bold rounded-lg cursor-pointer transition border border-gray-700">
               {isUploadingFavicon ? 'Enviando...' : <><Upload size={16} /> Upload Favicon</>}
               <input type="file" accept="image/*" className="hidden" onChange={(e) => {
@@ -107,16 +83,8 @@ const Maintenance: React.FC = () => {
           </h3>
           <div className="flex flex-col gap-4">
             <p className="text-sm text-gray-400">
-              Ícone App (512x512px sugerido, PNG).
+              Ícone App (512x512px, PNG).
             </p>
-
-            {/* Preview da Logo PWA */}
-            {settings.pwaLogoUrl && (
-              <div className="w-24 h-24 bg-gray-950 rounded-lg border border-gray-800 flex items-center justify-center p-2 mx-auto overflow-hidden">
-                <img src={settings.pwaLogoUrl} alt="PWA Logo Preview" className="w-full h-full object-cover rounded-md" />
-              </div>
-            )}
-
             <label className="relative inline-flex items-center justify-center gap-2 w-full px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white text-sm font-bold rounded-lg cursor-pointer transition border border-gray-700">
               {isUploadingPWA ? 'Enviando...' : <><Upload size={16} /> Upload PWA</>}
               <input type="file" accept="image/*" className="hidden" onChange={(e) => {

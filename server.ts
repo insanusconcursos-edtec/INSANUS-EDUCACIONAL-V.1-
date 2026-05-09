@@ -62,9 +62,117 @@ const PORT = 3000;
 // Middleware para JSON
 app.use(express.json());
 
-// Rota raiz e API (express.json ja definido acima)
+// Rota DINÂMICA para o manifest.json (Sincronizado com Firebase Settings)
+app.get('/manifest.json', async (req, res) => {
+  try {
+    const { dbAdmin } = getAdminConfig();
+    const settingsSnap = await dbAdmin.collection('settings').doc('appearance').get();
+    const settings = settingsSnap.data() || {};
+    
+    // Fallback para a logo padrão
+    const defaultLogo = "https://firebasestorage.googleapis.com/v0/b/planner-insanus.appspot.com/o/logo_insanus_circular.png?alt=media";
+    const pwaLogo = settings.pwaLogoUrl || settings.logoUrl || defaultLogo;
 
-// Configuração do Servidor e Start
+    const manifest = {
+      "short_name": "Insanus",
+      "name": "Insanus Educacional",
+      "description": "Gestão de Estudos de Alta Performance",
+      "icons": [
+        {
+          "src": pwaLogo,
+          "sizes": "192x192",
+          "type": "image/png",
+          "purpose": "any maskable"
+        },
+        {
+          "src": pwaLogo,
+          "sizes": "512x512",
+          "type": "image/png",
+          "purpose": "any maskable"
+        }
+      ],
+      "start_url": "/",
+      "display": "standalone",
+      "theme_color": "#000000",
+      "background_color": "#000000"
+    };
+
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    return res.status(200).send(JSON.stringify(manifest, null, 2));
+  } catch (error) {
+    console.error("Erro ao gerar manifest.json dinamicamente:", error);
+    // Fallback estático em caso de erro no Firestore
+    return res.status(200).json({
+      "short_name": "Insanus",
+      "name": "Insanus Educacional",
+      "start_url": "/",
+      "display": "standalone",
+      "theme_color": "#000000",
+      "background_color": "#000000"
+    });
+  }
+});
+
+// Rota de redirecionamento para o ícone PWA (Tamanhos específicos para o manifest)
+app.get('/icons/icon-192x192.png', async (req, res) => {
+  try {
+    const { dbAdmin } = getAdminConfig();
+    const settingsSnap = await dbAdmin.collection('settings').doc('appearance').get();
+    const settings = settingsSnap.data() || {};
+    const defaultLogo = "https://firebasestorage.googleapis.com/v0/b/planner-insanus.appspot.com/o/logo_insanus_circular.png?alt=media";
+    const pwaLogo = settings.pwaLogoUrl || settings.logoUrl || defaultLogo;
+    return res.redirect(pwaLogo);
+  } catch (error) {
+    return res.redirect("https://firebasestorage.googleapis.com/v0/b/planner-insanus.appspot.com/o/logo_insanus_circular.png?alt=media");
+  }
+});
+
+app.get('/icons/icon-512x512.png', async (req, res) => {
+  try {
+    const { dbAdmin } = getAdminConfig();
+    const settingsSnap = await dbAdmin.collection('settings').doc('appearance').get();
+    const settings = settingsSnap.data() || {};
+    const defaultLogo = "https://firebasestorage.googleapis.com/v0/b/planner-insanus.appspot.com/o/logo_insanus_circular.png?alt=media";
+    const pwaLogo = settings.pwaLogoUrl || settings.logoUrl || defaultLogo;
+    return res.redirect(pwaLogo);
+  } catch (error) {
+    return res.redirect("https://firebasestorage.googleapis.com/v0/b/planner-insanus.appspot.com/o/logo_insanus_circular.png?alt=media");
+  }
+});
+
+// Rota de redirecionamento para o ícone PWA Geral (pwa-icon.png)
+app.get('/pwa-icon.png', async (req, res) => {
+  try {
+    const { dbAdmin } = getAdminConfig();
+    const settingsSnap = await dbAdmin.collection('settings').doc('appearance').get();
+    const settings = settingsSnap.data() || {};
+    const defaultLogo = "https://firebasestorage.googleapis.com/v0/b/planner-insanus.appspot.com/o/logo_insanus_circular.png?alt=media";
+    const pwaLogo = settings.pwaLogoUrl || settings.logoUrl || defaultLogo;
+    return res.redirect(pwaLogo);
+  } catch (error) {
+    return res.redirect("https://firebasestorage.googleapis.com/v0/b/planner-insanus.appspot.com/o/logo_insanus_circular.png?alt=media");
+  }
+});
+
+async function setupVite(app: any) {
+  // Vite middleware para desenvolvimento
+  if (process.env.NODE_ENV !== 'production') {
+    const { createServer: createViteServer } = await import('vite');
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: 'spa',
+    });
+    app.use(vite.middlewares);
+  } else {
+    const distPath = path.join(process.cwd(), 'dist');
+    app.use(express.static(distPath));
+    app.get('*', (req, res) => {
+      res.sendFile(path.join(distPath, 'index.html'));
+    });
+  }
+}
 
   // Nota: As rotas /api/generate-material, /api/panda-videos, /api/panda-explorer, /api/webhooks/ticto,
   // /api/webhooks/pagarme, /api/payments/pagarme/create
@@ -896,42 +1004,21 @@ app.use(express.json());
     }
   }
 
-// --- FINALIZANDO CONFIGURAÇÃO DO SERVIDOR ---
-
 async function startServer() {
-  const distPath = path.join(process.cwd(), 'dist');
-  const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL;
+  await setupVite(app);
 
-  if (isProduction) {
-    // Em produção, servimos os arquivos estáticos do Vite (dist)
-    console.log('📦 Servindo arquivos estáticos de:', distPath);
-    app.use(express.static(distPath));
-    
-    // Fallback para SPA (index.html) para qualquer rota que não seja da API
-    app.get('*', (req, res) => {
-      if (req.path.startsWith('/api')) {
-        return res.status(404).json({ success: false, error: 'API not found' });
-      }
-      res.sendFile(path.join(distPath, 'index.html'));
+  // In AI Studio / Local, we want to listen. 
+  // In Vercel, we export the app and don't listen.
+  if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`Server running on http://localhost:${PORT}`);
     });
-  } else {
-    // Em desenvolvimento, usamos o Vite Middleware
-    console.log('🧪 Iniciando em modo DESENVOLVIMENTO (Vite Middleware)');
-    const { createServer: createViteServer } = await import('vite');
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa',
-    });
-    app.use(vite.middlewares);
   }
-
-  // Sempre escutamos na porta 3000 em AI Studio
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Servidor rodando em http://localhost:${PORT}`);
-    console.log(`🌍 Ambiente: ${isProduction ? 'PRODUÇÃO' : 'DESENVOLVIMENTO'}`);
-  });
 }
 
-startServer();
+// Start the server if we're not being imported as a module (simple check)
+if (!process.env.VERCEL) {
+  startServer();
+}
 
 export default app;
