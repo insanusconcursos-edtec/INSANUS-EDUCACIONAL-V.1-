@@ -39,13 +39,8 @@ interface Commission {
 interface ProductInfo {
   id: string;
   name: string;
-  coproduction: Array<{
-    id: string;
-    userId?: string;
-    percentage: number;
-    name: string;
-    email: string;
-  }>;
+  coproduction: any[];
+  offers?: any[];
 }
 
 interface CoproducerGain {
@@ -81,6 +76,47 @@ const CoproductionDashboard: React.FC = () => {
   const [payoutMessage, setPayoutMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
   const isCoprodutorRole = userRole === 'COPRODUTOR';
+
+  // Date Filtering State
+  const [dateRange, setDateRange] = useState<'today' | '7d' | '30d' | 'month' | 'custom'>('30d');
+  const [customStartDate, setCustomStartDate] = useState<string>('');
+  const [customEndDate, setCustomEndDate] = useState<string>('');
+
+  const dateFilter = useMemo(() => {
+    const now = new Date();
+    let start = new Date();
+    let end = new Date();
+
+    switch (dateRange) {
+      case 'today':
+        start.setHours(0, 0, 0, 0);
+        end.setHours(23, 59, 59, 999);
+        break;
+      case '7d':
+        start.setDate(now.getDate() - 7);
+        break;
+      case '30d':
+        start.setDate(now.getDate() - 30);
+        break;
+      case 'month':
+        start = new Date(now.getFullYear(), now.getMonth(), 1);
+        break;
+      case 'custom':
+        if (customStartDate) start = new Date(customStartDate);
+        if (customEndDate) {
+          end = new Date(customEndDate);
+          end.setHours(23, 59, 59, 999);
+        }
+        break;
+    }
+    return { start, end };
+  }, [dateRange, customStartDate, customEndDate]);
+
+  // Helper to check if a commission is in range
+  const isDateInRange = (dateStr: string, start: Date, end: Date) => {
+    const d = new Date(dateStr);
+    return d >= start && d <= end;
+  };
 
   const fetchBalance = async (recipientId: string) => {
     setLoadingBalance(true);
@@ -173,18 +209,67 @@ const CoproductionDashboard: React.FC = () => {
     // 1. Fetch all baseline data
     const fetchBaseData = async () => {
       try {
-        const [prodSnap, userSnap, managedSnap] = await Promise.all([
+        const [prodSnap, legacyProdSnap, userSnap, managedSnap] = await Promise.all([
           getDocs(collection(db, 'products')),
-          getDocs(query(collection(db, 'users'), where('role', '==', 'coprodutor'))),
+          getDocs(collection(db, 'ticto_products')),
+          getDocs(query(collection(db, 'users'), where('role', 'in', ['coprodutor', 'COPRODUTOR', 'coproducer', 'COPRODUCER']))),
           getDocs(collection(db, 'coproducers'))
         ]);
 
-        const allProducts: ProductInfo[] = prodSnap.docs.map(doc => ({
-          id: doc.id,
-          name: doc.data().name || 'Produto sem nome',
-          coproduction: doc.data().coproduction || []
-        }));
-        setProducts(allProducts);
+        const allProducts: ProductInfo[] = [
+          ...prodSnap.docs.map(doc => {
+            const data = doc.data();
+            return {
+              id: doc.id,
+              name: data.name || 'Produto sem nome',
+              coproduction: data.coproduction || data.splits || data.coproducers || [],
+              offers: data.offers || []
+            };
+          }),
+          ...legacyProdSnap.docs.map(doc => {
+            const data = doc.data();
+            return {
+              id: doc.id,
+              name: data.name || 'Produto sem nome',
+              coproduction: data.coproduction || data.splits || data.coproducers || [],
+              offers: data.offers || []
+            };
+          })
+        ];
+
+        // Ensure unique IDs if there's any overlap (unlikely if they migrated)
+        const uniqueProducts = Array.from(new Map(allProducts.map(p => [p.id, p])).values());
+        
+        let filteredProducts = uniqueProducts;
+        if (isCoprodutorRole && currentUser) {
+          filteredProducts = uniqueProducts.filter(p => {
+            const userUid = currentUser.uid;
+            const userEmail = currentUser.email?.toLowerCase();
+            
+            // Check top level
+            const inTopLevel = p.coproduction.some((cp: any) => 
+              (cp.coproducerId || cp.userId || cp.id || cp.uid) === userUid ||
+              (userEmail && (cp.coproducerEmail || cp.email)?.toLowerCase() === userEmail)
+            );
+
+            // Check offers
+            const inOffers = (p.offers || []).some((off: any) => 
+              (off.coproducers || off.coproduction || []).some((cp: any) => 
+                (cp.coproducerId || cp.userId || cp.id || cp.uid) === userUid ||
+                (userEmail && (cp.coproducerEmail || cp.email)?.toLowerCase() === userEmail)
+              )
+            );
+
+            return inTopLevel || inOffers;
+          });
+        }
+        
+        setProducts(filteredProducts);
+
+        // If only one product, select it by default
+        if (isCoprodutorRole && filteredProducts.length === 1) {
+          setSelectedProductId(filteredProducts[0].id);
+        }
 
         const users: CoproducerUser[] = userSnap.docs.map(doc => ({
           uid: doc.id,
@@ -273,14 +358,19 @@ const CoproductionDashboard: React.FC = () => {
 
       // Add users mentioned in product splits (might not have the role but are coproducers for a product)
       products.forEach(p => {
-        p.coproduction.forEach(cp => {
-          const cid = cp.userId || cp.id;
-          if (!seen.has(cid)) {
+        const pool = [...p.coproduction];
+        (p.offers || []).forEach((off: any) => {
+          pool.push(...(off.coproducers || off.coproduction || []));
+        });
+
+        pool.forEach(cp => {
+          const cid = cp.coproducerId || cp.userId || cp.id || cp.uid;
+          if (cid && !seen.has(cid)) {
             seen.add(cid);
             allCoproducers.push({
               id: cid,
-              name: cp.name,
-              email: cp.email
+              name: cp.coproducerName || cp.name || 'Parceiro',
+              email: cp.coproducerEmail || cp.email || ''
             });
           }
         });
@@ -289,10 +379,15 @@ const CoproductionDashboard: React.FC = () => {
       // Logic for SPECIFIC PRODUCT: Only those explicitly in the split of this product
       const product = products.find(p => p.id === selectedProductId);
       if (product) {
-        allCoproducers = product.coproduction.map(cp => ({
-          id: cp.userId || cp.id,
-          name: cp.name,
-          email: cp.email,
+        const pool = [...product.coproduction];
+        (product.offers || []).forEach((off: any) => {
+          pool.push(...(off.coproducers || off.coproduction || []));
+        });
+
+        allCoproducers = pool.map(cp => ({
+          id: cp.coproducerId || cp.userId || cp.id || cp.uid,
+          name: cp.coproducerName || cp.name || 'Parceiro',
+          email: cp.coproducerEmail || cp.email || '',
           percentage: cp.percentage
         }));
       }
@@ -318,6 +413,9 @@ const CoproductionDashboard: React.FC = () => {
       // 2. Verificação de ID nulo: Ignorar comissões sem ID de coprodutor
       if (!comm.coproducerId) return;
 
+      // Filter by Date
+      if (!isDateInRange(comm.createdAt, dateFilter.start, dateFilter.end)) return;
+
       // If filtering by product, ignore other products
       if (selectedProductId !== 'all' && comm.courseId !== selectedProductId) return;
 
@@ -331,23 +429,46 @@ const CoproductionDashboard: React.FC = () => {
 
     // 3. Ordenação: Maior faturamento primeiro
     return Array.from(map.values()).sort((a, b) => b.totalGained - a.totalGained);
-  }, [commissions, products, coproducerUsers, managedCoproducers, selectedProductId]);
+  }, [commissions, products, coproducerUsers, managedCoproducers, selectedProductId, dateFilter]);
 
   const globalStats = useMemo(() => {
-    const relevantComms = selectedProductId === 'all' 
-      ? commissions 
-      : commissions.filter(c => c.courseId === selectedProductId);
+    // Current period
+    const relevantComms = commissions.filter(c => {
+      const matchProduct = selectedProductId === 'all' || c.courseId === selectedProductId;
+      const matchDate = isDateInRange(c.createdAt, dateFilter.start, dateFilter.end);
+      return matchProduct && matchDate;
+    });
+
+    // Previous period (for growth calculation)
+    const duration = dateFilter.end.getTime() - dateFilter.start.getTime();
+    const prevStart = new Date(dateFilter.start.getTime() - duration);
+    const prevEnd = new Date(dateFilter.end.getTime() - duration);
+
+    const prevComms = commissions.filter(c => {
+      const matchProduct = selectedProductId === 'all' || c.courseId === selectedProductId;
+      const matchDate = isDateInRange(c.createdAt, prevStart, prevEnd);
+      return matchProduct && matchDate;
+    });
 
     const total = relevantComms.reduce((acc, c) => acc + c.commissionValue, 0);
+    const prevTotal = prevComms.reduce((acc, c) => acc + c.commissionValue, 0);
+    
+    const growth = prevTotal === 0 
+      ? (total > 0 ? 100 : 0) 
+      : ((total - prevTotal) / prevTotal) * 100;
+
     const count = relevantComms.length;
     const uniqueCoproducers = new Set(relevantComms.map(c => c.coproducerId)).size;
+    const uniqueProducts = new Set(relevantComms.map(c => c.courseId)).size;
 
     return {
       total: total / 100,
       count,
-      uniqueCoproducers
+      uniqueCoproducers,
+      uniqueProducts,
+      growth
     };
-  }, [commissions, selectedProductId]);
+  }, [commissions, selectedProductId, dateFilter]);
 
   if (loading) {
     return (
@@ -371,13 +492,28 @@ const CoproductionDashboard: React.FC = () => {
           </p>
         </div>
         
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row items-center gap-3">
           <div className="relative group">
-            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4 transition-colors group-hover:text-brand-blue" />
+            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
+            <select
+              value={dateRange}
+              onChange={(e) => setDateRange(e.target.value as any)}
+              className="pl-10 pr-8 py-2 bg-brand-dark/50 border border-brand-white/10 rounded-lg text-white focus:outline-none focus:border-brand-blue transition-all appearance-none cursor-pointer font-medium"
+            >
+              <option value="today">Hoje</option>
+              <option value="7d">Últimos 7 dias</option>
+              <option value="30d">Últimos 30 dias</option>
+              <option value="month">Mês Atual</option>
+              <option value="custom">📅 Personalizado</option>
+            </select>
+          </div>
+
+          <div className="relative group">
+            <Package className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4 transition-colors group-hover:text-brand-blue" />
             <select
               value={selectedProductId}
               onChange={(e) => setSelectedProductId(e.target.value)}
-              className="pl-10 pr-8 py-2 bg-brand-dark/50 border border-brand-white/10 rounded-lg text-white focus:outline-none focus:border-brand-blue transition-all appearance-none cursor-pointer min-w-[250px] font-medium"
+              className="pl-10 pr-8 py-2 bg-brand-dark/50 border border-brand-white/10 rounded-lg text-white focus:outline-none focus:border-brand-blue transition-all appearance-none cursor-pointer min-w-[200px] font-medium"
             >
               <option value="all">📊 Todos os Produtos</option>
               {products.map(p => (
@@ -388,8 +524,35 @@ const CoproductionDashboard: React.FC = () => {
         </div>
       </header>
 
+      {dateRange === 'custom' && (
+        <motion.div 
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-brand-dark/30 p-4 rounded-xl border border-brand-white/5 flex flex-wrap gap-4 items-end"
+        >
+          <div className="space-y-1">
+            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Início</p>
+            <input 
+              type="date" 
+              value={customStartDate}
+              onChange={(e) => setCustomStartDate(e.target.value)}
+              className="bg-brand-black border border-brand-white/10 rounded-lg px-3 py-2 text-white text-sm"
+            />
+          </div>
+          <div className="space-y-1">
+            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Fim</p>
+            <input 
+              type="date" 
+              value={customEndDate}
+              onChange={(e) => setCustomEndDate(e.target.value)}
+              className="bg-brand-black border border-brand-white/10 rounded-lg px-3 py-2 text-white text-sm"
+            />
+          </div>
+        </motion.div>
+      )}
+
       {/* Wallet / Balance Section */}
-      {userProfile?.pagarmeRecipientId && (
+      {isCoprodutorRole && userProfile?.pagarmeRecipientId && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <motion.div 
             initial={{ opacity: 0, scale: 0.95 }}
@@ -541,7 +704,9 @@ const CoproductionDashboard: React.FC = () => {
           </div>
           <div className="pt-4 border-t border-brand-white/5 flex items-center justify-between">
             <span className="text-[10px] text-gray-500 font-bold uppercase tracking-tighter">Valor Líquido Coprodutores</span>
-            <span className="text-brand-blue font-bold text-xs">+12% vs mês ant.</span>
+            <span className={`font-bold text-xs ${globalStats.growth >= 0 ? 'text-brand-blue' : 'text-red-500'}`}>
+              {globalStats.growth >= 0 ? '+' : ''}{globalStats.growth.toFixed(1)}% vs ant.
+            </span>
           </div>
         </motion.div>
 
@@ -585,7 +750,9 @@ const CoproductionDashboard: React.FC = () => {
                 {isCoprodutorRole ? "Produtos com Vendas" : "Parceiros Ativos"}
               </p>
               <h2 className="text-3xl font-black text-white mt-0.5">
-                {selectedProductId === 'all' ? globalStats.uniqueCoproducers : coproducerGains.length}
+                {selectedProductId === 'all' 
+                  ? (isCoprodutorRole ? globalStats.uniqueProducts : globalStats.uniqueCoproducers) 
+                  : (isCoprodutorRole ? (globalStats.count > 0 ? 1 : 0) : coproducerGains.length)}
               </h2>
             </div>
           </div>

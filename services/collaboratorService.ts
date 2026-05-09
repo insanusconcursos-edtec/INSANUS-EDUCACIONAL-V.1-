@@ -18,9 +18,7 @@ import {
   serverTimestamp 
 } from 'firebase/firestore';
 import { db, firebaseConfig } from './firebase';
-
-// === CONSTANTS ===
-const INTERNAL_SUFFIX = "@insanus.com.br";
+import { AUTH_CONFIG } from './authConstants';
 
 // === TYPES ===
 
@@ -67,7 +65,7 @@ export const createCollaborator = async (data: CreateCollaboratorData): Promise<
   const secondaryApp = initializeApp(firebaseConfig, "SecondaryTeamManager");
   const secondaryAuth = getAuth(secondaryApp);
 
-  const internalEmail = `${data.username.toLowerCase().trim()}${INTERNAL_SUFFIX}`;
+  const internalEmail = `${data.username.toLowerCase().trim()}${AUTH_CONFIG.DOMAIN_SUFFIX}`;
 
   try {
     // 2. Create User in Auth

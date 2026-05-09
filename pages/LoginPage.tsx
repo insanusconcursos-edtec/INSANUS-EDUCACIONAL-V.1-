@@ -6,6 +6,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { db } from '../services/firebase';
 import { SystemLogo } from '../components/common/SystemLogo';
 
+import { AUTH_CONFIG } from '../services/authConstants';
+
 const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -18,40 +20,37 @@ const LoginPage: React.FC = () => {
 
   // Helper: Decide para onde ir baseado nas permissões
   const getInitialRoute = (userData: { role?: string; permissions?: Record<string, boolean> }): string => {
+    const roleLower = (userData.role || '').toLowerCase();
+
     // 1. Admin Supremo
-    if (userData.role === 'admin' || userData.role === 'ADMIN' || !userData.role) return '/admin/planos';
+    if (roleLower === 'admin' || !userData.role) return '/admin/dashboard';
 
-    if (userData.role === 'coprodutor' || userData.role === 'COPRODUTOR') return '/comercial/coprodutor/dashboard';
-    if (userData.role === 'student' || userData.role === 'STUDENT') return '/app/home';
-
-    // 3. Colaborador (Verifica Prioridade de Permissões)
-    if (userData.role === 'collaborator') {
-        const perms = userData.permissions || {};
-        
-        if (perms.planos) return '/admin/planos';
-        if (perms.simulados) return '/admin/simulados';
-        if (perms.alunos) return '/admin/alunos';
-        if (perms.equipe) return '/admin/equipe';
-        
-        // Se não tiver nenhuma permissão explícita, mas logou
-        return '/admin/planos'; // Ou uma página de "Sem Acesso"
+    // 2. Coprodutor
+    if (roleLower === 'coprodutor' || roleLower === 'coproducer') return '/comercial/coprodutor/dashboard';
+    
+    // 3. Vendedor / Afiliado / Colaborador (Redirecionamento para Dashboard Comercial)
+    if (roleLower === 'seller' || roleLower === 'vendedor' || roleLower === 'afiliado' || roleLower === 'collaborator') {
+      return '/comercial/dashboard-afiliado';
     }
 
+    // 4. Estudante
+    if (roleLower === 'student') return '/app/home';
+
     // Default Fallback
-    return '/';
+    return '/app/home';
   };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     
-    // Lógica de Login Híbrido
+    // Lógica de Login Inteligente
     let authIdentifier = email.trim();
     
-    // Se não tiver '@', assume que é um colaborador (username) e adiciona o sufixo
-    const domain = "@insanus.com.br";
-    if (!authIdentifier.includes('@')) {
-        authIdentifier = `${authIdentifier}${domain}`;
+    // Se não tiver '@', é um slug. Concatena com o sufixo padronizado
+    // Se tiver '@', usa o e-mail exato (suporta gmail, hotmail, etc)
+    if (authIdentifier && !authIdentifier.includes('@')) {
+        authIdentifier = `${authIdentifier}${AUTH_CONFIG.DOMAIN_SUFFIX}`;
     }
 
     try {

@@ -286,7 +286,7 @@ const CoproducersPage: React.FC = () => {
                     placeholder="ex: joaosilva"
                   />
                 </div>
-                <p className="text-[10px] text-gray-600 mt-1 uppercase font-bold tracking-tighter">Este será usado para login: {formData.username || '...'}</p>
+                <p className="text-[10px] text-gray-600 mt-1 uppercase font-bold tracking-tighter">Login: {formData.username || '...'}{'@insanus.com.br'}</p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">

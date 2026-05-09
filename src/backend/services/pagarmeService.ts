@@ -736,8 +736,8 @@ async function recordCoproductionCommissions(orderData: any) {
           if (commissionValue > 0) {
             const commRef = dbAdmin.collection('coproduction_commissions').doc();
             batch.set(commRef, {
-              coproducerId: copro.userId || copro.id || 'unknown',
-              coproducerName: copro.name || 'Coprodutor',
+              coproducerId: copro.coproducerId || copro.userId || copro.id || 'unknown',
+              coproducerName: copro.coproducerName || copro.name || 'Coprodutor',
               orderId: orderData.id,
               courseId,
               courseName: currentOffer?.title || courseData?.name || 'Produto Digital',

@@ -60,8 +60,9 @@ const RootRedirect = () => {
     if (userRole === 'ADMIN' || userRole === 'COLLABORATOR' || userRole === 'SELLER' || userRole === 'COPRODUTOR') {
         const perms = userData?.permissions || {};
         if (userRole === 'COPRODUTOR') return <Navigate to="/comercial/coprodutor/dashboard" replace />;
-        if (userRole === 'SELLER') return <Navigate to="/admin/afiliado" replace />;
-        if (userRole === 'ADMIN' || perms.planos) return <Navigate to="/admin/planos" replace />;
+        // Redireciona Colaboradores e Vendedores para o mesmo dashboard de afiliados/comissões
+        if (userRole === 'SELLER' || userRole === 'COLLABORATOR') return <Navigate to="/comercial/dashboard-afiliado" replace />;
+        if (userRole === 'ADMIN' || perms.planos) return <Navigate to="/admin/dashboard" replace />;
         if (perms.vendas) return <Navigate to="/admin/vendas" replace />;
         return <Navigate to="/admin/alunos" replace />;
     }
@@ -97,7 +98,7 @@ const AdminRoleGuard = ({ children, permission, strictlyAdmin = false }: { child
 const AdminIndexRedirect = () => {
     const { userRole, userData } = useAuth();
     if (userRole === 'COPRODUTOR') return <Navigate to="/comercial/coprodutor/dashboard" replace />;
-    if (userRole === 'SELLER') return <Navigate to="afiliado" replace />;
+    if (userRole === 'SELLER' || userRole === 'COLLABORATOR') return <Navigate to="/comercial/dashboard-afiliado" replace />;
     if (userRole === 'ADMIN') return <Navigate to="dashboard" replace />;
     
     const perms = userData?.permissions || {};
@@ -141,6 +142,7 @@ const App: React.FC = () => {
               </PrivateRoute>
           }>
               <Route path="coprodutor/dashboard" element={<CoproductionDashboard />} />
+              <Route path="dashboard-afiliado" element={<AffiliateDashboard />} />
               <Route path="perfil" element={<StudentHome />} />
           </Route>
 

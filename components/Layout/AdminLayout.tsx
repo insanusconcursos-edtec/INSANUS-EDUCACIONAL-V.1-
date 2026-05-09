@@ -36,8 +36,23 @@ const AdminLayout: React.FC = () => {
           id: 'coproduction',
           label: 'COPRODUÇÃO',
           items: [
-            { label: 'DASHBOARD DE VENDAS', path: '/comercial/coprodutor/dashboard' },
-            { label: 'MINHA CARTEIRA / SAQUES', path: '/comercial/coprodutor/dashboard' }
+            { label: 'MEU FATURAMENTO', path: '/comercial/coprodutor/dashboard' },
+            { label: 'MINHA CARTEIRA', path: '/comercial/coprodutor/dashboard' },
+            { label: 'MEUS PRODUTOS', path: '/comercial/coprodutor/dashboard' }
+          ]
+        }
+      ];
+    }
+
+    if (userRole === 'SELLER') {
+      return [
+        {
+          id: 'vendedor',
+          label: 'VENDEDOR / AFILIADO',
+          items: [
+            { label: 'MINHAS VENDAS', path: '/comercial/dashboard-afiliado' },
+            { label: 'LINKS DE AFILIADO', path: '/comercial/dashboard-afiliado' },
+            { label: 'PRODUTOS DISPONÍVEIS', path: '/comercial/dashboard-afiliado' }
           ]
         }
       ];

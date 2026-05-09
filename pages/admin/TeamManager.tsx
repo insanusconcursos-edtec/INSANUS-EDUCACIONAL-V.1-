@@ -232,6 +232,7 @@ const CreateCollaboratorModal = ({
                     className="w-full bg-zinc-900 border border-zinc-800 rounded-xl py-2.5 pl-9 pr-4 text-xs text-white placeholder-zinc-700 focus:border-brand-red focus:outline-none disabled:opacity-50"
                   />
                 </div>
+                <p className="text-[9px] text-zinc-600 mt-1 uppercase font-bold tracking-tighter">Login: {username || '...'}{'@insanus.com.br'}</p>
               </div>
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-zinc-400 uppercase">

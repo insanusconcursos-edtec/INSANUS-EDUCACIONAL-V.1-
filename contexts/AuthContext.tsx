@@ -64,16 +64,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 const data = userDocSnap.data();
                 setUserData(data);
                 
+                const roleLower = (data.role || '').toLowerCase();
+
                 // Determine Role from Firestore Data
-                if (data.role === 'collaborator') {
+                if (roleLower === 'collaborator') {
                     setUserRole('COLLABORATOR');
-                } else if (data.role === 'seller' || data.role === 'SELLER') {
+                } else if (roleLower === 'seller' || roleLower === 'vendedor' || roleLower === 'afiliado') {
                     setUserRole('SELLER');
-                } else if (data.role === 'coprodutor' || data.role === 'COPRODUTOR') {
+                } else if (roleLower === 'coprodutor' || roleLower === 'coproducer') {
                     setUserRole('COPRODUTOR');
-                } else if (data.role === 'student' || data.role === 'STUDENT') {
+                } else if (roleLower === 'student') {
                     setUserRole('STUDENT');
-                } else if (data.role === 'admin' || data.role === 'ADMIN' || user.email === ADMIN_EMAIL) {
+                } else if (roleLower === 'admin' || user.email === ADMIN_EMAIL) {
                     setUserRole('ADMIN');
                 } else {
                     setUserRole('STUDENT'); // Fallback
