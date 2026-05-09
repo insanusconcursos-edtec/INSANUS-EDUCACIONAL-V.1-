@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { provisionTictoPurchase, revokeTictoPurchase } from '../../src/backend/services/provisioningService.js';
+import { provisionPurchase, revokePurchase } from '../../src/backend/services/provisioningService.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // 1. Webhooks da Ticto vêm via POST
@@ -33,10 +33,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Processamento de Ações de Provisionamento ou Revogação
     if (status === 'approved' || status === 'paid' || status === 'authorized') {
-      await provisionTictoPurchase(customer, String(item.product_id));
+      await provisionPurchase(customer, String(item.product_id), 'ticto');
       console.log(`🚀 Acesso liberado para ${customer?.email} (Produto: ${item?.product_id})`);
     } else if (['refunded', 'chargeback', 'canceled', 'overdue'].includes(status)) {
-      await revokeTictoPurchase(customer?.email, String(item.product_id));
+      await revokePurchase(customer?.email, String(item.product_id));
       console.log(`🚫 Acesso revogado para ${customer?.email} (Produto: ${item?.product_id})`);
     } else {
       console.log(`ℹ️ Status '${status}' ignorado. Nenhuma ação necessária.`);
