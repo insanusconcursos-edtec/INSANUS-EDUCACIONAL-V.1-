@@ -64,17 +64,7 @@ app.use(express.json());
 
 // Rota raiz e API (express.json ja definido acima)
 
-async function setupVite(app: any) {
-  // Vite middleware para desenvolvimento (APENAS PARA LOCAL)
-  if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
-    const { createServer: createViteServer } = await import('vite');
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa',
-    });
-    app.use(vite.middlewares);
-  }
-}
+// Configuração do Servidor e Start
 
   // Nota: As rotas /api/generate-material, /api/panda-videos, /api/panda-explorer, /api/webhooks/ticto,
   // /api/webhooks/pagarme, /api/payments/pagarme/create
@@ -906,38 +896,42 @@ async function setupVite(app: any) {
     }
   }
 
-// Roteamento de arquivos estáticos e SPA Fallback para Produção (Vercel)
-if (process.env.NODE_ENV === 'production' || process.env.VERCEL) {
+// --- FINALIZANDO CONFIGURAÇÃO DO SERVIDOR ---
+
+async function startServer() {
   const distPath = path.join(process.cwd(), 'dist');
-  app.use(express.static(distPath));
-  
-  // Fallback para qualquer rota que não seja da API
-  app.get('*', (req, res) => {
-    // Se não for uma rota /api, serve o index.html
-    if (!req.path.startsWith('/api')) {
-      const indexPath = path.join(distPath, 'index.html');
-      res.sendFile(indexPath);
-    } else {
-      res.status(404).json({ success: false, error: 'API endpoint not found' });
-    }
+  const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL;
+
+  if (isProduction) {
+    // Em produção, servimos os arquivos estáticos do Vite (dist)
+    console.log('📦 Servindo arquivos estáticos de:', distPath);
+    app.use(express.static(distPath));
+    
+    // Fallback para SPA (index.html) para qualquer rota que não seja da API
+    app.get('*', (req, res) => {
+      if (req.path.startsWith('/api')) {
+        return res.status(404).json({ success: false, error: 'API not found' });
+      }
+      res.sendFile(path.join(distPath, 'index.html'));
+    });
+  } else {
+    // Em desenvolvimento, usamos o Vite Middleware
+    console.log('🧪 Iniciando em modo DESENVOLVIMENTO (Vite Middleware)');
+    const { createServer: createViteServer } = await import('vite');
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: 'spa',
+    });
+    app.use(vite.middlewares);
+  }
+
+  // Sempre escutamos na porta 3000 em AI Studio
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 Servidor rodando em http://localhost:${PORT}`);
+    console.log(`🌍 Ambiente: ${isProduction ? 'PRODUÇÃO' : 'DESENVOLVIMENTO'}`);
   });
 }
 
-async function startServer() {
-  await setupVite(app);
-
-  // In AI Studio / Local, we want to listen. 
-  // In Vercel, we export the app and don't listen.
-  if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log(`Server running on http://localhost:${PORT}`);
-    });
-  }
-}
-
-// Start the server if we're not being imported as a module (simple check)
-if (!process.env.VERCEL) {
-  startServer();
-}
+startServer();
 
 export default app;
