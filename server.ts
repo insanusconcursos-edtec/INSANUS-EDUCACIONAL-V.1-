@@ -62,100 +62,6 @@ const PORT = 3000;
 // Middleware para JSON
 app.use(express.json());
 
-// Rota DINÂMICA para o manifest.json (Sincronizado com Firebase Settings)
-app.get('/manifest.json', async (req, res) => {
-  try {
-    const { dbAdmin } = getAdminConfig();
-    const settingsSnap = await dbAdmin.collection('settings').doc('appearance').get();
-    const settings = settingsSnap.data() || {};
-    
-    // Fallback para a logo padrão
-    const defaultLogo = "https://firebasestorage.googleapis.com/v0/b/planner-insanus.appspot.com/o/logo_insanus_circular.png?alt=media";
-    const pwaLogo = settings.pwaLogoUrl || settings.logoUrl || defaultLogo;
-
-    const manifest = {
-      "short_name": "Insanus",
-      "name": "Insanus Educacional",
-      "description": "Gestão de Estudos de Alta Performance",
-      "icons": [
-        {
-          "src": pwaLogo,
-          "sizes": "192x192",
-          "type": "image/png",
-          "purpose": "any maskable"
-        },
-        {
-          "src": pwaLogo,
-          "sizes": "512x512",
-          "type": "image/png",
-          "purpose": "any maskable"
-        }
-      ],
-      "start_url": "/",
-      "display": "standalone",
-      "theme_color": "#000000",
-      "background_color": "#000000"
-    };
-
-    res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    return res.status(200).send(JSON.stringify(manifest, null, 2));
-  } catch (error) {
-    console.error("Erro ao gerar manifest.json dinamicamente:", error);
-    // Fallback estático em caso de erro no Firestore
-    return res.status(200).json({
-      "short_name": "Insanus",
-      "name": "Insanus Educacional",
-      "start_url": "/",
-      "display": "standalone",
-      "theme_color": "#000000",
-      "background_color": "#000000"
-    });
-  }
-});
-
-// Rota de redirecionamento para o ícone PWA (Tamanhos específicos para o manifest)
-app.get('/icons/icon-192x192.png', async (req, res) => {
-  try {
-    const { dbAdmin } = getAdminConfig();
-    const settingsSnap = await dbAdmin.collection('settings').doc('appearance').get();
-    const settings = settingsSnap.data() || {};
-    const defaultLogo = "https://firebasestorage.googleapis.com/v0/b/planner-insanus.appspot.com/o/logo_insanus_circular.png?alt=media";
-    const pwaLogo = settings.pwaLogoUrl || settings.logoUrl || defaultLogo;
-    return res.redirect(pwaLogo);
-  } catch (error) {
-    return res.redirect("https://firebasestorage.googleapis.com/v0/b/planner-insanus.appspot.com/o/logo_insanus_circular.png?alt=media");
-  }
-});
-
-app.get('/icons/icon-512x512.png', async (req, res) => {
-  try {
-    const { dbAdmin } = getAdminConfig();
-    const settingsSnap = await dbAdmin.collection('settings').doc('appearance').get();
-    const settings = settingsSnap.data() || {};
-    const defaultLogo = "https://firebasestorage.googleapis.com/v0/b/planner-insanus.appspot.com/o/logo_insanus_circular.png?alt=media";
-    const pwaLogo = settings.pwaLogoUrl || settings.logoUrl || defaultLogo;
-    return res.redirect(pwaLogo);
-  } catch (error) {
-    return res.redirect("https://firebasestorage.googleapis.com/v0/b/planner-insanus.appspot.com/o/logo_insanus_circular.png?alt=media");
-  }
-});
-
-// Rota de redirecionamento para o ícone PWA Geral (pwa-icon.png)
-app.get('/pwa-icon.png', async (req, res) => {
-  try {
-    const { dbAdmin } = getAdminConfig();
-    const settingsSnap = await dbAdmin.collection('settings').doc('appearance').get();
-    const settings = settingsSnap.data() || {};
-    const defaultLogo = "https://firebasestorage.googleapis.com/v0/b/planner-insanus.appspot.com/o/logo_insanus_circular.png?alt=media";
-    const pwaLogo = settings.pwaLogoUrl || settings.logoUrl || defaultLogo;
-    return res.redirect(pwaLogo);
-  } catch (error) {
-    return res.redirect("https://firebasestorage.googleapis.com/v0/b/planner-insanus.appspot.com/o/logo_insanus_circular.png?alt=media");
-  }
-});
-
 async function setupVite(app: any) {
   // Vite middleware para desenvolvimento
   if (process.env.NODE_ENV !== 'production') {
@@ -174,7 +80,7 @@ async function setupVite(app: any) {
   }
 }
 
-  // Nota: As rotas /api/generate-material, /api/panda-videos, /api/panda-explorer, /api/webhooks/ticto,
+// Note: As rotas /api/generate-material, /api/panda-videos, /api/panda-explorer, /api/webhooks/ticto,
   // /api/webhooks/pagarme, /api/payments/pagarme/create
   // e /api/admin/courses/:courseId/students foram migradas para Vercel Serverless Functions na pasta /api.
   // Elas são mantidas aqui apenas para compatibilidade com o ambiente de desenvolvimento local.
