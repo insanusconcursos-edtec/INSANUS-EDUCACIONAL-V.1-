@@ -16,7 +16,7 @@ import {
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from './firebase';
-import { sanitizeData as cleanObject } from './firestoreUtils';
+import { sanitizeData as cleanObject, toPlainObject } from './firestoreUtils';
 import { Plan } from '../types/plan';
 
 // Interfaces
@@ -98,7 +98,8 @@ export const getPlanById = async (id: string): Promise<Plan | null> => {
   const docSnap = await getDoc(docRef);
   
   if (docSnap.exists()) {
-    return { id: docSnap.id, ...docSnap.data() } as Plan;
+    // Converte para objeto plano para evitar erros de estrutura circular e Timestamps no estado
+    return toPlainObject({ id: docSnap.id, ...docSnap.data() }) as Plan;
   } else {
     return null;
   }

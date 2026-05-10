@@ -16,6 +16,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from './firebase';
 import { getDisciplines, getTopics } from './structureService';
 import { touchPlan } from './planService';
+import { toPlainObject } from './firestoreUtils';
 
 export type MetaType = 'lesson' | 'material' | 'questions' | 'law' | 'summary' | 'review' | 'simulado';
 
@@ -140,7 +141,8 @@ export const getMetas = async (planId: string, discId: string, topicId: string):
   const q = query(collection(db, path));
   const snapshot = await getDocs(q);
   
-  const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Meta));
+  // Converte para objeto plano para evitar erros de estrutura circular e Timestamps no estado
+  const list = snapshot.docs.map(doc => toPlainObject({ id: doc.id, ...doc.data() }) as Meta);
   
   return list.sort((a, b) => {
     const orderA = a.order ?? 99999;

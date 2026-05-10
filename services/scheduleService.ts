@@ -4,6 +4,7 @@ import { Plan, getPlanById } from './planService';
 import { StudentRoutine, StudyProfile, getStudentCompletedMetas } from './studentService';
 import { getDisciplines, getTopics } from './structureService';
 import { getMetas } from './metaService';
+import { toPlainObject } from './firestoreUtils';
 
 export interface ScheduledEvent {
   id?: string;
@@ -1097,10 +1098,12 @@ export const fetchFullPlanData = async (planId: string) => {
             })
         );
 
-        return {
+        const result = {
             ...plan,
             disciplines: disciplinesWithTopics
         };
+
+        return toPlainObject(result);
     } catch (error) {
         console.error("Error fetching full plan data:", error);
         return null;

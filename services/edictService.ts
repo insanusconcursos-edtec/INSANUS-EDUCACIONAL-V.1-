@@ -9,7 +9,7 @@ import {
 import { db } from './firebase';
 import { MetaType } from './metaService';
 import { touchPlan } from './planService';
-import { sanitizeData } from './firestoreUtils';
+import { sanitizeData, toPlainObject } from './firestoreUtils';
 
 // === TYPES ===
 
@@ -96,7 +96,8 @@ export const getEdict = async (planId: string): Promise<EdictStructure> => {
   const docSnap = await getDoc(docRef);
 
   if (docSnap.exists()) {
-    const data = docSnap.data() as EdictStructure;
+    // Converte para objeto plano para evitar erros de estrutura circular e Timestamps no estado
+    const data = toPlainObject(docSnap.data()) as EdictStructure;
     // Garante que o array existe (migration on read)
     if (!data.studyLevels) data.studyLevels = [];
     return data;

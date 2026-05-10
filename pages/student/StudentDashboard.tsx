@@ -33,9 +33,14 @@ import { SupportFloatingButton } from '../../components/student/support/SupportF
 import { usePWAInstall } from '../../hooks/usePWAInstall';
 import { Smartphone, Download } from 'lucide-react';
 
+import { useEdictData } from '../../contexts/EdictDataContext';
+import { getPlanById } from '../../services/planService';
+import { toPlainObject } from '../../services/firestoreUtils';
+
 const StudentDashboard: React.FC = () => {
   const { currentUser } = useAuth();
   const { openSpacedReviewModal } = useSpacedReviewModal();
+  const { data: cachedData, setData: setCachedData } = useEdictData();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const currentTab = searchParams.get('tab');
@@ -48,7 +53,7 @@ const StudentDashboard: React.FC = () => {
   const [overdueGeneral, setOverdueGeneral] = useState<StudentGoal[]>([]);
   
   const [loading, setLoading] = useState(true);
-  const [currentPlanId, setCurrentPlanId] = useState<string>('');
+  const [currentPlanId, setCurrentPlanId] = useState<string>(cachedData?.planId || '');
   const [isScholarship, setIsScholarship] = useState(false);
   const [isReplanning, setIsReplanning] = useState(false);
 
@@ -78,9 +83,9 @@ const StudentDashboard: React.FC = () => {
   const [hasFuturePendingGoals, setHasFuturePendingGoals] = useState(false);
   const [isPlanCompleted, setIsPlanCompleted] = useState(false);
   const [isGeneratingNext, setIsGeneratingNext] = useState(false);
-  const [completedMetaIds, setCompletedMetaIds] = useState<Set<string>>(new Set());
-  const [fullPlanData, setFullPlanData] = useState<any>(null);
-  const [metaLookup, setMetaLookup] = useState<Record<string, Meta>>({});
+  const [completedMetaIds, setCompletedMetaIds] = useState<Set<string>>(cachedData?.completedMetaIds || new Set());
+  const [fullPlanData, setFullPlanData] = useState<any>(cachedData?.fullPlanData || null);
+  const [metaLookup, setMetaLookup] = useState<Record<string, Meta>>(cachedData?.metaLookup || {});
   
   // NOTEBOOK MODAL STATE
   const [notebookModal, setNotebookModal] = useState<{
@@ -102,8 +107,57 @@ const StudentDashboard: React.FC = () => {
   
   const [isMentorshipPlayerActive, setIsMentorshipPlayerActive] = useState(false);
   const lastToggleRef = React.useRef<{ id: string, time: number } | null>(null);
+  const prefetchStartedRef = React.useRef<string | null>(null);
   
-  // NOVO: Estados locais para o Modal de Revisão (REMOVIDO EM FAVOR DO CONTEXTO)
+  // NOVO: Prefetching Silencioso do Edital
+  const prefetchEditalData = async (planId: string) => {
+    if (!currentUser || prefetchStartedRef.current === planId) return;
+    prefetchStartedRef.current = planId;
+    
+    // Se já temos cache para este plano, não busca novamente
+    if (cachedData?.planId === planId) {
+        console.log("⚡ [Prefetch] Dados já em cache para o plano:", planId);
+        return;
+    }
+
+    console.log("🔍 [Prefetch] Iniciando carregamento antecipado do Edital...");
+    try {
+        const [edictData, completedIds, planData, allMetas, fullPlan] = await Promise.all([
+            getEdict(planId),
+            getStudentCompletedMetas(currentUser.uid, planId),
+            getPlanById(planId),
+            getAllPlanMetas(planId),
+            fetchFullPlanData(planId)
+        ]);
+
+        const lookup: Record<string, Meta> = {};
+        allMetas.forEach(m => {
+            if (m.id) lookup[m.id] = m;
+        });
+
+        // Atualiza Estados Locais
+        setEdictStructure(edictData);
+        setCompletedMetaIds(completedIds);
+        setFullPlanData(fullPlan);
+        setMetaLookup(toPlainObject(lookup));
+
+        // Alimenta o Cache Global para a aba Edital
+        setCachedData({
+            structure: toPlainObject(edictData),
+            completedMetaIds: completedIds, // Set is fine for local state, but avoid stringifying it directly
+            planTitle: planData?.title || '',
+            activeUserMode: planData?.isActiveUserMode || false,
+            planId: planId,
+            metaLookup: toPlainObject(lookup),
+            fullPlanData: toPlainObject(fullPlan)
+        });
+        
+        console.log("✅ [Prefetch] Edital carregado silenciosamente.");
+    } catch (error) {
+        console.error("❌ [Prefetch] Erro no carregamento silencioso:", error);
+        prefetchStartedRef.current = null;
+    }
+  };
 
   const fetchSchedule = async () => {
     if (!currentUser) return;
@@ -114,23 +168,14 @@ const StudentDashboard: React.FC = () => {
         setLastScheduledDate(fetchedLastDate);
         setHasFuturePendingGoals(fetchedHasFuture);
 
-        // Fetch Scholarship Status
-        const [plans, edict, allMetas] = await Promise.all([
-            getStudentPlans(currentUser.uid),
-            getEdict(planId),
-            getAllPlanMetas(planId)
-        ]);
+        // Dispara Prefetching Silencioso sem bloquear a renderização das Metas de Hoje
+        prefetchEditalData(planId);
+
+        // Fetch Scholarship Status (Crucial para o Dash, mas pode ser rápido)
+        const plans = await getStudentPlans(currentUser.uid);
         const currentPlan = plans.find(p => p.id === planId);
         setIsScholarship(currentPlan?.isScholarship || false);
-        setEdictStructure(edict);
 
-        // Build Meta Lookup
-        const lookup: Record<string, Meta> = {};
-        allMetas.forEach(m => {
-            if (m.id) lookup[m.id] = m;
-        });
-        setMetaLookup(lookup);
-        
         // Helper Mapper
         const mapToGoal = (event: any): StudentGoal => {
             // DETECÇÃO AGRESSIVA: Se o título, disciplina ou tópico for "ESTUDO LIVRE", tratamos como Estudo Livre
@@ -846,6 +891,12 @@ const StudentDashboard: React.FC = () => {
             } else {
                 next.delete(mId);
             }
+            
+            // Sincroniza com o Cache Global do Edital
+            if (cachedData) {
+                setCachedData({ ...cachedData, completedMetaIds: next });
+            }
+            
             return next;
         });
 

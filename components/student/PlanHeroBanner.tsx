@@ -1,4 +1,5 @@
-import React from 'react';
+/* eslint-disable react/prop-types */
+import React, { memo } from 'react';
 
 interface BannerConfig {
   desktop: string;
@@ -20,7 +21,7 @@ interface PlanHeroBannerProps {
   };
 }
 
-export const PlanHeroBanner: React.FC<PlanHeroBannerProps> = ({ currentTab, planData }) => {
+export const PlanHeroBanner: React.FC<PlanHeroBannerProps> = memo(({ currentTab, planData }) => {
   const banner = planData.banners?.[currentTab];
 
   // Só aborta se realmente não houver NENHUMA imagem
@@ -50,4 +51,6 @@ export const PlanHeroBanner: React.FC<PlanHeroBannerProps> = ({ currentTab, plan
       <div className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-zinc-950 to-transparent h-32 md:h-48 pointer-events-none"></div>
     </div>
   );
-};
+});
+
+PlanHeroBanner.displayName = 'PlanHeroBanner';

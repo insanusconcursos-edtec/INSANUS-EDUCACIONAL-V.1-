@@ -1,5 +1,6 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+/* eslint-disable react/prop-types */
+import React, { useState, useMemo, useEffect, memo } from 'react';
 import { createPortal } from 'react-dom';
 import { 
   ChevronRight, ChevronDown, CheckCircle2, Circle, Lock, StickyNote, CalendarClock, BookOpen,
@@ -43,7 +44,7 @@ interface TopicItemProps {
   expandedTopics?: Set<string>;
 }
 
-const TopicItem: React.FC<TopicItemProps> = ({ 
+const TopicItem: React.FC<TopicItemProps> = memo(({ 
   item, 
   depth = 0, 
   completedMetaIds, 
@@ -654,6 +655,8 @@ const TopicItem: React.FC<TopicItemProps> = ({
 
     </div>
   );
-};
+});
+
+TopicItem.displayName = 'TopicItem';
 
 export default TopicItem;
