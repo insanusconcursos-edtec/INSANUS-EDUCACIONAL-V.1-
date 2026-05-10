@@ -23,7 +23,7 @@ import { StudentAutoDiagnosis } from '../../components/student/simulados/Student
 import { StudentPerformanceDashboard } from '../../components/student/simulados/StudentPerformanceDashboard';
 import { SupportFloatingButton } from '../../components/student/support/SupportFloatingButton';
 
-// Helper Component para Linha do Ranking
+import { useNavigate, useSearchParams } from 'react-router-dom';
 const RankingRow: React.FC<{ rank: SimulatedAttempt & { originalRank: number }, currentUserId?: string }> = ({ rank, currentUserId }) => {
     const isCurrentUser = rank.userId === currentUserId;
     return (
@@ -515,6 +515,8 @@ const ExamResult: React.FC<{
 
 const StudentSimulated: React.FC = () => {
   const { currentUser } = useAuth();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   
   // Navigation State
   const [viewState, setViewState] = useState<'CLASSES' | 'EXAMS' | 'RESULT'>('CLASSES');
@@ -525,6 +527,7 @@ const StudentSimulated: React.FC = () => {
   // Data State (Exams Only - Classes now handled by subcomponent)
   const [exams, setExams] = useState<SimulatedExam[]>([]);
   const [loadingExams, setLoadingExams] = useState(false);
+  const [loadingAuto, setLoadingAuto] = useState(false);
   const [examAttempts, setExamAttempts] = useState<Record<string, SimulatedAttempt>>({}); // Cache de tentativas
   
   // New: Class Attempts for Dashboard
@@ -536,7 +539,61 @@ const StudentSimulated: React.FC = () => {
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
   const [examToConfirm, setExamToConfirm] = useState<SimulatedExam | null>(null);
 
-  // --- ACTIONS ---
+  // --- INITIALIZATION ---
+  useEffect(() => {
+    const classId = searchParams.get('classId');
+    const examId = searchParams.get('examId');
+    const start = searchParams.get('start');
+    const view = searchParams.get('view');
+
+    if (currentUser && classId && examId) {
+        handleAutoOpen(classId, examId, start === 'true', view === 'result');
+    }
+  }, [currentUser, searchParams]);
+
+  const handleAutoOpen = async (classId: string, examId: string, shouldStart: boolean, shouldViewResult: boolean) => {
+      setLoadingAuto(true);
+      try {
+          // 1. Load Class
+          const classSnap = await getDoc(doc(db, 'simulatedClasses', classId));
+          if (!classSnap.exists()) return;
+          const cls = { id: classSnap.id, ...classSnap.data() } as SimulatedClass;
+          
+          setSelectedClass(cls);
+          setViewState('EXAMS');
+
+          // 2. Load Exams for this class
+          const examsData = await getExams(classId);
+          setExams(examsData);
+          
+          const targetExam = examsData.find(e => e.id === examId);
+          if (targetExam) {
+              setSelectedExam(targetExam);
+              
+              if (shouldViewResult) {
+                  // Fetch the latest attempt
+                  const q = query(
+                      collection(db, 'simulated_attempts'),
+                      where('userId', '==', currentUser.uid),
+                      where('simulatedId', '==', examId),
+                      orderBy('completedAt', 'desc'),
+                      limit(1)
+                  );
+                  const snap = await getDocs(q);
+                  if (!snap.empty) {
+                      setLastAttempt({ id: snap.docs[0].id, ...snap.docs[0].data() } as SimulatedAttempt);
+                      setViewState('RESULT');
+                  }
+              } else if (shouldStart) {
+                  setIsRunningExam(true);
+              }
+          }
+      } catch (error) {
+          console.error("Error in auto-open:", error);
+      } finally {
+          setLoadingAuto(false);
+      }
+  };
 
   const handleSelectClass = (cls: SimulatedClass) => {
     loadExams(cls);
@@ -624,6 +681,21 @@ const StudentSimulated: React.FC = () => {
     setSelectedExam(null);
     setLastAttempt(null);
   };
+
+  if (loadingAuto) {
+    return (
+        <div className="min-h-screen bg-black flex flex-col items-center justify-center gap-6">
+            <div className="relative">
+                <div className="w-16 h-16 border-4 border-zinc-900 border-t-yellow-400 rounded-full animate-spin shadow-[0_0_20px_rgba(250,204,21,0.3)]" />
+                <div className="absolute inset-0 bg-yellow-400/10 blur-xl animate-pulse rounded-full" />
+            </div>
+            <div className="space-y-2 text-center">
+                <h3 className="text-xl font-black text-white uppercase tracking-tighter">Preparando Ambiente</h3>
+                <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest animate-pulse">Sincronizando dados oficiais...</p>
+            </div>
+        </div>
+    );
+  }
 
   if (loadingExams) return <Loading />;
 

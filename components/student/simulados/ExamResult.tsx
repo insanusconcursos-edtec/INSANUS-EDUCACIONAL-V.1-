@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
-  BarChart2, ArrowLeft, Trophy, Search, ChevronDown, Brain, ListChecks, Check, X, Minus, Medal, AlertCircle
+  BarChart2, ArrowLeft, Trophy, Search, ChevronDown, Brain, ListChecks, Check, X, Minus, Medal, AlertCircle, FileText
 } from 'lucide-react';
 import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db } from '../../../services/firebase';
@@ -129,10 +129,21 @@ export const ExamResult: React.FC<ExamResultProps> = ({ exam, attemptData, onBac
                         <h2 className="text-2xl font-black text-white uppercase tracking-tighter">{exam.title}</h2>
                         <span className="text-zinc-500 text-xs font-bold uppercase tracking-widest">Resultado Final</span>
                     </div>
-                    <button onClick={onBack} className="text-zinc-400 hover:text-white flex items-center gap-2 transition-colors px-4 py-2 rounded-lg hover:bg-zinc-800">
-                        <ArrowLeft size={18} />
-                        <span className="text-xs font-bold uppercase">Voltar</span>
-                    </button>
+                    <div className="flex items-center gap-4">
+                        {exam.files?.bookletUrl && (
+                            <button 
+                                onClick={() => window.open(exam.files.bookletUrl, '_blank')}
+                                className="hidden md:flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl font-bold text-[10px] uppercase tracking-widest shadow-lg hover:shadow-blue-500/30 transition-all transform hover:-translate-y-0.5"
+                            >
+                                <FileText size={16} />
+                                Baixar Caderno
+                            </button>
+                        )}
+                        <button onClick={onBack} className="text-zinc-400 hover:text-white flex items-center gap-2 transition-colors px-4 py-2 rounded-lg hover:bg-zinc-800">
+                            <ArrowLeft size={18} />
+                            <span className="text-xs font-bold uppercase tracking-widest">Voltar</span>
+                        </button>
+                    </div>
                 </div>
 
                 {/* NAVEGAÇÃO EM ABAS (TABS) - DESKTOP */}

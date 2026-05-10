@@ -8,7 +8,8 @@ import {
   BarChart2, 
   Lock,
   ArrowRight,
-  ArrowLeft
+  ArrowLeft,
+  Search
 } from 'lucide-react';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../../services/firebase';
@@ -20,6 +21,7 @@ import {
 } from '../../../services/simulatedService';
 import { SimulatedAttempt } from '../../../services/simulatedAttemptService';
 import Loading from '../../ui/Loading';
+import { useNavigate } from 'react-router-dom';
 
 interface SimuladosTabContentProps {
   planId: string;
@@ -28,6 +30,7 @@ interface SimuladosTabContentProps {
 
 export const SimuladosTabContent: React.FC<SimuladosTabContentProps> = ({ planId, simuladosVinculados }) => {
   const { currentUser } = useAuth();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [linkedClasses, setLinkedClasses] = useState<SimulatedClass[]>([]);
   const [examsMap, setExamsMap] = useState<Record<string, SimulatedExam[]>>({});
@@ -149,27 +152,51 @@ export const SimuladosTabContent: React.FC<SimuladosTabContentProps> = ({ planId
             <button
               key={cls.id}
               onClick={() => setSelectedClassId(cls.id!)}
-              className="bg-zinc-900/40 border border-zinc-800 p-6 rounded-3xl flex flex-col text-left group hover:border-zinc-700 hover:bg-zinc-900/60 transition-all duration-300 relative overflow-hidden"
+              className="bg-zinc-900/40 border border-zinc-800 rounded-3xl flex flex-col text-left group hover:border-zinc-700 hover:bg-zinc-900/60 transition-all duration-300 relative overflow-hidden h-full"
             >
-              <div className="absolute top-0 right-0 p-6 opacity-0 group-hover:opacity-100 transition-opacity">
-                <ArrowRight className="w-5 h-5 text-[var(--plan-theme)]" />
+              {/* Turma Cover Image or Placeholder */}
+              <div className="relative h-40 w-full bg-zinc-950 overflow-hidden">
+                {cls.coverUrl ? (
+                  <img 
+                    src={cls.coverUrl} 
+                    alt={cls.title} 
+                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 opacity-60 group-hover:opacity-80"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-zinc-900 to-black">
+                     <GraduationCap size={48} className="text-zinc-800" />
+                  </div>
+                )}
+                <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/20 to-transparent" />
+                
+                <div className="absolute top-4 right-4 p-2 bg-black/50 backdrop-blur-md rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                  <ArrowRight className="w-4 h-4 text-[var(--plan-theme)]" />
+                </div>
               </div>
 
-              <div className="p-3 bg-zinc-900 border border-zinc-800 rounded-2xl w-fit mb-4 group-hover:scale-110 transition-transform duration-300">
-                <GraduationCap className="w-6 h-6 text-[var(--plan-theme)]" />
-              </div>
-
-              <h3 className="text-lg font-black text-white uppercase tracking-tight mb-2 leading-tight">
-                {cls.title}
-              </h3>
-              
-              <div className="mt-auto flex items-center justify-between">
-                <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
-                  {cls.organization}
-                </span>
-                <span className="text-[10px] font-black text-[var(--plan-theme)] uppercase tracking-widest bg-[var(--plan-theme)]/10 px-3 py-1 rounded-full">
-                  {examsMap[cls.id!]?.length || 0} Simulados
-                </span>
+              <div className="p-6 flex flex-col flex-1">
+                <div className="mb-4">
+                  <h3 className="text-lg font-black text-white uppercase tracking-tight leading-tight group-hover:text-[var(--plan-theme)] transition-colors">
+                    {cls.title}
+                  </h3>
+                  <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-1">
+                    {cls.organization}
+                  </p>
+                </div>
+                
+                <div className="mt-auto flex items-center justify-between pt-4 border-t border-zinc-800/50">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 bg-zinc-800 rounded-lg">
+                      <GraduationCap size={14} className="text-[var(--plan-theme)]" />
+                    </div>
+                    <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">
+                       Oficial
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-black text-[var(--plan-theme)] uppercase tracking-widest bg-[var(--plan-theme)]/10 px-3 py-1 rounded-full border border-[var(--plan-theme)]/20">
+                    {examsMap[cls.id!]?.length || 0} Simulados
+                  </span>
+                </div>
               </div>
             </button>
           ))}
@@ -259,12 +286,12 @@ export const SimuladosTabContent: React.FC<SimuladosTabContentProps> = ({ planId
 
                 <div className="flex items-center gap-3">
                   {isDone ? (
-                    <a 
-                      href={`/app/simulated`}
+                    <button 
+                      onClick={() => navigate(`/app/simulated?classId=${selectedClassId}&examId=${exam.id}&view=result`)}
                       className="px-8 py-4 bg-zinc-800 hover:bg-zinc-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 min-w-[180px]"
                     >
                       <BarChart2 size={16} /> Ver Resultado
-                    </a>
+                    </button>
                   ) : isBlocked ? (
                     <button 
                       disabled
@@ -273,12 +300,12 @@ export const SimuladosTabContent: React.FC<SimuladosTabContentProps> = ({ planId
                       <Lock size={16} /> Bloqueado
                     </button>
                   ) : (
-                    <a 
-                      href={`/app/simulated`}
+                    <button 
+                      onClick={() => navigate(`/app/simulated?classId=${selectedClassId}&examId=${exam.id}&start=true`)}
                       className="px-8 py-4 bg-brand-red hover:bg-red-600 text-white rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-xl shadow-red-900/20 min-w-[180px]"
                     >
                       <PlayCircle size={16} /> Realizar Simulado
-                    </a>
+                    </button>
                   )}
                 </div>
               </div>
