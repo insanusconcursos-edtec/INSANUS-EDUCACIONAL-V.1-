@@ -7,10 +7,10 @@ import {
   PlayCircle, 
   BarChart2, 
   Lock,
-  Search,
-  ArrowRight
+  ArrowRight,
+  ArrowLeft
 } from 'lucide-react';
-import { doc, getDoc, collection, query, where, orderBy, getDocs } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../../services/firebase';
 import { useAuth } from '../../../contexts/AuthContext';
 import { 
@@ -33,6 +33,7 @@ export const SimuladosTabContent: React.FC<SimuladosTabContentProps> = ({ planId
   const [examsMap, setExamsMap] = useState<Record<string, SimulatedExam[]>>({});
   const [attemptsMap, setAttemptsMap] = useState<Record<string, SimulatedAttempt>>({});
   const [error, setError] = useState<string | null>(null);
+  const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -88,8 +89,6 @@ export const SimuladosTabContent: React.FC<SimuladosTabContentProps> = ({ planId
         const attMap: Record<string, SimulatedAttempt> = {};
         snapAttempts.docs.forEach(d => {
           const att = { id: d.id, ...d.data() } as SimulatedAttempt;
-          // Guardamos apenas a tentativa mais recente ou aprovada? 
-          // Simplificando: guardamos a última encontrada por ID de simulado
           attMap[att.simulatedId] = att;
         });
         setAttemptsMap(attMap);
@@ -130,108 +129,164 @@ export const SimuladosTabContent: React.FC<SimuladosTabContentProps> = ({ planId
     );
   }
 
-  return (
-    <div className="space-y-12 pb-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
-      {linkedClasses.map(cls => (
-        <div key={cls.id} className="space-y-6">
-          {/* Header da Turma */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-zinc-800 pb-4">
-            <div>
-              <h2 className="text-2xl font-black text-white uppercase tracking-tighter flex items-center gap-3">
-                <div className="p-2 bg-zinc-900 border border-zinc-800 rounded-lg">
-                  <GraduationCap className="w-5 h-5 text-[var(--plan-theme)]" />
-                </div>
-                {cls.title}
-              </h2>
-              <div className="flex items-center gap-3 mt-1">
-                <span className="text-zinc-500 text-xs font-bold uppercase tracking-widest">{cls.organization}</span>
-              </div>
+  const selectedClass = linkedClasses.find(cls => cls.id === selectedClassId);
+
+  // --- NÍVEL 1: LISTAGEM DE TURMAS ---
+  if (!selectedClassId) {
+    return (
+      <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+        <div className="flex items-center justify-between border-b border-zinc-800 pb-4">
+          <h2 className="text-2xl font-black text-white uppercase tracking-tighter flex items-center gap-3">
+            <div className="p-2 bg-zinc-900 border border-zinc-800 rounded-lg">
+              <Layers className="w-5 h-5 text-[var(--plan-theme)]" />
             </div>
-            
-            <a 
-              href={`/app/simulated`} 
-              className="text-[10px] font-black text-zinc-500 hover:text-white uppercase tracking-widest flex items-center gap-2 transition-colors"
+            Turmas de Simulados
+          </h2>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {linkedClasses.map(cls => (
+            <button
+              key={cls.id}
+              onClick={() => setSelectedClassId(cls.id!)}
+              className="bg-zinc-900/40 border border-zinc-800 p-6 rounded-3xl flex flex-col text-left group hover:border-zinc-700 hover:bg-zinc-900/60 transition-all duration-300 relative overflow-hidden"
             >
-              Ver Todas as Turmas <ArrowRight size={14} />
-            </a>
-          </div>
-
-          {/* Lista de Simulados */}
-          <div className="grid grid-cols-1 gap-4">
-            {examsMap[cls.id!]?.length === 0 ? (
-              <div className="py-10 text-center border border-dashed border-zinc-800 rounded-2xl">
-                <p className="text-zinc-500 font-bold uppercase text-[10px] tracking-widest text-center">Nenhum simulado publicado nesta turma.</p>
+              <div className="absolute top-0 right-0 p-6 opacity-0 group-hover:opacity-100 transition-opacity">
+                <ArrowRight className="w-5 h-5 text-[var(--plan-theme)]" />
               </div>
-            ) : (
-              examsMap[cls.id!]?.map(exam => {
-                const attempt = attemptsMap[exam.id!];
-                const isDone = !!attempt;
-                
-                const now = new Date();
-                const publishDate = exam.publishDate ? new Date(exam.publishDate) : null;
-                const isBlocked = publishDate && publishDate > now;
 
-                return (
-                  <div 
-                    key={exam.id} 
-                    className={`bg-zinc-900/50 border border-zinc-800 p-5 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 group hover:border-zinc-700 transition-all ${isBlocked ? 'opacity-75' : ''}`}
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className={`p-3 rounded-xl ${isDone ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : isBlocked ? 'bg-zinc-800 text-zinc-600 border border-zinc-700' : 'bg-zinc-800 text-zinc-400'}`}>
-                        {isDone ? <FileCheck size={24} /> : isBlocked ? <Lock size={24} /> : <PlayCircle size={24} />}
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h3 className={`text-lg font-black uppercase tracking-tight ${isBlocked ? 'text-zinc-500' : 'text-white'}`}>{exam.title}</h3>
-                          {isBlocked && (
-                            <span className="px-2 py-0.5 rounded bg-zinc-800 text-zinc-500 text-[9px] font-bold uppercase border border-zinc-700 flex items-center gap-1">
-                              <Lock size={10} /> BLOQUEADO
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-3 text-[10px] font-bold text-zinc-500 uppercase mt-1">
-                          <span className="flex items-center gap-1"><Layers size={12} /> {exam.questionCount} Questões</span>
-                          {exam.hasPenalty && <span className="flex items-center gap-1 text-red-500"><AlertCircle size={12} /> Penalidade Ativa</span>}
-                          {isBlocked && publishDate && (
-                            <span className="flex items-center gap-1 text-purple-400">
-                               Liberação em: {publishDate.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit' })}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
+              <div className="p-3 bg-zinc-900 border border-zinc-800 rounded-2xl w-fit mb-4 group-hover:scale-110 transition-transform duration-300">
+                <GraduationCap className="w-6 h-6 text-[var(--plan-theme)]" />
+              </div>
 
+              <h3 className="text-lg font-black text-white uppercase tracking-tight mb-2 leading-tight">
+                {cls.title}
+              </h3>
+              
+              <div className="mt-auto flex items-center justify-between">
+                <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+                  {cls.organization}
+                </span>
+                <span className="text-[10px] font-black text-[var(--plan-theme)] uppercase tracking-widest bg-[var(--plan-theme)]/10 px-3 py-1 rounded-full">
+                  {examsMap[cls.id!]?.length || 0} Simulados
+                </span>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // --- NÍVEL 2: LISTAGEM DE SIMULADOS DA TURMA ---
+  return (
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      {/* Header com Botão Voltar */}
+      <div className="space-y-6">
+        <button 
+          onClick={() => setSelectedClassId(null)}
+          className="flex items-center gap-2 text-[10px] font-black text-zinc-500 hover:text-white uppercase tracking-widest transition-colors mb-2"
+        >
+          <ArrowLeft size={14} /> Voltar para Turmas
+        </button>
+
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-zinc-800 pb-6">
+          <div>
+            <h2 className="text-3xl font-black text-white uppercase tracking-tighter flex items-center gap-3">
+              <div className="p-3 bg-zinc-900 border border-zinc-800 rounded-xl">
+                <GraduationCap className="w-6 h-6 text-[var(--plan-theme)]" />
+              </div>
+              {selectedClass?.title}
+            </h2>
+            <div className="flex items-center gap-3 mt-2">
+              <span className="text-zinc-500 text-[11px] font-bold uppercase tracking-widest">{selectedClass?.organization}</span>
+              <span className="w-1 h-1 bg-zinc-800 rounded-full" />
+              <span className="text-zinc-500 text-[11px] font-bold uppercase tracking-widest">{examsMap[selectedClassId]?.length || 0} QUESTÕES DISPONÍVEIS</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Lista de Simulados */}
+      <div className="grid grid-cols-1 gap-4">
+        {examsMap[selectedClassId]?.length === 0 ? (
+          <div className="py-20 text-center border border-dashed border-zinc-800 rounded-3xl bg-zinc-900/10">
+            <p className="text-zinc-500 font-bold uppercase text-[10px] tracking-widest">Nenhum simulado publicado nesta turma.</p>
+          </div>
+        ) : (
+          examsMap[selectedClassId]?.map(exam => {
+            const attempt = attemptsMap[exam.id!];
+            const isDone = !!attempt;
+            
+            const now = new Date();
+            const publishDate = exam.publishDate ? new Date(exam.publishDate) : null;
+            const isBlocked = publishDate && publishDate > now;
+
+            return (
+              <div 
+                key={exam.id} 
+                className={`bg-zinc-900/50 border border-zinc-800 p-6 rounded-3xl flex flex-col md:flex-row md:items-center justify-between gap-6 group hover:border-zinc-700 transition-all ${isBlocked ? 'opacity-75' : ''}`}
+              >
+                <div className="flex items-center gap-5">
+                  <div className={`p-4 rounded-2xl ${isDone ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : isBlocked ? 'bg-zinc-800 text-zinc-600 border border-zinc-700' : 'bg-zinc-800 text-zinc-400'}`}>
+                    {isDone ? <FileCheck size={28} /> : isBlocked ? <Lock size={28} /> : <PlayCircle size={28} />}
+                  </div>
+                  <div>
                     <div className="flex items-center gap-3">
-                      {isDone ? (
-                        <a 
-                          href={`/app/simulated`}
-                          className="px-6 py-3 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2"
-                        >
-                          <BarChart2 size={14} /> Ver Resultado
-                        </a>
-                      ) : isBlocked ? (
-                        <button 
-                          disabled
-                          className="px-6 py-3 bg-zinc-800 text-zinc-600 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 cursor-not-allowed border border-zinc-700"
-                        >
-                          <Lock size={14} /> Bloqueado
-                        </button>
-                      ) : (
-                        <a 
-                          href={`/app/simulated`}
-                          className="px-6 py-3 bg-brand-red hover:bg-red-600 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg shadow-red-900/20"
-                        >
-                          <PlayCircle size={14} /> Realizar Simulado
-                        </a>
+                      <h3 className={`text-xl font-black uppercase tracking-tight ${isBlocked ? 'text-zinc-500' : 'text-white'}`}>{exam.title}</h3>
+                      {isBlocked && (
+                        <span className="px-2 py-0.5 rounded bg-zinc-800 text-zinc-500 text-[9px] font-bold uppercase border border-zinc-700 flex items-center gap-1">
+                          <Lock size={10} /> BLOQUEADO
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[10px] font-bold text-zinc-500 uppercase mt-2">
+                      <span className="flex items-center gap-1.5"><Layers size={14} className="text-zinc-600" /> {exam.questionCount} Questões</span>
+                      {exam.hasPenalty && <span className="flex items-center gap-1.5 text-red-500/80 bg-red-500/5 px-2 py-0.5 rounded-md border border-red-500/10"><AlertCircle size={14} /> Penalidade Ativa</span>}
+                      {isBlocked && publishDate && (
+                        <span className="flex items-center gap-1.5 text-purple-400 bg-purple-500/5 px-2 py-0.5 rounded-md border border-purple-500/10">
+                           Liberação em: {publishDate.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      )}
+                      {isDone && (
+                        <span className="flex items-center gap-1.5 text-emerald-500 bg-emerald-500/5 px-2 py-0.5 rounded-md border border-emerald-500/10">
+                           <FileCheck size={14} /> SIMULADO CONCLUÍDO
+                        </span>
                       )}
                     </div>
                   </div>
-                );
-              })
-            )}
-          </div>
-        </div>
-      ))}
+                </div>
+
+                <div className="flex items-center gap-3">
+                  {isDone ? (
+                    <a 
+                      href={`/app/simulated`}
+                      className="px-8 py-4 bg-zinc-800 hover:bg-zinc-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 min-w-[180px]"
+                    >
+                      <BarChart2 size={16} /> Ver Resultado
+                    </a>
+                  ) : isBlocked ? (
+                    <button 
+                      disabled
+                      className="px-8 py-4 bg-zinc-800 text-zinc-600 rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 cursor-not-allowed border border-zinc-700 min-w-[180px]"
+                    >
+                      <Lock size={16} /> Bloqueado
+                    </button>
+                  ) : (
+                    <a 
+                      href={`/app/simulated`}
+                      className="px-8 py-4 bg-brand-red hover:bg-red-600 text-white rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-xl shadow-red-900/20 min-w-[180px]"
+                    >
+                      <PlayCircle size={16} /> Realizar Simulado
+                    </a>
+                  )}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
     </div>
   );
 };
+

@@ -23,6 +23,7 @@ import { SimuladoFocusMode } from '../../components/student/goals/SimuladoFocusM
 import StudentMentorshipViewer from '../../components/student/mentorship/StudentMentorshipViewer';
 import StudentChatView from '../../components/student/chat/StudentChatView';
 import { SimuladosTabContent } from '../../components/student/dashboard/SimuladosTabContent';
+import { LiveEventsTabContent } from '../../components/student/dashboard/LiveEventsTabContent';
 import { CourseReviewDashboard } from '../../components/student/courses/reviews/CourseReviewDashboard';
 import { courseReviewService } from '../../services/courseReviewService';
 import { useNavigate } from 'react-router-dom';
@@ -474,6 +475,60 @@ const StudentDashboard: React.FC = () => {
   useEffect(() => {
     fetchSchedule();
   }, [currentUser]);
+
+  // --- NOTIFICATION LOGIC FOR LIVE EVENTS ---
+  useEffect(() => {
+    if (!currentUser || !currentPlanId) return;
+
+    const notifiedEvents = new Set<string>();
+    
+    const checkNotifications = async () => {
+      const q = query(
+        collection(db, 'live_events'),
+        where('status', '==', 'scheduled')
+      );
+      
+      const snapshot = await getDocs(q);
+      const now = new Date();
+      
+      snapshot.docs.forEach(doc => {
+        const event = doc.data() as any;
+        if (!event.accessControl?.plans?.includes(currentPlanId)) return;
+
+        const eventTime = new Date(`${event.eventDate}T${event.startTime}`);
+        const diffMs = eventTime.getTime() - now.getTime();
+        const diffMin = Math.floor(diffMs / 60000);
+
+        // Notify at exactly these intervals or within current minute
+        if (diffMin < 0) return;
+
+        const notificationKey = `${doc.id}-${diffMin}`;
+        if (notifiedEvents.has(notificationKey)) return;
+
+        if (diffMin === 30) {
+          toast(`Seu evento ao vivo "${event.title}" começa em 30 minutos`, { icon: '⏰' });
+          notifiedEvents.add(notificationKey);
+        } else if (diffMin === 15) {
+          toast(`Seu evento ao vivo "${event.title}" começa em 15 minutos`, { icon: '⏰' });
+          notifiedEvents.add(notificationKey);
+        } else if (diffMin === 5) {
+          toast(`Seu evento ao vivo "${event.title}" começa em 5 minutos`, { icon: '⏰' });
+          notifiedEvents.add(notificationKey);
+        } else if (diffMin === 0) {
+          toast(`Seu evento ao vivo "${event.title}" começou!`, { icon: '🔴' });
+          notifiedEvents.add(notificationKey);
+        }
+      });
+    };
+
+    // Initial check
+    checkNotifications();
+
+    // Check every minute
+    const interval = setInterval(checkNotifications, 60000);
+
+    return () => clearInterval(interval);
+  }, [currentUser, currentPlanId]);
 
   // Reactive listener for unlocked simulados
   useEffect(() => {
@@ -1031,11 +1086,24 @@ const StudentDashboard: React.FC = () => {
             {fullPlanData && (
               <PlanHeroBanner currentTab="simulados" planData={fullPlanData} />
             )}
-            <div className="relative z-10 w-full max-w-[1600px] mx-auto px-4 md:px-8 flex-1 flex flex-col mb-10 pt-8 md:pt-12 -mt-10 md:-mt-20">
+            <div className="relative z-10 w-full max-w-[1600px] mx-auto px-4 md:px-8 flex-1 flex flex-col mb-10 pt-16 md:pt-24 -mt-10 md:-mt-20">
               <SimuladosTabContent 
                 planId={currentPlanId} 
                 simuladosVinculados={fullPlanData?.simuladosVinculados} 
               />
+            </div>
+          </div>
+      );
+  }
+
+  if (currentTab === 'live') {
+      return (
+          <div className="relative w-full min-h-screen bg-zinc-950 flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-700">
+            {fullPlanData && (
+              <PlanHeroBanner currentTab="live" planData={fullPlanData} />
+            )}
+            <div className="relative z-10 w-full max-w-[1600px] mx-auto px-4 md:px-8 flex-1 flex flex-col mb-10 pt-16 md:pt-24 -mt-10 md:-mt-20">
+              <LiveEventsTabContent planId={currentPlanId} />
             </div>
           </div>
       );

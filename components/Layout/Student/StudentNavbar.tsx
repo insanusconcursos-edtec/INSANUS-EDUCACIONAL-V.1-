@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
-import { Clock, Timer, Target, CalendarDays, FileText, GraduationCap, Video, Settings, ChevronDown } from 'lucide-react';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { Clock, Timer, Target, CalendarDays, FileText, GraduationCap, Video, Settings, ChevronDown, Radio } from 'lucide-react';
+import { doc, onSnapshot, collection, query, where } from 'firebase/firestore';
 import { db } from '../../../services/firebase';
 import { useAuth } from '../../../contexts/AuthContext';
 import { Student } from '../../../services/userService';
+import { LiveEvent } from '../../../types/liveEvent';
 
 const StudentNavbar: React.FC = () => {
   const location = useLocation();
@@ -15,6 +16,34 @@ const StudentNavbar: React.FC = () => {
   const [lifetimeMinutes, setLifetimeMinutes] = useState(0);
   const [planMinutes, setPlanMinutes] = useState(0);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [hasLiveEvent, setHasLiveEvent] = useState(false);
+  const [currentPlanId, setCurrentPlanId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!currentUser) return;
+
+    // Listen to live events
+    const q = query(
+      collection(db, 'live_events'),
+      where('status', '==', 'live')
+    );
+
+    const unsubLive = onSnapshot(q, (snapshot) => {
+      const liveEvents = snapshot.docs.map(doc => doc.data() as LiveEvent);
+      
+      // If we have currentPlanId, check if any live event is for this plan
+      if (currentPlanId) {
+        const isLiveForPlan = liveEvents.some(event => 
+          event.accessControl?.plans?.includes(currentPlanId)
+        );
+        setHasLiveEvent(isLiveForPlan);
+      } else {
+        setHasLiveEvent(liveEvents.length > 0);
+      }
+    });
+
+    return () => unsubLive();
+  }, [currentUser, currentPlanId]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -42,9 +71,10 @@ const StudentNavbar: React.FC = () => {
             setLifetimeMinutes(data.lifetimeMinutes || 0);
 
             // Current Plan Stats
-            const currentPlanId = data.currentPlanId;
-            if (currentPlanId && data.planStats && data.planStats[currentPlanId]) {
-                setPlanMinutes(data.planStats[currentPlanId].minutes || 0);
+            const planId = data.currentPlanId;
+            setCurrentPlanId(planId || null);
+            if (planId && data.planStats && data.planStats[planId]) {
+                setPlanMinutes(data.planStats[planId].minutes || 0);
             } else {
                 setPlanMinutes(0);
             }
@@ -82,6 +112,19 @@ const StudentNavbar: React.FC = () => {
       label: 'SIMULADOS', 
       path: '/app/dashboard?tab=simulados', 
       icon: <GraduationCap className="w-4 h-4" />,
+      isSpecial: true 
+    },
+    { 
+      label: 'AO VIVO', 
+      path: '/app/dashboard?tab=live', 
+      icon: (
+        <div className="relative">
+          <Radio className="w-4 h-4" />
+          {hasLiveEvent && (
+            <span className="absolute -top-1 -right-1 w-2 h-2 bg-brand-red rounded-full animate-pulse shadow-[0_0_5px_rgba(239,68,68,0.8)]" />
+          )}
+        </div>
+      ),
       isSpecial: true 
     },
     { label: 'CONFIGURAÇÃO', path: '/app/config', icon: <Settings className="w-4 h-4" /> },

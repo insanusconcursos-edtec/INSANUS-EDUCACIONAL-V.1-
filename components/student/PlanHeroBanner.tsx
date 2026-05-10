@@ -8,7 +8,7 @@ interface BannerConfig {
 }
 
 interface PlanHeroBannerProps {
-  currentTab: 'today' | 'calendar' | 'edict' | 'mentorship' | 'call' | 'simulados';
+  currentTab: 'today' | 'calendar' | 'edict' | 'mentorship' | 'call' | 'simulados' | 'live';
   planData: {
     banners?: {
       today?: BannerConfig;
@@ -17,6 +17,7 @@ interface PlanHeroBannerProps {
       mentorship?: BannerConfig;
       call?: BannerConfig;
       simulados?: BannerConfig;
+      live?: BannerConfig;
     };
   };
 }

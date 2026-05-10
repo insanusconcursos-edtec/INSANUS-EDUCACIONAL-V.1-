@@ -15,39 +15,56 @@ export const StudentLiveWaitingRoom: React.FC<StudentLiveWaitingRoomProps> = ({
   timezoneLocation
 }) => {
   return (
-    <div className="relative w-full h-full bg-zinc-950 rounded-2xl overflow-hidden border border-zinc-800 flex items-center justify-center">
-      {thumbnailUrl ? (
-        <img 
-          src={thumbnailUrl} 
-          alt="Thumbnail do Evento" 
-          className="absolute inset-0 w-full h-full object-cover opacity-30"
-        />
-      ) : (
-        <div className="absolute inset-0 bg-gradient-to-br from-zinc-900 to-black"></div>
-      )}
+    <div className="relative w-full h-full bg-zinc-950 rounded-2xl overflow-hidden flex items-center justify-center border border-zinc-800 shadow-2xl">
+      {/* Background Section (Thumbnail) */}
+      <div className="absolute inset-0 z-0">
+        {thumbnailUrl ? (
+          <>
+            <img 
+              src={thumbnailUrl} 
+              alt="Background" 
+              className="w-full h-full object-cover opacity-70"
+            />
+            <div className="absolute inset-0 bg-black/30"></div>
+          </>
+        ) : (
+          <div className="w-full h-full bg-zinc-900"></div>
+        )}
+      </div>
       
-      <div className="relative z-10 flex flex-col items-center justify-center text-center p-2 md:p-6 bg-black/60 backdrop-blur-md rounded-2xl border border-zinc-800/50 max-w-[95%] md:max-w-md mx-auto">
-        <div className="w-8 h-8 md:w-16 md:h-16 bg-brand-red/20 rounded-full flex items-center justify-center mb-1 md:mb-4">
-          <Clock className="text-brand-red w-4 h-4 md:w-8 md:h-8" />
+      {/* Central Waiting Card */}
+      <div className="relative z-[100] flex flex-col items-center justify-center text-center p-8 md:p-12 bg-black/80 backdrop-blur-xl rounded-[40px] border border-white/10 max-w-lg mx-auto shadow-[0_40px_100px_rgba(0,0,0,0.8)] animate-in fade-in zoom-in-95 duration-700">
+        {/* Red Clock Icon */}
+        <div className="mb-8 w-16 h-16 bg-brand-red/10 rounded-full flex items-center justify-center border border-brand-red/20">
+          <div className="w-12 h-12 bg-brand-red rounded-full flex items-center justify-center shadow-lg shadow-brand-red/20">
+            <Clock className="text-white w-6 h-6" strokeWidth={3} />
+          </div>
         </div>
         
-        <h2 className="text-base md:text-2xl font-black text-white uppercase tracking-tight mb-0.5 md:mb-2">
+        <h2 className="text-3xl font-black text-white uppercase tracking-tight mb-3">
           Evento Agendado
         </h2>
         
-        <p className="text-[10px] md:text-base text-zinc-300 mb-2 md:mb-6 line-clamp-2 md:line-clamp-none">
+        <p className="text-zinc-400 text-sm font-medium mb-10 max-w-xs leading-relaxed">
           A transmissão ainda não começou. Aguarde o início do evento.
         </p>
         
-        <div className="flex items-center gap-2 md:gap-6 bg-zinc-900/80 px-3 md:px-6 py-1.5 md:py-3 rounded-xl border border-zinc-700/50">
-          <div className="flex items-center gap-1.5 md:gap-2 text-white">
-            <Calendar size={12} className="text-brand-red md:w-[18px] md:h-[18px]" />
-            <span className="text-[10px] md:text-base font-bold">{eventDate.split('-').reverse().join('/')}</span>
+        {/* Date/Time Info Bar */}
+        <div className="flex flex-col md:flex-row items-center gap-4 bg-zinc-900/60 px-8 py-4 rounded-2xl border border-zinc-800/50 w-full">
+          <div className="flex items-center gap-3 text-white">
+            <Calendar size={18} className="text-brand-red" />
+            <span className="text-base font-bold">
+              {eventDate ? eventDate.split('-').reverse().join('/') : '--/--/----'}
+            </span>
           </div>
-          <div className="w-px h-3 md:h-6 bg-zinc-700"></div>
-          <div className="flex items-center gap-1.5 md:gap-2 text-white">
-            <Clock size={12} className="text-brand-red md:w-[18px] md:h-[18px]" />
-            <span className="text-[10px] md:text-base font-bold">{startTime} {timezoneLocation ? `- ${timezoneLocation}` : ''}</span>
+          
+          <div className="hidden md:block w-px h-6 bg-zinc-700"></div>
+          
+          <div className="flex items-center gap-3 text-white">
+            <Clock size={18} className="text-brand-red" />
+            <span className="text-base font-bold">
+              {startTime || '--:--'} {timezoneLocation ? `- ${timezoneLocation}` : ''}
+            </span>
           </div>
         </div>
       </div>
