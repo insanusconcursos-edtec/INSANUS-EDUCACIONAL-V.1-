@@ -42,6 +42,7 @@ interface TopicItemProps {
   highlightGoalId?: string | null;
   activeHighlightTopicId?: string | null;
   expandedTopics?: Set<string>;
+  isReadOnly?: boolean;
 }
 
 const TopicItem: React.FC<TopicItemProps> = memo(({ 
@@ -62,7 +63,8 @@ const TopicItem: React.FC<TopicItemProps> = memo(({
   onOpenMindMap,
   highlightGoalId,
   activeHighlightTopicId,
-  expandedTopics
+  expandedTopics,
+  isReadOnly = false
 }) => {
   const { currentUser } = useAuth();
   const { openSpacedReviewModal } = useSpacedReviewModal();
@@ -342,7 +344,8 @@ const TopicItem: React.FC<TopicItemProps> = memo(({
                         key={`${meta.id}-v${remountToken}-${isDone ? 'done' : 'pending'}`}
                         goal={meta}
                         isCompleted={isDone}
-                        activeUserMode={activeUserMode}
+                        activeUserMode={isReadOnly ? false : activeUserMode}
+                        isReadOnly={isReadOnly}
                         planId={planId}
                         onToggleComplete={onToggleGoal || (() => {})}
                         onPlayVideo={onPlayVideo}
@@ -443,7 +446,7 @@ const TopicItem: React.FC<TopicItemProps> = memo(({
             )}
 
             {/* Botão de Agendar Revisões (Apenas se concluído e sem revisões ativas) */}
-            {isFullyComplete && topicReviews.length === 0 && (
+            {isFullyComplete && topicReviews.length === 0 && !isReadOnly && (
                 <button
                     onClick={(e) => {
                         e.stopPropagation();
@@ -524,13 +527,13 @@ const TopicItem: React.FC<TopicItemProps> = memo(({
             {/* Status Icon */}
         <button
             onClick={handleStatusClick}
-            disabled={!activeUserMode || isFullyComplete} // Disable if mode off OR already done
-            className={`shrink-0 transition-colors ${!activeUserMode ? 'cursor-not-allowed' : (isFullyComplete ? 'cursor-default' : 'cursor-pointer hover:scale-110')}`}
-            title={!activeUserMode ? "Modo Automático (Conclusão Manual Bloqueada)" : (isFullyComplete ? "Tópico Concluído" : "Marcar Tópico como Concluído")}
+            disabled={!activeUserMode || isFullyComplete || isReadOnly} // Disable if mode off OR already done OR read-only
+            className={`shrink-0 transition-colors ${(!activeUserMode || isReadOnly) ? 'cursor-not-allowed' : (isFullyComplete ? 'cursor-default' : 'cursor-pointer hover:scale-110')}`}
+            title={isReadOnly ? "Visualização Somente Leitura" : (!activeUserMode ? "Modo Automático (Conclusão Manual Bloqueada)" : (isFullyComplete ? "Tópico Concluído" : "Marcar Tópico como Concluído"))}
         >
             {isFullyComplete ? (
                 <CheckCircle2 size={18} className="text-emerald-500" />
-            ) : !activeUserMode ? (
+            ) : (isReadOnly || !activeUserMode) ? (
                 <Lock size={16} className="text-zinc-700" />
             ) : (
                 <Circle size={18} className="text-zinc-600 hover:text-zinc-400" />
@@ -587,6 +590,7 @@ const TopicItem: React.FC<TopicItemProps> = memo(({
                     onOpenMindMap={onOpenMindMap}
                     highlightGoalId={highlightGoalId}
                     activeHighlightTopicId={activeHighlightTopicId}
+                    isReadOnly={isReadOnly}
                 />
             ))}
 

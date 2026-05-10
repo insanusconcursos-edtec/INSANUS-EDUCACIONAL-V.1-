@@ -22,6 +22,7 @@ interface LinkedGoalItemProps {
   onPlayVideo?: (url: string) => void;
   onOpenPdfInNotebook?: (url: string) => void;
   isHighlighted?: boolean;
+  isReadOnly?: boolean;
 }
 
 const TYPE_CONFIG: Record<MetaType, { label: string; color: string; icon: any }> = {
@@ -42,7 +43,8 @@ const LinkedGoalItem: React.FC<LinkedGoalItemProps> = ({
   onToggleComplete,
   onPlayVideo,
   onOpenPdfInNotebook,
-  isHighlighted
+  isHighlighted,
+  isReadOnly = false
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const { currentUser, userData } = useAuth();
@@ -101,8 +103,8 @@ const LinkedGoalItem: React.FC<LinkedGoalItemProps> = ({
     e.stopPropagation();
     
     // TRAVA DO USUÁRIO ATIVO
-    if (!activeUserMode) {
-      alert("A conclusão manual está desativada para este plano. Siga o cronograma ou ative o 'Usuário Ativo'.");
+    if (!activeUserMode || isReadOnly) {
+      if (!isReadOnly) alert("A conclusão manual está desativada para este plano. Siga o cronograma ou ative o 'Usuário Ativo'.");
       return;
     }
 
@@ -174,15 +176,15 @@ const LinkedGoalItem: React.FC<LinkedGoalItemProps> = ({
               shrink-0 w-5 h-5 rounded-md flex items-center justify-center border transition-all
               ${isCompleted 
                 ? 'bg-emerald-500 border-emerald-500 text-black' 
-                : !activeUserMode 
+                : (isReadOnly || !activeUserMode)
                     ? 'bg-zinc-900 border-zinc-700 text-zinc-600 cursor-not-allowed opacity-50' 
                     : 'bg-transparent border-zinc-600 text-transparent hover:border-zinc-400 cursor-pointer'}
             `}
-            title={activeUserMode ? "Marcar como concluído" : "A conclusão manual está desativada neste plano"}
+            title={isReadOnly ? "Visualização Somente Leitura" : activeUserMode ? "Marcar como concluído" : "A conclusão manual está desativada neste plano"}
           >
             {isCompleted ? (
                 <CheckCircle2 size={14} strokeWidth={3} />
-            ) : !activeUserMode ? (
+            ) : (isReadOnly || !activeUserMode) ? (
                 <Lock size={12} />
             ) : (
                 <CheckCircle2 size={14} strokeWidth={3} />

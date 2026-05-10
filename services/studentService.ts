@@ -2,7 +2,7 @@
 import { doc, getDoc, updateDoc, writeBatch, collection, query, where, getDocs, Timestamp, increment, orderBy, limit, setDoc, documentId, serverTimestamp } from 'firebase/firestore';
 import { db } from './firebase';
 
-const cleanObject = (obj: any): any => {
+const cleanObject = (obj: Record<string, any> | any[] | null | undefined): any => {
   if (obj === null || typeof obj !== 'object') return obj;
   
   if (Array.isArray(obj)) {
@@ -39,7 +39,7 @@ export const getLocalISODate = (date: Date = new Date()): string => {
 
 export interface StudentPlan extends Plan {
   accessId: string;
-  expiryDate: any;
+  expiryDate: string | Timestamp | null;
   isScholarship?: boolean;
 }
 
@@ -338,7 +338,7 @@ export const saveStudentRoutine = async (
     currentPlanId: string;
     routine: StudentRoutine;
     studyProfile: StudyProfile;
-    savedRoutines?: any[];
+    savedRoutines?: Record<string, any>[];
     activeRoutineId?: string;
   }
 ) => {
@@ -437,7 +437,7 @@ export const getDashboardData = async (uid: string): Promise<{
   });
 
   // ENRICH EVENTS WITH META CONTENT (Videos, PDFs, Links, etc.)
-  const metaCache = new Map<string, Promise<any>>();
+  const metaCache = new Map<string, Promise<Meta | null>>();
 
   // --- SMART EXTENSION LOGIC ---
   const smartMergeTolerance = userData.studyProfile?.smartMergeTolerance || 20;
@@ -518,7 +518,7 @@ export const getDashboardData = async (uid: string): Promise<{
   for (const docSnap of futurePendingSnap.docs) {
     if (hasFuturePendingGoals) break;
     const items = docSnap.data().items || [];
-    hasFuturePendingGoals = items.some((item: any) => 
+    hasFuturePendingGoals = items.some((item: ScheduledEvent) => 
       item.planId === currentPlanId && item.status === 'pending'
     );
   }
@@ -607,7 +607,7 @@ export const getStudentCompletedMetas = async (uid: string, planId: string): Pro
   return completedIds;
 };
 
-export const checkAndUnlockSimulados = async (uid: string, planId: string, cycleId?: string, providedFullPlan?: any, providedCompletedIdsSet?: Set<string>) => {
+export const checkAndUnlockSimulados = async (uid: string, planId: string, cycleId?: string, providedFullPlan?: Plan, providedCompletedIdsSet?: Set<string>) => {
   try {
     const fullPlan = providedFullPlan || await fetchFullPlanData(planId);
     if (!fullPlan || !fullPlan.cycles) return;
@@ -615,7 +615,7 @@ export const checkAndUnlockSimulados = async (uid: string, planId: string, cycle
     // 1. BUSCAR O PROGRESSO DO EDITAL (Lendo a subcoleção)
     const progressRef = collection(db, `users/${uid}/plans/${planId}/edital_progress`);
     const progressSnap = await getDocs(progressRef);
-    const progressData: Record<string, any> = {};
+    const progressData: Record<string, { completed?: boolean; status?: string; [key: string]: any }> = {};
 
     progressSnap.forEach(document => {
       // Salva o dado usando o ID do documento (que é o ID da meta) como chave
@@ -633,7 +633,7 @@ export const checkAndUnlockSimulados = async (uid: string, planId: string, cycle
     // (Firestore doesn't support querying nested arrays of objects directly without a top-level field)
     const schedulesRef = collection(db, 'users', uid, 'schedules');
     const snapScheduled = await getDocs(schedulesRef);
-    const allScheduledItems: any[] = [];
+    const allScheduledItems: ScheduledEvent[] = [];
     snapScheduled.docs.forEach(docSnap => {
       const data = docSnap.data();
       const items = (data.items || []) as any[];
@@ -780,14 +780,14 @@ export const getStudentsByClass = async (classId: string) => {
   const usersRef = collection(db, 'users');
   const snapshot = await getDocs(query(usersRef));
   
-  const enrolledStudents: any[] = [];
+  const enrolledStudents: Student[] = [];
 
-  snapshot.forEach(doc => {
-    const userData = { id: doc.id, ...doc.data() };
-    const accesses = (userData as any).access || [];
+  snapshot.forEach(docSnap => {
+    const userData = { id: docSnap.id, ...docSnap.data() } as Student;
+    const accesses = userData.access || [];
     
     // Procura se o aluno tem um acesso válido para esta turma presencial
-    const classAccess = accesses.find((a: any) => a.targetId === classId && a.type === 'presential_class' && a.isActive !== false);
+    const classAccess = accesses.find((a: AccessItem) => a.targetId === classId && a.type === 'presential_class' && a.isActive !== false);
     
     if (classAccess) {
       enrolledStudents.push({
@@ -807,14 +807,14 @@ export const getStudentsByPlan = async (planId: string) => {
   const usersRef = collection(db, 'users');
   const snapshot = await getDocs(query(usersRef));
   
-  const enrolledStudents: any[] = [];
+  const enrolledStudents: Student[] = [];
 
-  snapshot.forEach(doc => {
-    const userData = { id: doc.id, ...doc.data() };
-    const accesses = (userData as any).access || [];
+  snapshot.forEach(docSnap => {
+    const userData = { id: docSnap.id, ...docSnap.data() } as Student;
+    const accesses = userData.access || [];
     
     // Procura se o aluno tem um acesso válido para este plano
-    const planAccess = accesses.find((a: any) => a.targetId === planId && a.type === 'plan' && a.isActive !== false);
+    const planAccess = accesses.find((a: AccessItem) => a.targetId === planId && a.type === 'plan' && a.isActive !== false);
     
     if (planAccess) {
       enrolledStudents.push({

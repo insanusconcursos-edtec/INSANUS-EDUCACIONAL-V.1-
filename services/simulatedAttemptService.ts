@@ -31,6 +31,15 @@ export interface SimulatedAttempt {
   totalQuestions: number;
   isApproved: boolean;
   completedAt: any;
+  autodiagnosis?: {
+    analysis: Record<string, {
+      strong: number;
+      review: number;
+      weak: number;
+      topicsToStudy: string[];
+      topicsToReview: string[];
+    }>;
+  };
 }
 
 /**
@@ -162,6 +171,20 @@ export const getExamRanking = async (simulatedId: string): Promise<SimulatedAtte
     orderBy('score', 'desc'),
     orderBy('completedAt', 'asc'), // Desempate por quem fez primeiro
     limit(100) // Top 100
+  );
+
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SimulatedAttempt));
+};
+
+/**
+ * Busca todas as tentativas de um usuário específico.
+ */
+export const getAttemptsByUserId = async (userId: string): Promise<SimulatedAttempt[]> => {
+  const q = query(
+    collection(db, 'simulated_attempts'),
+    where('userId', '==', userId),
+    orderBy('completedAt', 'desc')
   );
 
   const snapshot = await getDocs(q);

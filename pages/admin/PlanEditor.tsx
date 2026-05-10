@@ -33,9 +33,10 @@ import ConfirmationModal from '../../components/ui/ConfirmationModal';
 import Loading from '../../components/ui/Loading';
 import SyncControlPanel from '../../components/admin/sync/SyncControlPanel';
 import { usePlanSync } from '../../hooks/usePlanSync';
-import { Video } from 'lucide-react';
+import { Video, BarChart3 } from 'lucide-react';
+import { PlanAnalyticsTab } from '../../components/admin/plan/analytics/PlanAnalyticsTab';
 
-type TabView = 'STRUCTURE' | 'CYCLES' | 'EDICT' | 'MENTORSHIP' | 'VISUAL' | 'CHAT' | 'CALL';
+type TabView = 'STRUCTURE' | 'CYCLES' | 'EDICT' | 'MENTORSHIP' | 'VISUAL' | 'CHAT' | 'CALL' | 'ANALYTICS';
 
 const PlanEditor: React.FC = () => {
   const { planId } = useParams<{ planId: string }>();
@@ -377,6 +378,12 @@ const PlanEditor: React.FC = () => {
                 <Layout size={14} /> Visual
             </button>
             <button 
+                onClick={() => setActiveTab('ANALYTICS')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'ANALYTICS' ? 'bg-zinc-800 text-white shadow-lg border border-yellow-400/30' : 'text-zinc-500 hover:text-zinc-300'}`}
+            >
+                <BarChart3 size={14} className={activeTab === 'ANALYTICS' ? 'text-yellow-400' : ''} /> Análise
+            </button>
+            <button 
                 onClick={() => setActiveTab('CHAT')}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'CHAT' ? 'bg-zinc-800 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
             >
@@ -486,6 +493,15 @@ const PlanEditor: React.FC = () => {
       {activeTab === 'VISUAL' && plan && (
           <div className="flex-1 overflow-hidden">
              <PlanVisualEditor plan={plan} onUpdate={handleUpdatePlan} />
+          </div>
+      )}
+
+      {activeTab === 'ANALYTICS' && plan && (
+          <div className="flex-1 overflow-hidden flex flex-col">
+             <PlanAnalyticsTab 
+                planId={plan.id!}
+                linkedSimuladoClassId={plan.linkedSimuladoClassId} 
+             />
           </div>
       )}
 
