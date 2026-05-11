@@ -62,6 +62,25 @@ const SimulatedExamConfigModal: React.FC<SimulatedExamConfigModalProps> = ({
   const [hasBlocks, setHasBlocks] = useState(false);
   const [blocks, setBlocks] = useState<ExamBlock[]>([]);
 
+  // Helper to calculate discipline ranges
+  const getBlockStartIndex = (blockIndex: number) => {
+    let totalBefore = 0;
+    for (let i = 0; i < blockIndex; i++) {
+        totalBefore += Number(blocks[i].questionCount || 0);
+    }
+    return totalBefore;
+  };
+
+  const calculateDisciplineRanges = (block: ExamBlock, blockIndex: number) => {
+    let currentStart = getBlockStartIndex(blockIndex) + 1;
+    return (block.disciplines || []).map(d => {
+        const start = currentStart;
+        const end = currentStart + (Number(d.questionCount) || 0) - 1;
+        currentStart = end + 1;
+        return { start, end };
+    });
+  };
+
   // === INITIALIZATION ===
   useEffect(() => {
     if (isOpen) {
@@ -129,7 +148,7 @@ const SimulatedExamConfigModal: React.FC<SimulatedExamConfigModalProps> = ({
 
   // Block Logic
   const handleAddBlock = () => {
-    setBlocks([...blocks, { name: '', questionCount: 0, minApproval: 0 }]);
+    setBlocks([...blocks, { name: '', questionCount: 0, minApproval: 0, disciplines: [] }]);
   };
 
   const handleBlockChange = (index: number, field: keyof ExamBlock, value: any) => {
@@ -140,6 +159,30 @@ const SimulatedExamConfigModal: React.FC<SimulatedExamConfigModalProps> = ({
 
   const handleRemoveBlock = (index: number) => {
     setBlocks(blocks.filter((_, i) => i !== index));
+  };
+
+  const handleAddDiscipline = (blockIndex: number) => {
+    const newBlocks = [...blocks];
+    const block = newBlocks[blockIndex];
+    newBlocks[blockIndex] = {
+        ...block,
+        disciplines: [...(block.disciplines || []), { id: crypto.randomUUID(), name: '', questionCount: 0 }]
+    };
+    setBlocks(newBlocks);
+  };
+
+  const handleDisciplineChange = (blockIndex: number, discIndex: number, field: keyof BlockDiscipline, value: any) => {
+    const newBlocks = [...blocks];
+    const disciplines = [...(newBlocks[blockIndex].disciplines || [])];
+    disciplines[discIndex] = { ...disciplines[discIndex], [field]: value };
+    newBlocks[blockIndex].disciplines = disciplines;
+    setBlocks(newBlocks);
+  };
+
+  const handleRemoveDiscipline = (blockIndex: number, discIndex: number) => {
+    const newBlocks = [...blocks];
+    newBlocks[blockIndex].disciplines = (newBlocks[blockIndex].disciplines || []).filter((_, i) => i !== discIndex);
+    setBlocks(newBlocks);
   };
 
   // Validation
@@ -157,6 +200,16 @@ const SimulatedExamConfigModal: React.FC<SimulatedExamConfigModalProps> = ({
 
     if (hasBlocks && !isBlockCountValid) {
         return alert(`ERRO DE VALIDAÇÃO: A soma das questões dos blocos (${blocksTotalQuestions}) deve ser igual ao total de questões do simulado (${questionCount}).`);
+    }
+
+    // New validation: check if sum of disciplines matches block count
+    if (hasBlocks) {
+        for (const block of blocks) {
+            const discSum = (block.disciplines || []).reduce((acc, d) => acc + (Number(d.questionCount) || 0), 0);
+            if (discSum !== Number(block.questionCount)) {
+                return alert(`ERRO DE VALIDAÇÃO NO BLOCO "${block.name}": A soma das questões das disciplinas (${discSum}) deve ser igual ao total de questões do bloco (${block.questionCount}).`);
+            }
+        }
     }
 
     setLoading(true);
@@ -190,15 +243,18 @@ const SimulatedExamConfigModal: React.FC<SimulatedExamConfigModalProps> = ({
             examData.blocks = [];
         }
 
-        const filesToUpload = {
-            booklet: bookletFile || undefined,
-            answerKey: answerKeyFile || undefined
-        };
+        let filesToUpload;
+        if (bookletFile || answerKeyFile) {
+            filesToUpload = {
+                ...(bookletFile && { booklet: bookletFile }),
+                ...(answerKeyFile && { answerKey: answerKeyFile })
+            };
+        }
 
         if (examToEdit && examToEdit.id) {
             await updateExam(classId, examToEdit.id, examData, filesToUpload);
         } else {
-            await addExamToClass(classId, examData, filesToUpload);
+            await addExamToClass(classId, examData, filesToUpload || {});
         }
 
         onSuccess();
@@ -366,18 +422,28 @@ const SimulatedExamConfigModal: React.FC<SimulatedExamConfigModalProps> = ({
                             />
                             <div className={`
                                 border-2 border-dashed rounded-xl p-4 flex flex-col items-center justify-center gap-2 transition-all
-                                ${bookletFile ? 'border-purple-500 bg-purple-500/10' : 'border-zinc-800 bg-zinc-900/50 hover:border-zinc-600'}
+                                ${bookletFile ? 'border-purple-500 bg-purple-500/10' : existingFiles.booklet ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-zinc-800 bg-zinc-900/50 hover:border-zinc-600'}
                             `}>
-                                <Upload size={20} className={bookletFile ? 'text-purple-400' : 'text-zinc-600'} />
-                                <span className="text-xs font-bold text-zinc-400 uppercase truncate max-w-full px-2">
-                                    {bookletFile ? bookletFile.name : (existingFiles.booklet ? 'Substituir Caderno Existente' : 'Enviar PDF')}
+                                <Upload size={20} className={bookletFile ? 'text-purple-400' : existingFiles.booklet ? 'text-emerald-500' : 'text-zinc-600'} />
+                                <span className={`text-xs font-bold uppercase truncate max-w-full px-2 ${bookletFile ? 'text-purple-400' : existingFiles.booklet ? 'text-emerald-500' : 'text-zinc-400'}`}>
+                                    {bookletFile ? bookletFile.name : (existingFiles.booklet ? 'Substituir Caderno' : 'Enviar PDF')}
                                 </span>
                             </div>
                         </div>
                         {existingFiles.booklet && !bookletFile && (
-                            <p className="text-[10px] text-emerald-500 flex items-center gap-1">
-                                <CheckCircle size={10} /> Arquivo atual já cadastrado
-                            </p>
+                            <div className="flex items-center justify-between px-1">
+                                <p className="text-[9px] text-emerald-500/80 font-bold uppercase flex items-center gap-1">
+                                    <FileCheck size={12} /> Arquivo já vinculado
+                                </p>
+                                <a 
+                                    href={existingFiles.booklet} 
+                                    target="_blank" 
+                                    rel="noreferrer"
+                                    className="text-[9px] text-zinc-500 hover:text-white underline font-bold"
+                                >
+                                    Visualizar Atual
+                                </a>
+                            </div>
                         )}
                     </div>
 
@@ -393,18 +459,28 @@ const SimulatedExamConfigModal: React.FC<SimulatedExamConfigModalProps> = ({
                             />
                             <div className={`
                                 border-2 border-dashed rounded-xl p-4 flex flex-col items-center justify-center gap-2 transition-all
-                                ${answerKeyFile ? 'border-purple-500 bg-purple-500/10' : 'border-zinc-800 bg-zinc-900/50 hover:border-zinc-600'}
+                                ${answerKeyFile ? 'border-purple-500 bg-purple-500/10' : existingFiles.answerKey ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-zinc-800 bg-zinc-900/50 hover:border-zinc-600'}
                             `}>
-                                <Upload size={20} className={answerKeyFile ? 'text-purple-400' : 'text-zinc-600'} />
-                                <span className="text-xs font-bold text-zinc-400 uppercase truncate max-w-full px-2">
-                                    {answerKeyFile ? answerKeyFile.name : (existingFiles.answerKey ? 'Substituir Gabarito Existente' : 'Enviar PDF')}
+                                <Upload size={20} className={answerKeyFile ? 'text-purple-400' : existingFiles.answerKey ? 'text-emerald-500' : 'text-zinc-600'} />
+                                <span className={`text-xs font-bold uppercase truncate max-w-full px-2 ${answerKeyFile ? 'text-purple-400' : existingFiles.answerKey ? 'text-emerald-500' : 'text-zinc-400'}`}>
+                                    {answerKeyFile ? answerKeyFile.name : (existingFiles.answerKey ? 'Substituir Gabarito' : 'Enviar PDF')}
                                 </span>
                             </div>
                         </div>
                         {existingFiles.answerKey && !answerKeyFile && (
-                            <p className="text-[10px] text-emerald-500 flex items-center gap-1">
-                                <CheckCircle size={10} /> Arquivo atual já cadastrado
-                            </p>
+                            <div className="flex items-center justify-between px-1">
+                                <p className="text-[9px] text-emerald-500/80 font-bold uppercase flex items-center gap-1">
+                                    <FileCheck size={12} /> Arquivo já vinculado
+                                </p>
+                                <a 
+                                    href={existingFiles.answerKey} 
+                                    target="_blank" 
+                                    rel="noreferrer"
+                                    className="text-[9px] text-zinc-500 hover:text-white underline font-bold"
+                                >
+                                    Visualizar Atual
+                                </a>
+                            </div>
                         )}
                     </div>
                 </div>
@@ -530,45 +606,113 @@ const SimulatedExamConfigModal: React.FC<SimulatedExamConfigModalProps> = ({
                     </div>
 
                     {hasBlocks && (
-                        <div className="space-y-3 animate-in slide-in-from-top-2">
-                            {blocks.map((block, index) => (
-                                <div key={index} className="flex gap-2 items-end bg-zinc-950 p-3 rounded-lg border border-zinc-800">
-                                    <div className="flex-1 space-y-1">
-                                        <label className="text-[9px] font-bold text-zinc-500 uppercase">Nome do Bloco</label>
-                                        <input 
-                                            value={block.name}
-                                            onChange={e => handleBlockChange(index, 'name', e.target.value)}
-                                            placeholder="Ex: Conhecimentos Gerais"
-                                            className="w-full bg-zinc-900 border-b border-zinc-700 text-xs text-white pb-1 focus:outline-none focus:border-purple-500"
-                                        />
-                                    </div>
-                                    <div className="w-20 space-y-1">
-                                        <label className="text-[9px] font-bold text-zinc-500 uppercase">Questões</label>
-                                        <input 
-                                            type="number"
-                                            value={block.questionCount}
-                                            onChange={e => handleBlockChange(index, 'questionCount', Number(e.target.value))}
-                                            className="w-full bg-zinc-900 border-b border-zinc-700 text-xs text-white pb-1 text-center focus:outline-none focus:border-purple-500"
-                                        />
-                                    </div>
-                                    <div className="w-20 space-y-1">
-                                        <label className="text-[9px] font-bold text-zinc-500 uppercase">Min %</label>
-                                        <input 
-                                            type="number"
-                                            value={block.minApproval}
-                                            onChange={e => handleBlockChange(index, 'minApproval', Number(e.target.value))}
-                                            className="w-full bg-zinc-900 border-b border-zinc-700 text-xs text-white pb-1 text-center focus:outline-none focus:border-purple-500"
-                                        />
-                                    </div>
+                        <div className="space-y-6 animate-in slide-in-from-top-2">
+                            {blocks.map((block, index) => {
+                                const discSum = (block.disciplines || []).reduce((acc, d) => acc + (Number(d.questionCount) || 0), 0);
+                                const remaining = Number(block.questionCount) - discSum;
+                                const ranges = calculateDisciplineRanges(block, index);
+
+                                return (
+                                <div key={index} className="space-y-4 bg-zinc-950 p-6 rounded-xl border border-zinc-800 relative group">
                                     <button 
                                         type="button"
                                         onClick={() => handleRemoveBlock(index)}
-                                        className="p-1.5 text-zinc-600 hover:text-red-500 hover:bg-red-900/20 rounded mb-0.5"
+                                        className="absolute top-4 right-4 p-2 text-zinc-600 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
                                     >
-                                        <Trash2 size={14} />
+                                        <Trash2 size={16} />
                                     </button>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end pr-10">
+                                        <div className="md:col-span-2 space-y-1">
+                                            <label className="text-[9px] font-bold text-zinc-500 uppercase">Nome do Bloco</label>
+                                            <input 
+                                                value={block.name}
+                                                onChange={e => handleBlockChange(index, 'name', e.target.value)}
+                                                placeholder="Ex: Conhecimentos Gerais"
+                                                className="w-full bg-zinc-900 border-b border-zinc-800 px-2 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] font-bold text-zinc-500 uppercase">Total Bloco</label>
+                                            <input 
+                                                type="number"
+                                                value={block.questionCount}
+                                                onChange={e => handleBlockChange(index, 'questionCount', Number(e.target.value))}
+                                                className="w-full bg-zinc-900 border-b border-zinc-800 px-2 py-1.5 text-xs text-white text-center focus:outline-none focus:border-purple-500"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] font-bold text-zinc-500 uppercase">Min % Aprovação</label>
+                                            <input 
+                                                type="number"
+                                                value={block.minApproval}
+                                                onChange={e => handleBlockChange(index, 'minApproval', Number(e.target.value))}
+                                                className="w-full bg-zinc-900 border-b border-zinc-800 px-2 py-1.5 text-xs text-white text-center focus:outline-none focus:border-purple-500"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Disciplinas do Bloco */}
+                                    <div className="pl-4 border-l-2 border-zinc-800 space-y-3 mt-4">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <h4 className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Disciplinas do Bloco</h4>
+                                                <span className={`text-[9px] font-bold px-2 py-0.5 rounded ${remaining === 0 ? 'bg-emerald-500/10 text-emerald-500' : 'bg-yellow-500/10 text-yellow-500'}`}>
+                                                    Questões restantes: {remaining}
+                                                </span>
+                                            </div>
+                                            <button 
+                                                type="button"
+                                                onClick={() => handleAddDiscipline(index)}
+                                                className="text-[9px] font-black text-purple-400 hover:text-purple-300 uppercase flex items-center gap-1"
+                                            >
+                                                <Plus size={10} /> Add Disciplina
+                                            </button>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            {(block.disciplines || []).map((disc, dIdx) => (
+                                                <div key={dIdx} className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center bg-zinc-900/40 p-2 rounded-lg border border-zinc-800/50">
+                                                    <div className="md:col-span-5">
+                                                        <input 
+                                                            value={disc.name}
+                                                            onChange={e => handleDisciplineChange(index, dIdx, 'name', e.target.value)}
+                                                            placeholder="Nome da Disciplina"
+                                                            className="w-full bg-transparent border-b border-zinc-800 text-[11px] text-white py-1 focus:outline-none focus:border-purple-500"
+                                                        />
+                                                    </div>
+                                                    <div className="md:col-span-2">
+                                                        <input 
+                                                            type="number"
+                                                            value={disc.questionCount}
+                                                            onChange={e => handleDisciplineChange(index, dIdx, 'questionCount', Number(e.target.value))}
+                                                            placeholder="Qtd"
+                                                            className="w-full bg-transparent border-b border-zinc-800 text-[11px] text-white text-center py-1 focus:outline-none focus:border-purple-500"
+                                                        />
+                                                    </div>
+                                                    <div className="md:col-span-4 text-[9px] font-bold text-zinc-500 uppercase px-2 py-1 bg-zinc-950 rounded border border-zinc-800/50 text-center">
+                                                        Questões {String(ranges[dIdx]?.start || 0).padStart(2, '0')} a {String(ranges[dIdx]?.end || 0).padStart(2, '0')}
+                                                    </div>
+                                                    <div className="md:col-span-1 flex justify-end">
+                                                        <button 
+                                                            type="button"
+                                                            onClick={() => handleRemoveDiscipline(index, dIdx)}
+                                                            className="p-1 text-zinc-600 hover:text-red-500 transition-colors"
+                                                        >
+                                                            <Trash2 size={12} />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                            {(block.disciplines || []).length === 0 && (
+                                                <div className="text-[10px] text-zinc-600 font-bold uppercase py-4 text-center border border-dashed border-zinc-800 rounded-lg">
+                                                    Nenhuma disciplina adicionada a este bloco.
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
                                 </div>
-                            ))}
+                            )})}
                             
                             <div className="flex items-center justify-between pt-2">
                                 <button 

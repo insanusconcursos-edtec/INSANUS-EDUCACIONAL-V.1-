@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Loader2, FileText, CheckCircle2, AlertTriangle, LogOut, Check, ArrowLeft } from 'lucide-react';
+import { Loader2, FileText, CheckCircle2, AlertTriangle, LogOut, Check, ArrowLeft, Layers } from 'lucide-react';
 import { SimulatedExam } from '../../../services/simulatedService';
 import { useAuth } from '../../../contexts/AuthContext';
 import { submitExamAttempt, SimulatedAttempt } from '../../../services/simulatedAttemptService';
@@ -24,7 +24,26 @@ const SimulatedExamRunner: React.FC<SimulatedExamRunnerProps> = ({ exam, onClose
   
   // Modal States
   const [showIncompleteModal, setShowIncompleteModal] = useState(false);
-  const [showFinishModal, setShowFinishModal] = useState(false); // PASSO 1: Estado do Modal
+  const [showFinishModal, setShowFinishModal] = useState(false); 
+
+  // Discipline Headers Support
+  const headers = React.useMemo(() => {
+    if (!exam.hasBlocks || !exam.blocks) return {};
+    const h: Record<number, { name: string; range: string }> = {};
+    let currentStart = 1;
+    exam.blocks.forEach(block => {
+      (block.disciplines || []).forEach(disc => {
+        const qStart = currentStart;
+        const qEnd = currentStart + (Number(disc.questionCount) || 0) - 1;
+        h[qStart] = { 
+          name: disc.name, 
+          range: `Questões ${String(qStart).padStart(2, '0')} a ${String(qEnd).padStart(2, '0')}` 
+        };
+        currentStart = qEnd + 1;
+      });
+    });
+    return h;
+  }, [exam]);
 
   // Handlers
   const handleOptionSelect = (questionIndex: number, option: string) => {
@@ -187,60 +206,77 @@ const SimulatedExamRunner: React.FC<SimulatedExamRunnerProps> = ({ exam, onClose
 
       {/* BODY: GRID DE QUESTÕES */}
       <div className="flex-1 overflow-y-auto p-6 bg-black/40 scrollbar-thin scrollbar-thumb-zinc-800">
-          <div className="max-w-[1800px] mx-auto">
+          <div className="max-w-[1800px] mx-auto pb-10">
                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                   {Array.from({ length: exam.questionCount }).map((_, i) => {
                       const qNum = i + 1;
                       const isAnswered = answers[qNum] !== undefined && answers[qNum] !== "";
                       const currentAnswer = answers[qNum];
                       const isError = missingQuestions.includes(qNum);
+                      const discHeader = headers[qNum];
 
                       return (
-                          <div key={qNum} className={`p-4 rounded-xl border flex flex-col items-center gap-3 transition-all ${
-                              isError 
-                                ? 'border-red-600 shadow-[0_0_15px_rgba(220,38,38,0.5)] animate-pulse bg-red-900/10' 
-                                : isAnswered ? 'border-zinc-700 bg-zinc-900 shadow-lg' : 'border-zinc-800 bg-zinc-950 hover:border-zinc-700'
-                          }`}>
-                              <div className="flex items-center justify-between w-full">
-                                <span className={`text-[10px] font-black uppercase tracking-widest ${isError ? 'text-red-500' : isAnswered ? 'text-emerald-500' : 'text-zinc-600'}`}>
-                                    Questão {qNum.toString().padStart(2, '0')}
-                                </span>
-                                {isError && <AlertTriangle size={12} className="text-red-500" />}
-                                {isAnswered && !isError && <CheckCircle2 size={12} className="text-emerald-500" />}
-                              </div>
-                              
-                              <div className="flex gap-1.5 justify-center w-full">
-                                  {exam.type === 'multiple_choice' ? (
-                                      ['A','B','C','D', (exam.alternativesCount === 5 ? 'E' : null)].filter(Boolean).map((opt: any) => (
-                                          <button
-                                              key={opt}
-                                              onClick={() => handleOptionSelect(qNum, opt)}
-                                              className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-black transition-all ${
-                                                  currentAnswer === opt 
-                                                  ? 'bg-brand-red text-white shadow-lg shadow-red-900/50 scale-110' 
-                                                  : 'bg-zinc-900 border border-zinc-800 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300'
-                                              }`}
-                                          >
-                                              {opt}
-                                          </button>
-                                      ))
-                                  ) : (
-                                      ['C', 'E'].map(opt => (
-                                          <button
-                                              key={opt}
-                                              onClick={() => handleOptionSelect(qNum, opt)}
-                                              className={`w-10 h-8 rounded-lg flex items-center justify-center text-xs font-black transition-all ${
-                                                  currentAnswer === opt 
-                                                  ? (opt === 'C' ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white') + ' shadow-lg scale-110' 
-                                                  : 'bg-zinc-900 border border-zinc-800 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300'
-                                              }`}
-                                          >
-                                              {opt}
-                                          </button>
-                                      ))
-                                  )}
-                              </div>
-                          </div>
+                          <React.Fragment key={qNum}>
+                            {discHeader && (
+                                <div className="col-span-full mt-8 first:mt-2 mb-4 border-l-4 border-purple-600 bg-zinc-900/50 p-4 rounded-r-xl flex items-center justify-between shadow-[0_10px_20px_rgba(0,0,0,0.3)] border-y border-r border-zinc-800">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-xl bg-purple-600/10 flex items-center justify-center text-purple-500 border border-purple-500/20">
+                                            <Layers size={18} />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-sm font-black text-white uppercase tracking-widest leading-none mb-1">{discHeader.name}</h3>
+                                            <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">{discHeader.range}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className={`p-4 rounded-xl border flex flex-col items-center gap-3 transition-all ${
+                                isError 
+                                    ? 'border-red-600 shadow-[0_0_15px_rgba(220,38,38,0.5)] animate-pulse bg-red-900/10' 
+                                    : isAnswered ? 'border-zinc-700 bg-zinc-900 shadow-lg' : 'border-zinc-800 bg-zinc-950 hover:border-zinc-700'
+                            }`}>
+                                <div className="flex items-center justify-between w-full">
+                                    <span className={`text-[10px] font-black uppercase tracking-widest ${isError ? 'text-red-500' : isAnswered ? 'text-emerald-500' : 'text-zinc-600'}`}>
+                                        Questão {qNum.toString().padStart(2, '0')}
+                                    </span>
+                                    {isError && <AlertTriangle size={12} className="text-red-500" />}
+                                    {isAnswered && !isError && <CheckCircle2 size={12} className="text-emerald-500" />}
+                                </div>
+                                
+                                <div className="flex gap-1.5 justify-center w-full">
+                                    {exam.type === 'multiple_choice' ? (
+                                        ['A','B','C','D', (exam.alternativesCount === 5 ? 'E' : null)].filter(Boolean).map((opt: any) => (
+                                            <button
+                                                key={opt}
+                                                onClick={() => handleOptionSelect(qNum, opt)}
+                                                className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-black transition-all ${
+                                                    currentAnswer === opt 
+                                                    ? 'bg-brand-red text-white shadow-lg shadow-red-900/50 scale-110' 
+                                                    : 'bg-zinc-900 border border-zinc-800 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300'
+                                                }`}
+                                            >
+                                                {opt}
+                                            </button>
+                                        ))
+                                    ) : (
+                                        ['C', 'E'].map(opt => (
+                                            <button
+                                                key={opt}
+                                                onClick={() => handleOptionSelect(qNum, opt)}
+                                                className={`w-10 h-8 rounded-lg flex items-center justify-center text-xs font-black transition-all ${
+                                                    currentAnswer === opt 
+                                                    ? (opt === 'C' ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white') + ' shadow-lg scale-110' 
+                                                    : 'bg-zinc-900 border border-zinc-800 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300'
+                                                }`}
+                                            >
+                                                {opt}
+                                            </button>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+                          </React.Fragment>
                       );
                   })}
                </div>

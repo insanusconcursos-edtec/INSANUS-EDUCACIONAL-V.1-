@@ -2,8 +2,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { 
-  BarChart2, ArrowLeft, Trophy, Search, ChevronDown, Brain, ListChecks, Check, X, Minus, Medal, AlertCircle, FileText
+  BarChart2, ArrowLeft, Trophy, Search, ChevronDown, Brain, ListChecks, Check, X, Minus, Medal, AlertCircle, FileText, SwitchCamera, BarChart
 } from 'lucide-react';
+import { 
+  BarChart as ReBarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell, LabelList
+} from 'recharts';
 import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db } from '../../../services/firebase';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -93,6 +96,144 @@ export const ExamResult: React.FC<ExamResultProps> = ({ exam, attemptData, onBac
     // Estado para controlar as Abas
     const [activeTab, setActiveTab] = useState<'PERFORMANCE' | 'RANKING' | 'AUTODIAGNOSIS'>('PERFORMANCE'); 
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);    
+    const [chartMode, setChartMode] = useState<'quantity' | 'percentage' | 'autodiagnosis'>('quantity');
+
+    // Estilização dinâmica para o Selo de Nivelamento
+    const levelStyle = useMemo(() => {
+        if (!exam.levelingRanges) return null;
+        const percent = (attemptData.score / attemptData.totalQuestions) * 100;
+        
+        if (percent > exam.levelingRanges.advanced) return {
+            label: 'Insano',
+            color: 'text-[#FF0000]',
+            border: 'border-[#FF0000]/30',
+            bg: 'bg-[#FF0000]/5',
+            glow: 'shadow-[0_0_30px_rgba(255,0,0,0.2)]',
+            textGlow: 'drop-shadow-[0_0_20px_rgba(255,0,0,0.5)]',
+            iconBg: 'bg-[#FF0000]/20'
+        };
+        if (percent > exam.levelingRanges.intermediate) return {
+            label: 'Avançado',
+            color: 'text-[#FFD700]',
+            border: 'border-[#FFD700]/30',
+            bg: 'bg-[#FFD700]/5',
+            glow: 'shadow-[0_0_30px_rgba(255,215,0,0.15)]',
+            textGlow: 'drop-shadow-[0_0_20px_rgba(255,215,0,0.4)]',
+            iconBg: 'bg-[#FFD700]/20'
+        };
+        if (percent > exam.levelingRanges.beginner) return {
+            label: 'Intermediário',
+            color: 'text-[#50C878]',
+            border: 'border-[#50C878]/30',
+            bg: 'bg-[#50C878]/5',
+            glow: 'shadow-[0_0_30px_rgba(80,200,120,0.15)]',
+            textGlow: 'drop-shadow-[0_0_20px_rgba(80,200,120,0.3)]',
+            iconBg: 'bg-[#50C878]/20'
+        };
+        return {
+            label: 'Iniciante',
+            color: 'text-[#00FFFF]',
+            border: 'border-[#00FFFF]/30',
+            bg: 'bg-[#00FFFF]/5',
+            glow: 'shadow-[0_0_30px_rgba(0,255,255,0.15)]',
+            textGlow: 'drop-shadow-[0_0_20px_rgba(0,255,255,0.3)]',
+            iconBg: 'bg-[#00FFFF]/20'
+        };
+    }, [exam.levelingRanges, attemptData.score, attemptData.totalQuestions]);
+
+    // Cálculo do Desempenho por Disciplina
+    const disciplineStats = useMemo(() => {
+        if (!exam.hasBlocks || !exam.blocks) return [];
+        
+        let currentStart = 1;
+        const stats: any[] = [];
+        const autodiagnosisData = (attemptData as any).autodiagnosis?.analysis || {};
+        
+        exam.blocks.forEach(block => {
+            (block.disciplines || []).forEach(disc => {
+                const start = currentStart;
+                const end = currentStart + (Number(disc.questionCount) || 0) - 1;
+                
+                let hits = 0;
+                let misses = 0;
+                let blank = 0;
+
+                // Autodiagnosis category counts
+                let dominio = 0;      // Verde (Domínio Real)
+                let revisao = 0;      // Amarelo (Revisão Necessária)
+                let lacuna = 0;       // Vermelho (Lacuna de Conhecimento)
+                
+                for (let i = start; i <= end; i++) {
+                    const userAns = attemptData.userAnswers[i] || attemptData.userAnswers[String(i)];
+                    const questionData = exam.questions?.find(q => q.index === i);
+                    const correctAns = questionData?.answer;
+                    const isAnnulled = questionData?.isAnnulled;
+                    
+                    const reason = (attemptData as any).autodiagnosis?.rawAnswers?.[i] || (attemptData as any).autodiagnosis?.rawAnswers?.[String(i)];
+                    const isCorrect = isAnnulled || (userAns === correctAns);
+
+                    if (isAnnulled) {
+                        hits++;
+                        dominio++; // Anuladas contam como domínio real por padrão
+                        continue;
+                    }
+                    
+                    if (!userAns) {
+                        blank++;
+                        // Blank + Insegurança = Amarelo
+                        if (reason === 'INSEGURANCA') revisao++;
+                        // Blank + Falta de conteúdo = Vermelho
+                        else if (reason === 'FALTA_CONTEUDO') lacuna++;
+                        else lacuna++; // Default for blank if no reason
+                    } else if (isCorrect) {
+                        hits++;
+                        // Correct + Domínio = Verde
+                        if (reason === 'DOMINIO') dominio++;
+                        // Correct + Chute Consciente = Amarelo
+                        else if (reason === 'CHUTE_CONSCIENTE') revisao++;
+                        // Correct + Chute Sorte = Vermelho
+                        else if (reason === 'CHUTE_SORTE') lacuna++;
+                        else dominio++; // Default for correct if no reason
+                    } else {
+                        misses++;
+                        // Wrong + Falta Atenção = Amarelo
+                        if (reason === 'FALTA_ATENCAO') revisao++;
+                        // Wrong + Falta Conteúdo = Vermelho
+                        else if (reason === 'FALTA_CONTEUDO') lacuna++;
+                        else lacuna++; // Default for wrong if no reason
+                    }
+                }
+                
+                const total = Number(disc.questionCount) || (hits + misses + blank);
+                const rate = total > 0 ? (hits / total) * 100 : 0;
+                
+                stats.push({
+                    name: disc.name,
+                    hits,
+                    misses,
+                    blank,
+                    realMastery: dominio,
+                    revisao: revisao,
+                    knowledgeGap: lacuna,
+                    total,
+                    rate: Number(rate.toFixed(1))
+                });
+                
+                currentStart = end + 1;
+            });
+        });
+        
+        return stats;
+    }, [exam, attemptData]);
+
+    const sortedStats = useMemo(() => {
+        const stats = [...disciplineStats];
+        if (chartMode === 'percentage') {
+            return stats.sort((a, b) => b.rate - a.rate);
+        }
+        return stats;
+    }, [disciplineStats, chartMode]);
+
     // Estados do Ranking
     const [rankingData, setRankingData] = useState<SimulatedAttempt[]>([]);
     const [loadingRanking, setLoadingRanking] = useState(false);
@@ -269,32 +410,24 @@ export const ExamResult: React.FC<ExamResultProps> = ({ exam, attemptData, onBac
                         <div className="space-y-8 animate-in fade-in duration-300">
                             
                             {/* SELO DE NIVELAMENTO (Se for simulado de nivelamento) */}
-                            {exam.isLeveling && exam.levelingRanges && (
-                                <div className="bg-brand-red/10 border border-brand-red/30 p-8 rounded-3xl flex flex-col items-center text-center animate-in zoom-in-95 duration-700">
-                                    <div className="w-16 h-16 bg-brand-red/20 rounded-2xl flex items-center justify-center text-brand-red mb-4 shadow-[0_0_30px_rgba(220,38,38,0.2)]">
+                            {exam.isLeveling && levelStyle && (
+                                <div className={`bg-black/40 border ${levelStyle.border} p-8 rounded-3xl flex flex-col items-center text-center animate-in zoom-in-95 duration-700`}>
+                                    <div className={`w-16 h-16 ${levelStyle.iconBg} rounded-2xl flex items-center justify-center ${levelStyle.color} mb-4 ${levelStyle.glow}`}>
                                         <Trophy size={32} />
                                     </div>
                                     <h4 className="text-zinc-500 text-[11px] font-black uppercase tracking-[0.3em] mb-2">Nível de Preparação Identificado</h4>
-                                    <p className={`text-6xl font-black uppercase tracking-tighter drop-shadow-2xl ${
-                                        (() => {
-                                            const percent = (attemptData.score / attemptData.totalQuestions) * 100;
-                                            if (percent > exam.levelingRanges.advanced || percent > exam.levelingRanges.intermediate) return 'text-purple-400 drop-shadow-[0_0_15px_rgba(168,85,247,0.6)]';
-                                            return 'text-yellow-400 drop-shadow-[0_0_15px_rgba(250,204,21,0.4)]';
-                                        })()
-                                    }`}>
-                                        {(() => {
-                                            const percent = (attemptData.score / attemptData.totalQuestions) * 100;
-                                            if (percent > exam.levelingRanges.advanced) return 'Insano';
-                                            if (percent > exam.levelingRanges.intermediate) return 'Avançado';
-                                            if (percent > exam.levelingRanges.beginner) return 'Intermediário';
-                                            return 'Iniciante';
-                                        })()}
+                                    <p className={`text-6xl font-black uppercase tracking-tighter ${levelStyle.color} ${levelStyle.textGlow}`}>
+                                        {levelStyle.label}
                                     </p>
                                     <div className="mt-6 flex flex-col items-center gap-2">
                                         <div className="h-1.5 w-64 bg-zinc-800 rounded-full overflow-hidden">
                                             <div 
-                                                className="h-full bg-brand-red shadow-[0_0_10px_rgba(220,38,38,0.5)] transition-all duration-1000" 
-                                                style={{ width: `${(attemptData.score / attemptData.totalQuestions) * 100}%` }}
+                                                className={`h-full transition-all duration-1000`} 
+                                                style={{ 
+                                                    width: `${(attemptData.score / attemptData.totalQuestions) * 100}%`,
+                                                    backgroundColor: levelStyle.color.match(/\[(.*?)\]/)?.[1] || '#DC2626',
+                                                    boxShadow: `0 0 10px ${levelStyle.color.match(/\[(.*?)\]/)?.[1] || '#DC2626'}`
+                                                }}
                                             />
                                         </div>
                                         <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">
@@ -332,6 +465,218 @@ export const ExamResult: React.FC<ExamResultProps> = ({ exam, attemptData, onBac
                                     <span className="text-[10px] uppercase text-zinc-500 font-bold tracking-widest">Em Branco</span>
                                 </div>
                             </div>
+
+                            {/* GRÁFICO DE DESEMPENHO POR DISCIPLINA */}
+                            {disciplineStats.length > 0 && (
+                                <div className="bg-zinc-900/40 rounded-3xl border border-zinc-800/60 p-6 md:p-8 animate-in slide-in-from-bottom-4 duration-700">
+                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                                        <div>
+                                            <h3 className="text-xl font-black text-white uppercase tracking-tighter flex items-center gap-3">
+                                                <BarChart className="text-brand-red w-6 h-6" />
+                                                Performance por Disciplina
+                                            </h3>
+                                            <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mt-1">
+                                                Análise detalhada do seu aproveitamento por matéria
+                                            </p>
+                                        </div>
+
+                                        <div className="flex bg-zinc-950 p-1 rounded-xl border border-zinc-800 w-fit self-end md:self-auto">
+                                            <button 
+                                                onClick={() => setChartMode('quantity')}
+                                                className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${chartMode === 'quantity' ? 'bg-zinc-800 text-white shadow-lg shadow-black/50' : 'text-zinc-600 hover:text-zinc-400'}`}
+                                            >
+                                                Quantidade
+                                            </button>
+                                            <button 
+                                                onClick={() => setChartMode('percentage')}
+                                                className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${chartMode === 'percentage' ? 'bg-zinc-800 text-white shadow-lg shadow-black/50' : 'text-zinc-600 hover:text-zinc-400'}`}
+                                            >
+                                                Porcentagem
+                                            </button>
+                                            {(attemptData as any).autodiagnosis?.analysis && (
+                                                <button 
+                                                    onClick={() => setChartMode('autodiagnosis')}
+                                                    className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${chartMode === 'autodiagnosis' ? 'bg-yellow-500 text-black shadow-lg shadow-yellow-500/20' : 'text-zinc-600 hover:text-zinc-400'}`}
+                                                >
+                                                    Autodiagnóstico
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="h-[400px] w-full">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <ReBarChart
+                                                data={sortedStats}
+                                                layout="vertical"
+                                                margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                                            >
+                                                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#27272a" />
+                                                <XAxis 
+                                                    type="number" 
+                                                    hide 
+                                                    domain={chartMode === 'percentage' ? [0, 100] : [0, 'dataMax']} 
+                                                />
+                                                <YAxis 
+                                                    dataKey="name" 
+                                                    type="category" 
+                                                    width={150} 
+                                                    axisLine={false}
+                                                    tickLine={false}
+                                                    tick={{ fill: '#a1a1aa', fontSize: 10, fontWeight: 'bold' }}
+                                                />
+                                                <Tooltip 
+                                                    cursor={{ fill: 'rgba(255,255,255,0.03)' }}
+                                                    content={({ active, payload }) => {
+                                                        if (active && payload && payload.length) {
+                                                            const data = payload[0].payload;
+                                                            return (
+                                                                <div className="bg-zinc-950 border border-zinc-800 p-3 rounded-xl shadow-2xl">
+                                                                    <p className="text-[10px] font-black text-white uppercase tracking-widest mb-2 pb-1 border-b border-zinc-900">{data.name}</p>
+                                                                    <div className="space-y-1">
+                                                                        {chartMode === 'autodiagnosis' ? (
+                                                                            <>
+                                                                                <div className="text-[10px] font-bold text-zinc-400 flex items-center justify-between gap-4 uppercase">
+                                                                                    <span className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 block" /> Domínio Real:</span>
+                                                                                    <span className="text-emerald-500">{data.realMastery}</span>
+                                                                                </div>
+                                                                                <div className="text-[10px] font-bold text-zinc-400 flex items-center justify-between gap-4 uppercase">
+                                                                                    <span className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#FFFF00] block" /> Revisar:</span>
+                                                                                    <span className="text-yellow-500">{data.revisao}</span>
+                                                                                </div>
+                                                                                <div className="text-[10px] font-bold text-zinc-400 flex items-center justify-between gap-4 uppercase">
+                                                                                    <span className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-red-500 block" /> Lacuna Conhec.:</span>
+                                                                                    <span className="text-red-500">{data.knowledgeGap}</span>
+                                                                                </div>
+                                                                            </>
+                                                                        ) : (
+                                                                            <>
+                                                                                <div className="text-[10px] font-bold text-zinc-400 flex items-center justify-between gap-4 uppercase">
+                                                                                    <span>Acertos:</span>
+                                                                                    <span className="text-emerald-500">{data.hits}</span>
+                                                                                </div>
+                                                                                <div className="text-[10px] font-bold text-zinc-400 flex items-center justify-between gap-4 uppercase">
+                                                                                    <span>Erros:</span>
+                                                                                    <span className="text-red-500">{data.misses}</span>
+                                                                                </div>
+                                                                                <div className="text-[10px] font-bold text-zinc-400 flex items-center justify-between gap-4 uppercase">
+                                                                                    <span>Branco:</span>
+                                                                                    <span className="text-zinc-600">{data.blank}</span>
+                                                                                </div>
+                                                                            </>
+                                                                        )}
+                                                                        <div className="pt-1 mt-1 border-t border-zinc-900">
+                                                                            <div className="text-[10px] font-black text-white flex items-center justify-between uppercase">
+                                                                                <span>Aproveitamento:</span>
+                                                                                <span className="text-brand-red">{data.rate}%</span>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        }
+                                                        return null;
+                                                    }}
+                                                />
+                                                {chartMode === 'quantity' ? (
+                                                    <>
+                                                        <Bar 
+                                                            dataKey="hits" 
+                                                            stackId="a" 
+                                                            fill="#10b981" 
+                                                            radius={[0, 0, 0, 0]} 
+                                                            barSize={20}
+                                                        />
+                                                        <Bar 
+                                                            dataKey="misses" 
+                                                            stackId="a" 
+                                                            fill="#ef4444" 
+                                                            radius={[0, 4, 4, 0]} 
+                                                            barSize={20}
+                                                        />
+                                                    </>
+                                                ) : chartMode === 'percentage' ? (
+                                                    <Bar 
+                                                        dataKey="rate" 
+                                                        radius={[0, 4, 4, 0]} 
+                                                        barSize={20}
+                                                    >
+                                                        {sortedStats.map((entry, index) => (
+                                                            <Cell 
+                                                                key={`cell-${index}`} 
+                                                                fill={entry.rate >= 70 ? '#10b981' : entry.rate >= 50 ? '#eab308' : '#ef4444'} 
+                                                            />
+                                                        ))}
+                                                        <LabelList 
+                                                            dataKey="rate" 
+                                                            position="right" 
+                                                            style={{ fill: '#a1a1aa', fontSize: 10, fontWeight: 'bold' }} 
+                                                            formatter={(v: number) => `${v}%`} 
+                                                        />
+                                                    </Bar>
+                                                ) : (
+                                                    <>
+                                                        <Bar 
+                                                            dataKey="realMastery" 
+                                                            stackId="a" 
+                                                            fill="#10b981" 
+                                                            radius={[0, 0, 0, 0]} 
+                                                            barSize={20}
+                                                            name="Domínio Real"
+                                                        />
+                                                        <Bar 
+                                                            dataKey="revisao" 
+                                                            stackId="a" 
+                                                            fill="#FFFF00" 
+                                                            radius={[0, 0, 0, 0]} 
+                                                            barSize={20}
+                                                            name="Revisar"
+                                                        />
+                                                        <Bar 
+                                                            dataKey="knowledgeGap" 
+                                                            stackId="a" 
+                                                            fill="#ef4444" 
+                                                            radius={[0, 4, 4, 0]} 
+                                                            barSize={20}
+                                                            name="Lacuna de Conhecimento"
+                                                        />
+                                                    </>
+                                                )}
+                                            </ReBarChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                    
+                                    {chartMode === 'quantity' && (
+                                        <div className="flex items-center justify-center gap-6 mt-4">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-3 h-3 bg-emerald-500 rounded-sm"></div>
+                                                <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">Acertos</span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-3 h-3 bg-red-500 rounded-sm"></div>
+                                                <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">Erros</span>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {chartMode === 'autodiagnosis' && (
+                                        <div className="flex flex-wrap items-center justify-center gap-6 mt-4">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-3 h-3 bg-emerald-500 rounded-sm"></div>
+                                                <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">Domínio Real</span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-3 h-3 bg-yellow-500 rounded-sm"></div>
+                                                <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">Revisão Nec.</span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-3 h-3 bg-red-500 rounded-sm"></div>
+                                                <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">Lacuna de Conteúdo</span>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
 
                             {/* --- SEÇÃO DE MATERIAIS DA PROVA (PDFs) --- */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-100">

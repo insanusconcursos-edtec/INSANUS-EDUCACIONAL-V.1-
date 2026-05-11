@@ -21,10 +21,17 @@ import { toPlainObject } from './firestoreUtils';
 export type ExamType = 'multiple_choice' | 'true_false'; // Certo/Errado (Cespe) vs Múltipla Escolha
 export type ExamStatus = 'draft' | 'published';
 
+export interface BlockDiscipline {
+  id: string;
+  name: string;
+  questionCount: number;
+}
+
 export interface ExamBlock {
   name: string;
   questionCount: number;
   minApproval: number; // Porcentagem ou valor absoluto (depende da regra, assumindo % por enquanto)
+  disciplines?: BlockDiscipline[];
 }
 
 export interface ExamFiles {
@@ -47,6 +54,20 @@ export interface ExamQuestion {
   disciplineId?: string; // ID da disciplina criada neste simulado
   topic?: string; // Assunto (ex: Crase, Atos Administrativos)
   comment?: string; // Comentário ou Observação curta
+}
+
+export interface StudentExamResult {
+  id: string;
+  studentId: string;
+  studentName: string;
+  studentPhoto?: string;
+  score: number;
+  correctCount: number;
+  wrongCount: number;
+  blankCount: number;
+  totalQuestions: number;
+  completedAt: any;
+  isApproved: boolean;
 }
 
 export interface SimulatedExam {
@@ -233,14 +254,12 @@ export const updateExam = async (
   const updates: any = { ...examData, updatedAt: serverTimestamp() };
 
   if (newFiles) {
-    const currentFiles = examData.files || {};
     if (newFiles.booklet) {
-      currentFiles.bookletUrl = await uploadFile(`simulated/classes/${classId}/exams/booklets`, newFiles.booklet);
+      updates['files.bookletUrl'] = await uploadFile(`simulated/classes/${classId}/exams/booklets`, newFiles.booklet);
     }
     if (newFiles.answerKey) {
-      currentFiles.answerKeyUrl = await uploadFile(`simulated/classes/${classId}/exams/keys`, newFiles.answerKey);
+      updates['files.answerKeyUrl'] = await uploadFile(`simulated/classes/${classId}/exams/keys`, newFiles.answerKey);
     }
-    updates.files = currentFiles;
   }
 
   await updateDoc(docRef, updates);
@@ -276,4 +295,31 @@ export const saveExamAutodiagnosis = async (
 
 export const deleteExam = async (classId: string, examId: string) => {
   await deleteDoc(doc(db, 'simulatedClasses', classId, 'exams', examId));
+};
+
+export const getStudentExamResults = async (classId: string, examId: string): Promise<StudentExamResult[]> => {
+  const q = query(
+    collection(db, 'simulated_attempts'),
+    where('simulatedId', '==', examId),
+    where('classId', '==', classId),
+    orderBy('score', 'desc')
+  );
+
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(doc => {
+    const data = doc.data();
+    return {
+      id: doc.id,
+      studentId: data.userId,
+      studentName: data.userName,
+      studentPhoto: data.userPhoto,
+      score: data.score,
+      correctCount: data.correctCount,
+      wrongCount: data.wrongCount,
+      blankCount: data.blankCount,
+      totalQuestions: data.totalQuestions,
+      completedAt: data.completedAt,
+      isApproved: data.isApproved
+    } as StudentExamResult;
+  });
 };

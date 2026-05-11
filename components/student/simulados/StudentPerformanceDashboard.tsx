@@ -162,6 +162,48 @@ export const StudentPerformanceDashboard: React.FC<{
         }
     }, [currentUser, userData, dashboardData?.kpis.identifiedLevel]);
 
+    const levelStyle = useMemo(() => {
+        if (!dashboardData?.kpis.identifiedLevel) return null;
+        const level = dashboardData.kpis.identifiedLevel;
+        
+        const styles: any = {
+            insane: { 
+                label: 'Insano', 
+                color: 'text-[#FF0000]', 
+                border: 'border-[#FF0000]/40', 
+                glow: 'drop-shadow-[0_0_15px_rgba(255,0,0,0.5)]',
+                iconBg: 'bg-[#FF0000]/10',
+                iconColor: 'text-[#FF0000]'
+            },
+            advanced: { 
+                label: 'Avançado', 
+                color: 'text-[#FFD700]', 
+                border: 'border-[#FFD700]/40', 
+                glow: 'drop-shadow-[0_0_15px_rgba(255,215,0,0.5)]',
+                iconBg: 'bg-[#FFD700]/10',
+                iconColor: 'text-[#FFD700]'
+            },
+            intermediate: { 
+                label: 'Intermediário', 
+                color: 'text-[#50C878]', 
+                border: 'border-[#50C878]/40', 
+                glow: 'drop-shadow-[0_0_15px_rgba(80,200,120,0.5)]',
+                iconBg: 'bg-[#50C878]/10',
+                iconColor: 'text-[#50C878]'
+            },
+            beginner: { 
+                label: 'Iniciante', 
+                color: 'text-[#00FFFF]', 
+                border: 'border-[#00FFFF]/40', 
+                glow: 'drop-shadow-[0_0_15px_rgba(0,255,255,0.5)]',
+                iconBg: 'bg-[#00FFFF]/10',
+                iconColor: 'text-[#00FFFF]'
+            }
+        };
+        
+        return styles[level];
+    }, [dashboardData?.kpis.identifiedLevel]);
+
     if (!dashboardData) return (
         <div className="p-8 text-center text-gray-500 bg-[#1a1d24] rounded-2xl border border-gray-800">
             <p>Realize seu primeiro simulado para desbloquear o dashboard de inteligência.</p>
@@ -172,22 +214,16 @@ export const StudentPerformanceDashboard: React.FC<{
         <div className="space-y-8 animate-in fade-in duration-500">
             
             {/* CARD DE NÍVEL IDENTIFICADO (RETROATIVO) */}
-            {dashboardData.kpis.identifiedLevel && (
-                <div className="bg-brand-red/10 border border-brand-red/30 p-6 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-6 animate-in slide-in-from-top-4 duration-500">
+            {levelStyle && (
+                <div className={`bg-[#0a0a0a] border ${levelStyle.border} p-6 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-6 animate-in slide-in-from-top-4 duration-500`}>
                     <div className="flex items-center gap-5">
-                        <div className="w-16 h-16 bg-brand-red/20 rounded-2xl flex items-center justify-center text-brand-red shadow-[0_0_20px_rgba(220,38,38,0.2)]">
+                        <div className={`w-16 h-16 ${levelStyle.iconBg} rounded-2xl flex items-center justify-center ${levelStyle.iconColor} shadow-2xl`}>
                             <Trophy size={32} />
                         </div>
                         <div>
                             <h4 className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.2em] mb-1">Nível de Preparação Identificado:</h4>
-                            <p className={`text-3xl font-black uppercase tracking-tight ${
-                                dashboardData.kpis.identifiedLevel === 'advanced' || dashboardData.kpis.identifiedLevel === 'insane' 
-                                ? 'text-purple-400 drop-shadow-[0_0_8px_rgba(168,85,247,0.4)]' 
-                                : 'text-yellow-400'
-                            }`}>
-                                {dashboardData.kpis.identifiedLevel === 'beginner' ? 'Iniciante' : 
-                                 dashboardData.kpis.identifiedLevel === 'intermediate' ? 'Intermediário' : 
-                                 dashboardData.kpis.identifiedLevel === 'advanced' ? 'Avançado' : 'Insano'}
+                            <p className={`text-3xl font-black uppercase tracking-tight ${levelStyle.color} ${levelStyle.glow}`}>
+                                {levelStyle.label}
                             </p>
                         </div>
                     </div>

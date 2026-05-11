@@ -13,7 +13,7 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { ExamQuestion, SimulatedExam } from './simulatedService';
-import { Student } from './userService';
+import { Student, updateStudent } from './userService';
 
 export interface SimulatedAttempt {
   id?: string;
@@ -158,6 +158,24 @@ export const submitExamAttempt = async (
   // 6. Salvar no Firestore
   const docRef = await addDoc(collection(db, 'simulated_attempts'), attempt);
   
+  // 7. Atualizar Nível de Preparação se for Simulado de Nivelamento
+  if (exam.isLeveling) {
+    const percent = (correct / exam.questionCount) * 100;
+    let newLevel: 'beginner' | 'intermediate' | 'advanced' | 'insane' = 'beginner';
+    
+    if (percent > 90) newLevel = 'insane';
+    else if (percent >= 71) newLevel = 'advanced';
+    else if (percent >= 51) newLevel = 'intermediate';
+    // Else stays beginner (< 51%)
+
+    try {
+      await updateStudent(user.uid, { studentLevel: newLevel });
+      console.log("Student level updated to:", newLevel);
+    } catch (e) {
+      console.error("Error updating student level:", e);
+    }
+  }
+
   return { ...attempt, id: docRef.id };
 };
 
