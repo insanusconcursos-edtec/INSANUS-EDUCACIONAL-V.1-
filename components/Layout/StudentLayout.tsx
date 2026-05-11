@@ -3,6 +3,7 @@ import { Outlet, useLocation } from 'react-router-dom';
 import StudentHeader from './Student/StudentHeader';
 import StudentNavbar from './Student/StudentNavbar';
 import PlanUpdateManager from '../student/PlanUpdateManager';
+import { SupportFloatingButton } from '../student/support/SupportFloatingButton';
 import { useAuth } from '../../contexts/AuthContext';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../services/firebase';
@@ -10,6 +11,7 @@ import { db } from '../../services/firebase';
 const StudentLayout: React.FC = () => {
   const { userData } = useAuth();
   const [themeColor, setThemeColor] = useState('#EF4444');
+  const [planTitle, setPlanTitle] = useState('Meu Plano de Estudos');
   const location = useLocation();
   const isCourseArea = location.pathname.includes('/app/courses') || location.pathname.includes('/app/presential') || location.pathname.includes('/app/eventos-ao-vivo');
 
@@ -22,6 +24,7 @@ const StudentLayout: React.FC = () => {
       if (docSnap.exists()) {
         const data = docSnap.data();
         setThemeColor(data.themeColor || '#EF4444');
+        setPlanTitle(data.title || 'Meu Plano de Estudos');
       }
     });
 
@@ -64,6 +67,16 @@ const StudentLayout: React.FC = () => {
           <Outlet />
         </div>
       </main>
+
+      {userData?.currentPlanId && (
+        <SupportFloatingButton 
+          productInfo={{
+            type: 'plano',
+            id: userData.currentPlanId,
+            name: planTitle
+          }}
+        />
+      )}
       
       <style>{`
         .scrollbar-hide::-webkit-scrollbar {

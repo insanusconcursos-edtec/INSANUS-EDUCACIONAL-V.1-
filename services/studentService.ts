@@ -48,7 +48,7 @@ export interface StudentRoutine {
 }
 
 export interface StudyProfile {
-  level: 'beginner' | 'intermediate' | 'advanced';
+  level: 'beginner' | 'intermediate' | 'advanced' | 'insane';
   semiActiveClass: boolean;   // Double time for Video Lessons
   semiActiveMaterial: boolean; // Double time for PDF/Reading
   semiActiveLaw: boolean;      // Double time for Law/Reading

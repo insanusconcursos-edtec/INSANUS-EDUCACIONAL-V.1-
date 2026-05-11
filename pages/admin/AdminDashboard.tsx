@@ -26,6 +26,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { collection, query, getDocs, orderBy } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { getProducts } from '../../services/productService';
+import { toPlainObject } from '../../services/firestoreUtils';
 import { TictoProduct } from '../../types/product';
 import { format, subDays, startOfDay, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -65,10 +66,10 @@ const AdminDashboard: React.FC = () => {
         ]);
 
         setProducts(productsData);
-        setReports(reportsSnapshot.docs.map(doc => ({
+        setReports(reportsSnapshot.docs.map(doc => toPlainObject({
           id: doc.id,
           ...doc.data()
-        } as SalesReport)));
+        }) as SalesReport));
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
       } finally {

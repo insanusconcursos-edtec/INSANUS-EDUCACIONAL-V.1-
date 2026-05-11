@@ -1,6 +1,7 @@
 import { collection, doc, getDocs, addDoc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from './firebase';
+import { toPlainObject } from './firestoreUtils';
 import { Product } from '../types/product';
 
 const COLLECTION_NAME = 'ticto_products';
@@ -14,10 +15,10 @@ export const uploadProductCover = async (file: File): Promise<string> => {
 export const getProducts = async (): Promise<Product[]> => {
   try {
     const querySnapshot = await getDocs(collection(db, COLLECTION_NAME));
-    return querySnapshot.docs.map(doc => ({
+    return querySnapshot.docs.map(doc => toPlainObject({
       id: doc.id,
       ...doc.data()
-    } as Product));
+    }) as Product);
   } catch (error) {
     console.error('Error fetching products:', error);
     throw error;

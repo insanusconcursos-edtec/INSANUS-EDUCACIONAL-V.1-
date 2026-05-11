@@ -5,6 +5,7 @@ import { Loader2, FileText, CheckCircle2, AlertTriangle, LogOut, Check, ArrowLef
 import { SimulatedExam } from '../../../services/simulatedService';
 import { useAuth } from '../../../contexts/AuthContext';
 import { submitExamAttempt, SimulatedAttempt } from '../../../services/simulatedAttemptService';
+import { updateStudent } from '../../../services/userService';
 
 interface SimulatedExamRunnerProps {
   exam: SimulatedExam;
@@ -102,6 +103,33 @@ const SimulatedExamRunner: React.FC<SimulatedExamRunnerProps> = ({ exam, onClose
         
         console.log("✅ Tentativa salva com sucesso:", result);
         
+        // --- NIVELAMENTO AUTOMÁTICO ---
+        if (exam.isLeveling && exam.levelingRanges) {
+            const percent = (result.score / result.totalQuestions) * 100;
+            let detectedLevel: 'beginner' | 'intermediate' | 'advanced' | 'insane' = 'beginner';
+            
+            if (percent > exam.levelingRanges.advanced) detectedLevel = 'insane';
+            else if (percent > exam.levelingRanges.intermediate) detectedLevel = 'advanced';
+            else if (percent > exam.levelingRanges.beginner) detectedLevel = 'intermediate';
+            else detectedLevel = 'beginner';
+            
+            console.log(`[Leveling] Aluno identificado como: ${detectedLevel} (${percent.toFixed(2)}%)`);
+            
+            try {
+                // Atualiza o studentLevel e o level dentro do profile
+                await updateStudent(currentUser.uid, {
+                    studentLevel: detectedLevel,
+                    // Também atualizamos no objeto studyProfile para compatibilidade com o cronograma
+                    studyProfile: {
+                        ...(userData?.studyProfile || {}),
+                        level: detectedLevel
+                    } as any
+                });
+            } catch (pError) {
+                console.error("Erro ao atualizar perfil do aluno:", pError);
+            }
+        }
+
         setShowFinishModal(false);
 
         // Pequeno delay para garantir UI update antes do alert/redirect

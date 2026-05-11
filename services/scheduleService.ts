@@ -351,6 +351,11 @@ export const generateSchedule = async (
   const userRef = doc(db, 'users', userId);
   const userSnap = await getDoc(userRef);
   const userData = userSnap.data() || {};
+  
+  // Garantir que temos profile e rotina, buscando do banco se não vier por argumento
+  const effectiveProfile = studyProfile || userData.studyProfile || {};
+  const effectiveRoutine = routine || userData.routine || { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 0: 0 };
+
   const savedRoutines = userData.savedRoutines || [];
   const activeRoutineId = userData.activeRoutineId;
   const activeEvents = savedRoutines.find((r: any) => r.id === activeRoutineId)?.events || [];
@@ -361,11 +366,24 @@ export const generateSchedule = async (
     return hours * 60 + (minutes || 0);
   };
 
-  const profileLevel = studyProfile?.level || 'beginner';
-  const readingSpeed = profileLevel === 'advanced' ? 1 : profileLevel === 'intermediate' ? 3 : 5;
-  const semiActiveMaterial = studyProfile?.semiActiveMaterial ? 2 : 1;
-  const semiActiveClass = studyProfile?.semiActiveClass ? 2 : 1;
-  const semiActiveLaw = studyProfile?.semiActiveLaw ? 2 : 1;
+  // Normalização do Nível para suportar português e inglês e o campo studentLevel direto
+  const rawLevel = effectiveProfile.level || userData.studentLevel || 'beginner';
+  const profileLevel = String(rawLevel).toLowerCase();
+  
+  let readingSpeed = 5; // Default beginner / iniciante
+  if (profileLevel === 'advanced' || profileLevel === 'avançado' || profileLevel === 'avancado') {
+    readingSpeed = 1;
+  } else if (profileLevel === 'insane' || profileLevel === 'insano') {
+    readingSpeed = 0.8; // Faster than advanced
+  } else if (profileLevel === 'intermediate' || profileLevel === 'intermediário' || profileLevel === 'intermediario') {
+    readingSpeed = 3;
+  } else if (profileLevel === 'beginner' || profileLevel === 'iniciante') {
+    readingSpeed = 5;
+  }
+
+  const semiActiveMaterial = effectiveProfile.semiActiveMaterial ? 2 : 1;
+  const semiActiveClass = effectiveProfile.semiActiveClass ? 2 : 1;
+  const semiActiveLaw = effectiveProfile.semiActiveLaw ? 2 : 1;
 
   const calculateTotalDuration = (task: any, type: string): number => {
     if (type === 'AULA' || type === 'lesson') {
@@ -374,7 +392,9 @@ export const generateSchedule = async (
     } 
     if (type === 'MATERIAL' || type === 'material' || type === 'pdf' || type === 'PDF') {
       const pages = Number(task.pageCount) || Number(task.pages) || 0;
-      return pages * readingSpeed * semiActiveMaterial || Number(task.duration) || 30;
+      // REGRA: Iniciante (5min), Intermediário (3min), Avançado (1min)
+      const calculatedMaterialTime = pages * readingSpeed * semiActiveMaterial;
+      return calculatedMaterialTime || Number(task.duration) || 30;
     }
     if (type === 'LEI_SECA' || type === 'LEI SECA' || type === 'law' || type === 'lei_seca' || type === 'lei seca') {
       // 1. Extrai e força a conversão para número (evita "1" * 2 = NaN)
@@ -522,7 +542,7 @@ export const generateSchedule = async (
   
   const getMinutesForDate = (date: Date, isFirstDay: boolean = false): number => {
     const dayOfWeek = date.getDay(); 
-    const allocatedRoutine = Number(routine[dayOfWeek as keyof StudentRoutine]) || 0;
+    const allocatedRoutine = Number(effectiveRoutine[dayOfWeek as keyof StudentRoutine]) || 0;
     
     if (isFirstDay) {
       const now = new Date();
@@ -538,7 +558,7 @@ export const generateSchedule = async (
   const minutesRemainingInDay = getMinutesForDate(currentDate, true);
   currentDate.setHours(0, 0, 0, 0);
 
-  const totalWeeklyMinutes = Object.values(routine).reduce((a, b) => Number(a) + Number(b), 0);
+  const totalWeeklyMinutes = Object.values(effectiveRoutine).reduce((a, b) => Number(a) + Number(b), 0);
   if (totalWeeklyMinutes === 0) {
     throw new Error("Sua rotina semanal não tem nenhum tempo disponível. Configure sua disponibilidade antes de gerar o cronograma.");
   }
@@ -591,7 +611,7 @@ export const generateSchedule = async (
 
   let currentDayCapacity = getMinutesForDate(currentDate, true);
   let currentDayOfWeek = currentDate.getDay();
-  const safeRoutine = routine;
+  const safeRoutine = effectiveRoutine;
 
   for (const task of allTasks) {
     const normalizedType = typeMap[task.type?.toLowerCase()] || 'lesson';
@@ -1257,15 +1277,32 @@ export const scheduleSimuladoManual = async (
   let currentDayOfWeek = currentDate.getDay();
   let currentDateStr = currentDate.toISOString().split('T')[0];
   
+  const profileLevel = String(userProfile?.level || 'beginner').toLowerCase();
+  
+  let readingSpeed = 5; // Default beginner / iniciante
+  if (profileLevel === 'advanced' || profileLevel === 'avançado' || profileLevel === 'avancado') {
+    readingSpeed = 1;
+  } else if (profileLevel === 'intermediate' || profileLevel === 'intermediário' || profileLevel === 'intermediario') {
+    readingSpeed = 3;
+  } else if (profileLevel === 'beginner' || profileLevel === 'iniciante') {
+    readingSpeed = 5;
+  }
+
+  const semiActiveMaterial = userProfile?.semiActiveMaterial ? 2 : 1;
+
   const calculateTotalDuration = (task: any): number => {
     let duration = Number(task.calculatedDuration) || Number(task.duration);
-    if (!duration || duration === 30) {
-      const type = task.type?.toLowerCase()?.trim() || 'lesson';
+    const type = task.type?.toLowerCase()?.trim() || 'lesson';
+
+    if (!duration || duration === 30 || type === 'material' || type === 'pdf') {
       if (['law', 'lei_seca', 'lei seca'].includes(type)) {
         const pagesCount = Number(task.pages || task.lawConfig?.pages || task.pageCount) || 1; 
         const multiplierValue = Number(task.multiplier || task.speed || task.lawConfig?.multiplier || task.lawConfig?.speedFactor) || 1; 
         duration = (pagesCount * 2) * multiplierValue;
         if (duration <= 0) duration = 2;
+      } else if (type === 'material' || type === 'pdf') {
+        const pages = Number(task.pageCount) || Number(task.pages) || 0;
+        duration = pages * readingSpeed * semiActiveMaterial || duration || 30;
       } else {
         duration = duration || 30;
       }

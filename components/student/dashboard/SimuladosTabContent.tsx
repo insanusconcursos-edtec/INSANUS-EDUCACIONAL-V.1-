@@ -23,6 +23,9 @@ import { SimulatedAttempt } from '../../../services/simulatedAttemptService';
 import Loading from '../../ui/Loading';
 import { useNavigate } from 'react-router-dom';
 
+import { ExamResult } from '../simulados/ExamResult';
+import SimulatedExamRunner from '../simulated/SimulatedExamRunner';
+
 interface SimuladosTabContentProps {
   planId: string;
   simuladosVinculados?: string[];
@@ -38,72 +41,78 @@ export const SimuladosTabContent: React.FC<SimuladosTabContentProps> = ({ planId
   const [error, setError] = useState<string | null>(null);
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      if (!currentUser || !planId) return;
-      setLoading(true);
-      setError(null);
+  // States for direct viewing
+  const [activeExam, setActiveExam] = useState<SimulatedExam | null>(null);
+  const [viewingAttempt, setViewingAttempt] = useState<SimulatedAttempt | null>(null);
+  const [viewingExamForResult, setViewingExamForResult] = useState<SimulatedExam | null>(null);
 
-      try {
-        let classIds = simuladosVinculados || [];
+  const fetchData = async () => {
+    if (!currentUser || !planId) return;
+    setLoading(true);
+    setError(null);
 
-        // Se não vier por props, tenta buscar do banco para garantir
-        if (classIds.length === 0) {
-          const planDoc = await getDoc(doc(db, 'plans', planId));
-          if (planDoc.exists()) {
-            const planData = planDoc.data();
-            classIds = planData.simuladosVinculados || (planData.linkedSimuladoClassId ? [planData.linkedSimuladoClassId] : []);
-          }
+    try {
+      let classIds = simuladosVinculados || [];
+
+      // Se não vier por props, tenta buscar do banco para garantir
+      if (classIds.length === 0) {
+        const planDoc = await getDoc(doc(db, 'plans', planId));
+        if (planDoc.exists()) {
+          const planData = planDoc.data();
+          classIds = planData.simuladosVinculados || (planData.linkedSimuladoClassId ? [planData.linkedSimuladoClassId] : []);
         }
-
-        if (classIds.length === 0) {
-          setLinkedClasses([]);
-          setLoading(false);
-          return;
-        }
-
-        // Busca as Turmas Vinculadas
-        const classesData: SimulatedClass[] = [];
-        const examsDataMap: Record<string, SimulatedExam[]> = {};
-
-        for (const classId of classIds) {
-          const classRef = doc(db, 'simulatedClasses', classId);
-          const classSnap = await getDoc(classRef);
-          
-          if (classSnap.exists()) {
-            const cls = { id: classSnap.id, ...classSnap.data() } as SimulatedClass;
-            classesData.push(cls);
-
-            // Busca Simulados desta Turma
-            const exams = await getExams(classId);
-            examsDataMap[classId] = exams.filter(e => e.status === 'published');
-          }
-        }
-
-        setLinkedClasses(classesData);
-        setExamsMap(examsDataMap);
-
-        // Busca Tentativas do Usuário para estes simulados
-        const qAttempts = query(
-          collection(db, 'simulated_attempts'),
-          where('userId', '==', currentUser.uid)
-        );
-        const snapAttempts = await getDocs(qAttempts);
-        const attMap: Record<string, SimulatedAttempt> = {};
-        snapAttempts.docs.forEach(d => {
-          const att = { id: d.id, ...d.data() } as SimulatedAttempt;
-          attMap[att.simulatedId] = att;
-        });
-        setAttemptsMap(attMap);
-
-      } catch (err) {
-        console.error("Erro ao carregar simulados vinculados:", err);
-        setError("Não foi possível carregar os simulados vinculados.");
-      } finally {
-        setLoading(false);
       }
-    };
 
+      if (classIds.length === 0) {
+        setLinkedClasses([]);
+        setLoading(false);
+        return;
+      }
+
+      // Busca as Turmas Vinculadas
+      const classesData: SimulatedClass[] = [];
+      const examsDataMap: Record<string, SimulatedExam[]> = {};
+
+      for (const classId of classIds) {
+        const classRef = doc(db, 'simulatedClasses', classId);
+        const classSnap = await getDoc(classRef);
+        
+        if (classSnap.exists()) {
+          const data = classSnap.data();
+          const cls = { id: classSnap.id, ...data } as SimulatedClass;
+          classesData.push(cls);
+
+          // Busca Simulados desta Turma
+          const exams = await getExams(classId);
+          examsDataMap[classId] = exams.filter(e => e.status === 'published');
+        }
+      }
+
+      setLinkedClasses(classesData);
+      setExamsMap(examsDataMap);
+
+      // Busca Tentativas do Usuário para estes simulados
+      const qAttempts = query(
+        collection(db, 'simulated_attempts'),
+        where('userId', '==', currentUser.uid)
+      );
+      const snapAttempts = await getDocs(qAttempts);
+      const attMap: Record<string, SimulatedAttempt> = {};
+      snapAttempts.docs.forEach(d => {
+        const att = { id: d.id, ...d.data() } as SimulatedAttempt;
+        attMap[att.simulatedId] = att;
+      });
+      setAttemptsMap(attMap);
+
+    } catch (err) {
+      console.error("Erro ao carregar simulados vinculados:", err);
+      setError("Não foi possível carregar os simulados vinculados.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchData();
   }, [currentUser, planId, simuladosVinculados]);
 
@@ -148,58 +157,64 @@ export const SimuladosTabContent: React.FC<SimuladosTabContentProps> = ({ planId
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {linkedClasses.map(cls => (
-            <button
-              key={cls.id}
-              onClick={() => setSelectedClassId(cls.id!)}
-              className="bg-zinc-900/40 border border-zinc-800 rounded-3xl flex flex-col text-left group hover:border-zinc-700 hover:bg-zinc-900/60 transition-all duration-300 relative overflow-hidden h-full"
-            >
-              {/* Turma Cover Image or Placeholder */}
-              <div className="relative h-40 w-full bg-zinc-950 overflow-hidden">
-                {cls.coverUrl ? (
-                  <img 
-                    src={cls.coverUrl} 
-                    alt={cls.title} 
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 opacity-60 group-hover:opacity-80"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-zinc-900 to-black">
-                     <GraduationCap size={48} className="text-zinc-800" />
-                  </div>
-                )}
-                <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/20 to-transparent" />
-                
-                <div className="absolute top-4 right-4 p-2 bg-black/50 backdrop-blur-md rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
-                  <ArrowRight className="w-4 h-4 text-[var(--plan-theme)]" />
-                </div>
-              </div>
-
-              <div className="p-6 flex flex-col flex-1">
-                <div className="mb-4">
-                  <h3 className="text-lg font-black text-white uppercase tracking-tight leading-tight group-hover:text-[var(--plan-theme)] transition-colors">
-                    {cls.title}
-                  </h3>
-                  <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-1">
-                    {cls.organization}
-                  </p>
-                </div>
-                
-                <div className="mt-auto flex items-center justify-between pt-4 border-t border-zinc-800/50">
-                  <div className="flex items-center gap-2">
-                    <div className="p-1.5 bg-zinc-800 rounded-lg">
-                      <GraduationCap size={14} className="text-[var(--plan-theme)]" />
+          {linkedClasses.map(cls => {
+            const coverImage = (cls as any).thumbnail || cls.coverUrl;
+            
+            return (
+              <button
+                key={cls.id}
+                onClick={() => setSelectedClassId(cls.id!)}
+                className="bg-zinc-900/40 border border-zinc-800 rounded-3xl flex flex-col text-left group hover:border-zinc-700 hover:bg-zinc-900/60 transition-all duration-300 relative overflow-hidden h-full"
+              >
+                {/* Turma Cover Image or Placeholder */}
+                <div className="relative h-40 w-full bg-zinc-950 overflow-hidden">
+                  {coverImage ? (
+                    <img 
+                      src={coverImage} 
+                      alt={cls.title} 
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 opacity-60 group-hover:opacity-80"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center bg-[#0a0a0a] bg-[radial-gradient(circle_at_50%_120%,rgba(60,60,60,0.5),rgba(0,0,0,0))] border-b border-zinc-900">
+                       <div className="p-4 rounded-full bg-zinc-900/50 border border-zinc-800 shadow-2xl transition-transform duration-500 group-hover:scale-110 group-hover:bg-zinc-800">
+                          <GraduationCap size={32} className="text-zinc-500 group-hover:text-zinc-300 transition-colors" />
+                       </div>
                     </div>
-                    <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">
-                       Oficial
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/20 to-transparent" />
+                  
+                  <div className="absolute top-4 right-4 p-2 bg-black/50 backdrop-blur-md rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                    <ArrowRight className="w-4 h-4 text-[var(--plan-theme)]" />
+                  </div>
+                </div>
+
+                <div className="p-6 flex flex-col flex-1">
+                  <div className="mb-4">
+                    <h3 className="text-lg font-black text-white uppercase tracking-tight leading-tight group-hover:text-[var(--plan-theme)] transition-colors">
+                      {cls.title}
+                    </h3>
+                    <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-1">
+                      {cls.organization}
+                    </p>
+                  </div>
+                  
+                  <div className="mt-auto flex items-center justify-between pt-4 border-t border-zinc-800/50">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 bg-zinc-800 rounded-lg">
+                        <GraduationCap size={14} className="text-[var(--plan-theme)]" />
+                      </div>
+                      <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">
+                         Oficial
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-black text-[var(--plan-theme)] uppercase tracking-widest bg-[var(--plan-theme)]/10 px-3 py-1 rounded-full border border-[var(--plan-theme)]/20">
+                      {examsMap[cls.id!]?.length || 0} Simulados
                     </span>
                   </div>
-                  <span className="text-[10px] font-black text-[var(--plan-theme)] uppercase tracking-widest bg-[var(--plan-theme)]/10 px-3 py-1 rounded-full border border-[var(--plan-theme)]/20">
-                    {examsMap[cls.id!]?.length || 0} Simulados
-                  </span>
                 </div>
-              </div>
-            </button>
-          ))}
+              </button>
+            );
+          })}
         </div>
       </div>
     );
@@ -287,7 +302,10 @@ export const SimuladosTabContent: React.FC<SimuladosTabContentProps> = ({ planId
                 <div className="flex items-center gap-3">
                   {isDone ? (
                     <button 
-                      onClick={() => navigate(`/app/simulated?classId=${selectedClassId}&examId=${exam.id}&view=result`)}
+                      onClick={() => {
+                        setViewingAttempt(attempt);
+                        setViewingExamForResult(exam);
+                      }}
                       className="px-8 py-4 bg-zinc-800 hover:bg-zinc-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 min-w-[180px]"
                     >
                       <BarChart2 size={16} /> Ver Resultado
@@ -301,7 +319,7 @@ export const SimuladosTabContent: React.FC<SimuladosTabContentProps> = ({ planId
                     </button>
                   ) : (
                     <button 
-                      onClick={() => navigate(`/app/simulated?classId=${selectedClassId}&examId=${exam.id}&start=true`)}
+                      onClick={() => setActiveExam(exam)}
                       className="px-8 py-4 bg-brand-red hover:bg-red-600 text-white rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-xl shadow-red-900/20 min-w-[180px]"
                     >
                       <PlayCircle size={16} /> Realizar Simulado
@@ -313,6 +331,38 @@ export const SimuladosTabContent: React.FC<SimuladosTabContentProps> = ({ planId
           })
         )}
       </div>
+
+      {/* AMBIENTE DE PROVA (MODAL DIRECTO) */}
+      {activeExam && (
+        <SimulatedExamRunner 
+          exam={activeExam}
+          classId={selectedClassId!}
+          onClose={() => setActiveExam(null)}
+          onComplete={(result) => {
+             setAttemptsMap(prev => ({ ...prev, [activeExam.id!]: result }));
+             setActiveExam(null);
+             // Opcional: Abrir resultado automaticamente
+             setViewingAttempt(result);
+             setViewingExamForResult(activeExam);
+          }}
+        />
+      )}
+
+      {/* TELA DE RESULTADO / GABARITO (OVERLAY) */}
+      {viewingAttempt && viewingExamForResult && (
+        <div className="fixed inset-0 z-[150] bg-zinc-950 flex flex-col p-0 md:p-4 animate-in fade-in duration-300">
+           <div className="w-full max-w-7xl mx-auto flex-1 flex flex-col">
+              <ExamResult 
+                exam={viewingExamForResult}
+                attemptData={viewingAttempt}
+                onBack={() => {
+                  setViewingAttempt(null);
+                  setViewingExamForResult(null);
+                }}
+              />
+           </div>
+        </div>
+      )}
     </div>
   );
 };

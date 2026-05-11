@@ -79,11 +79,9 @@ const StudentConfigPage: React.FC = () => {
         setPlans(fetchedPlans);
 
         // Pre-fill if exists
-        if (currentConfig) {
-          if (currentConfig.currentPlanId) {
-            setSelectedPlanId(currentConfig.currentPlanId);
-            setInitialPlanId(currentConfig.currentPlanId || null);
-          }
+        if (currentConfig && currentConfig.currentPlanId) {
+          setSelectedPlanId(currentConfig.currentPlanId);
+          setInitialPlanId(currentConfig.currentPlanId || null);
           setIsPlanPaused(currentConfig.isPlanPaused || false); // Sync Pause State
           
           if (currentConfig.studyProfile) {
@@ -100,7 +98,25 @@ const StudentConfigPage: React.FC = () => {
           if (currentConfig.savedRoutines) setSavedRoutines(currentConfig.savedRoutines);
           if (currentConfig.activeRoutineId) setActiveRoutineId(currentConfig.activeRoutineId);
         } else if (fetchedPlans.length > 0) {
+          // Se não tem nada salvo ou ID vazio, seleciona o primeiro por padrão
           setSelectedPlanId(fetchedPlans[0].id!);
+          if (currentConfig) {
+             setIsPlanPaused(currentConfig.isPlanPaused || false);
+             if (currentConfig.studyProfile) {
+                const profile = currentConfig.studyProfile;
+                setStudyProfile(prev => ({
+                    ...prev,
+                    level: profile.level || prev.level,
+                    semiActiveClass: profile.semiActiveClass || false,
+                    semiActiveMaterial: profile.semiActiveMaterial || false,
+                    semiActiveLaw: profile.semiActiveLaw || false,
+                    smartMergeTolerance: profile.smartMergeTolerance || 20,
+                }));
+             }
+             if (currentConfig.routine) setRoutine(currentConfig.routine);
+             if (currentConfig.savedRoutines) setSavedRoutines(currentConfig.savedRoutines);
+             if (currentConfig.activeRoutineId) setActiveRoutineId(currentConfig.activeRoutineId);
+          }
         }
 
       } catch (error) {

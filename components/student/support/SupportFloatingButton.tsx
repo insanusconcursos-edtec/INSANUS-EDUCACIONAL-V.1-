@@ -23,7 +23,7 @@ export const SupportFloatingButton: React.FC<SupportFloatingButtonProps> = ({ pr
 
   return (
     <>
-      <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">
+      <div className="fixed bottom-6 right-6 z-[9999] flex flex-col items-end gap-3">
         {/* Feedback Button */}
         <div className="relative flex items-center justify-end gap-3 group/feedback">
           <AnimatePresence>

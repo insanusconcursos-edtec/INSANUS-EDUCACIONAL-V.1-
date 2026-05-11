@@ -13,12 +13,13 @@ import {
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from './firebase';
+import { toPlainObject } from './firestoreUtils';
 import { Mentor } from '../types/chat';
 
 export const subscribeToMentors = (callback: (mentors: Mentor[]) => void) => {
   const q = query(collection(db, 'mentors'), orderBy('createdAt', 'desc'));
   return onSnapshot(q, (snapshot) => {
-    const mentors = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Mentor));
+    const mentors = snapshot.docs.map(doc => toPlainObject({ id: doc.id, ...doc.data() }) as Mentor);
     callback(mentors);
   });
 };
@@ -26,13 +27,13 @@ export const subscribeToMentors = (callback: (mentors: Mentor[]) => void) => {
 export const getMentors = async (): Promise<Mentor[]> => {
   const q = query(collection(db, 'mentors'), orderBy('createdAt', 'desc'));
   const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Mentor));
+  return snapshot.docs.map(doc => toPlainObject({ id: doc.id, ...doc.data() }) as Mentor);
 };
 
 export const getMentorById = async (id: string): Promise<Mentor | null> => {
   const docRef = doc(db, 'mentors', id);
   const docSnap = await getDoc(docRef);
-  return docSnap.exists() ? ({ id: docSnap.id, ...docSnap.data() } as Mentor) : null;
+  return docSnap.exists() ? (toPlainObject({ id: docSnap.id, ...docSnap.data() }) as Mentor) : null;
 };
 
 export const uploadMentorPhoto = async (file: File): Promise<string> => {

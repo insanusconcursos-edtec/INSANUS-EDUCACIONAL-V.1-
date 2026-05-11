@@ -15,6 +15,7 @@ import {
   getDoc
 } from 'firebase/firestore';
 import { db } from './firebase';
+import { toPlainObject } from './firestoreUtils';
 import { SupportTicket, TicketMessage, TicketStatus, ProductType } from '../types/support';
 
 const TICKETS_COLLECTION = 'support_tickets';
@@ -84,7 +85,7 @@ export const supportService = {
     );
     
     return onSnapshot(q, (snapshot) => {
-      const tickets = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SupportTicket));
+      const tickets = snapshot.docs.map(doc => toPlainObject({ id: doc.id, ...doc.data() }) as SupportTicket);
       callback(tickets);
     });
   },
@@ -97,7 +98,7 @@ export const supportService = {
     );
     
     return onSnapshot(q, (snapshot) => {
-      const tickets = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SupportTicket));
+      const tickets = snapshot.docs.map(doc => toPlainObject({ id: doc.id, ...doc.data() }) as SupportTicket);
       callback(tickets);
     });
   },
@@ -112,7 +113,7 @@ export const supportService = {
     );
     
     return onSnapshot(q, (snapshot) => {
-      const tickets = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SupportTicket));
+      const tickets = snapshot.docs.map(doc => toPlainObject({ id: doc.id, ...doc.data() }) as SupportTicket);
       callback(tickets);
     });
   },
@@ -125,7 +126,7 @@ export const supportService = {
     );
     
     return onSnapshot(q, (snapshot) => {
-      const messages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TicketMessage));
+      const messages = snapshot.docs.map(doc => toPlainObject({ id: doc.id, ...doc.data() }) as TicketMessage);
       callback(messages);
     });
   },

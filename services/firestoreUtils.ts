@@ -19,8 +19,16 @@ const isFirestoreObject = (obj: any): boolean => {
  * Transforma Timestamps em strings ISO e remove DocumentReferences ou métodos.
  * Útil para evitar erros de estrutura circular e garantir compatibilidade com JSON.stringify.
  */
-export const toPlainObject = (obj: any): any => {
+export const toPlainObject = (obj: any, seen = new WeakSet()): any => {
   if (obj === null || obj === undefined) return obj;
+
+  // Se não for um objeto ou array, retorna o valor primitivo
+  if (typeof obj !== 'object') return obj;
+
+  // Proteção contra estrutura circular
+  if (seen.has(obj)) {
+    return "[Circular]";
+  }
 
   // Se for Date
   if (obj instanceof Date) return obj.toISOString();
@@ -35,37 +43,38 @@ export const toPlainObject = (obj: any): any => {
   }
 
   // Se for um DocumentReference ou algo com path (Firebase)
-  if (obj.path && typeof obj.path === 'string') {
+  // Adicionamos verificação robusta pois o nome do construtor pode ser minificado
+  if (obj.path && typeof obj.path === 'string' && (obj.id || obj.parent)) {
     return obj.path;
   }
 
-  // Se não for um objeto, retorna o valor primitivo
-  if (typeof obj !== 'object') return obj;
-
   // Se for array, limpa cada item
   if (Array.isArray(obj)) {
-    return obj.map(toPlainObject);
+    seen.add(obj);
+    return obj.map(item => toPlainObject(item, seen));
   }
 
   // Se chegar aqui e não for um "Plain Object" (ex: Snapshot, Query), mas tiver dados
   // Tentamos extrair se for um DocumentSnapshot
-  if (typeof obj.data === 'function') {
+  if (typeof obj.data === 'function' && typeof obj.get === 'function') {
     try {
       const data = obj.data();
-      return toPlainObject({ id: obj.id, ...data });
+      return toPlainObject({ id: obj.id, ...data }, seen);
     } catch (e) {
       // Ignora erro se não for snapshot
     }
   }
 
   // Se for um objeto normal {}
+  seen.add(obj);
   const plainObj: any = {};
   for (const key in obj) {
     if (Object.prototype.hasOwnProperty.call(obj, key)) {
       const val = obj[key];
       // Ignora funções e campos privados (que começam com _)
+      // Campos privados de bibliotecas como Firestore costumam causar estrutura circular
       if (typeof val !== 'function' && !key.startsWith('_')) {
-        plainObj[key] = toPlainObject(val);
+        plainObj[key] = toPlainObject(val, seen);
       }
     }
   }

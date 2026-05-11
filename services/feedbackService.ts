@@ -8,7 +8,7 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { Feedback } from '../types/feedback';
-import { sanitizeData } from './firestoreUtils';
+import { sanitizeData, toPlainObject } from './firestoreUtils';
 
 const FEEDBACKS_COLLECTION = 'feedbacks';
 
@@ -36,7 +36,7 @@ export const feedbackService = {
         orderBy('createdAt', 'desc')
       );
       const snapshot = await getDocs(q);
-      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Feedback));
+      return snapshot.docs.map(doc => toPlainObject({ id: doc.id, ...doc.data() }) as Feedback);
     } catch (error) {
       console.error('Error fetching feedbacks:', error);
       throw error;
@@ -51,7 +51,7 @@ export const feedbackService = {
         orderBy('createdAt', 'desc')
       );
       const snapshot = await getDocs(q);
-      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Feedback));
+      return snapshot.docs.map(doc => toPlainObject({ id: doc.id, ...doc.data() }) as Feedback);
     } catch (error) {
       console.error('Error fetching feedbacks by type:', error);
       throw error;
@@ -65,7 +65,7 @@ export const feedbackService = {
         orderBy('createdAt', 'desc')
       );
       const snapshot = await getDocs(q);
-      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Feedback));
+      return snapshot.docs.map(doc => toPlainObject({ id: doc.id, ...doc.data() }) as Feedback);
     } catch (error) {
       console.error('Error fetching all feedbacks:', error);
       throw error;

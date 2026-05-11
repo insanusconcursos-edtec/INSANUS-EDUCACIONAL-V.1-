@@ -21,7 +21,6 @@ import Loading from '../../components/ui/Loading';
 import { StudentSimulatedList } from '../../components/student/simulados/StudentSimulatedList';
 import { StudentAutoDiagnosis } from '../../components/student/simulados/StudentAutoDiagnosis';
 import { StudentPerformanceDashboard } from '../../components/student/simulados/StudentPerformanceDashboard';
-import { SupportFloatingButton } from '../../components/student/support/SupportFloatingButton';
 
 import { useNavigate, useSearchParams } from 'react-router-dom';
 const RankingRow: React.FC<{ rank: SimulatedAttempt & { originalRank: number }, currentUserId?: string }> = ({ rank, currentUserId }) => {
@@ -242,6 +241,26 @@ const ExamResult: React.FC<{
                                         {attemptData.isApproved ? 'APROVADO' : 'REPROVADO'}
                                     </div>
                                 </div>
+
+                                {/* Nível de Preparação (Se for simulado de nivelamento) */}
+                                {exam.isLeveling && exam.levelingRanges && (
+                                    <div className="md:col-span-4 p-6 bg-purple-600/10 border border-purple-500/30 rounded-2xl flex flex-col items-center text-center animate-in zoom-in-95 duration-500">
+                                        <Trophy className="text-purple-500 mb-3" size={32} />
+                                        <h4 className="text-zinc-400 text-[10px] font-black uppercase tracking-[0.2em]">Seu nível de preparação atual é:</h4>
+                                        <p className="text-3xl font-black text-purple-400 uppercase tracking-tighter mt-1">
+                                            {(() => {
+                                                const percent = (attemptData.score / attemptData.totalQuestions) * 100;
+                                                if (percent > exam.levelingRanges.advanced) return 'Insano';
+                                                if (percent > exam.levelingRanges.intermediate) return 'Avançado';
+                                                if (percent > exam.levelingRanges.beginner) return 'Intermediário';
+                                                return 'Iniciante';
+                                            })()}
+                                        </p>
+                                        <p className="text-[10px] text-zinc-500 font-bold mt-4 max-w-md">
+                                            Com base no seu rendimento de <span className="text-white">{((attemptData.score / attemptData.totalQuestions) * 100).toFixed(1)}%</span>, suas metas de material foram recalibradas automaticamente.
+                                        </p>
+                                    </div>
+                                )}
 
                                 {/* Estatísticas Rápidas */}
                                 <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-900/50 flex flex-col items-center justify-center">
@@ -911,13 +930,7 @@ const StudentSimulated: React.FC = () => {
                 </div>
               )}
 
-              <SupportFloatingButton 
-                productInfo={{
-                  type: 'simulado',
-                  id: selectedClass.id,
-                  name: selectedClass.title
-                }}
-              />
+
           </div>
       );
   }

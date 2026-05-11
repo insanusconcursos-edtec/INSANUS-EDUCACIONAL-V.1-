@@ -15,7 +15,6 @@ import { ConcursoStatusBanner } from '../../../components/student/presential/Con
 import { liveEventService } from '../../../services/liveEventService';
 import { LiveEvent } from '../../../types/liveEvent';
 import { LinkedSimulatedView } from '../../../components/student/simulados/LinkedSimulatedView';
-import { SupportFloatingButton } from '../../../components/student/support/SupportFloatingButton';
 
 export const StudentPresentialDetails: React.FC = () => {
   const { classId } = useParams<{ classId: string }>();
@@ -391,15 +390,7 @@ export const StudentPresentialDetails: React.FC = () => {
         )}
       </div>
 
-      {currentClass && (
-        <SupportFloatingButton 
-          productInfo={{
-            type: 'turma_presencial',
-            id: currentClass.id,
-            name: currentClass.name
-          }}
-        />
-      )}
+
     </div>
   );
 };

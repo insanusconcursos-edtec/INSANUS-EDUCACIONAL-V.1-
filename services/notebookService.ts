@@ -13,6 +13,7 @@ import {
   serverTimestamp 
 } from 'firebase/firestore';
 import { db } from './firebase';
+import { toPlainObject } from './firestoreUtils';
 
 export type NoteType = 'note' | 'error' | 'questions';
 
@@ -56,10 +57,10 @@ export const notebookService = {
     if (snapshot.empty) return null;
 
     const docData = snapshot.docs[0];
-    return {
+    return toPlainObject({
       id: docData.id,
       ...docData.data()
-    } as PdfAnnotation;
+    }) as PdfAnnotation;
   },
 
   /**
@@ -98,10 +99,10 @@ export const notebookService = {
     );
 
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({
+    return snapshot.docs.map(doc => toPlainObject({
       id: doc.id,
       ...doc.data()
-    } as EditalNote));
+    }) as EditalNote);
   },
 
   /**

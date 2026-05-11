@@ -14,6 +14,7 @@ import {
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from './firebase';
+import { toPlainObject } from './firestoreUtils';
 
 // === TYPES ===
 
@@ -53,6 +54,15 @@ export interface SimulatedExam {
   title: string;
   type: ExamType;
   questionCount: number;
+  
+  // Nivelamento
+  isLeveling?: boolean;
+  levelingRanges?: {
+    beginner: number;
+    intermediate: number;
+    advanced: number;
+    insane: number;
+  };
   
   // Specific Configs
   duration?: number; // Duração em minutos
@@ -119,14 +129,14 @@ export const getSimulatedClasses = async (filters?: { categoryId?: string; subca
   }
 
   const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SimulatedClass));
+  return snapshot.docs.map(doc => toPlainObject({ id: doc.id, ...doc.data() }) as SimulatedClass);
 };
 
 export const getSimulatedClassById = async (id: string): Promise<SimulatedClass | null> => {
   const docRef = doc(db, 'simulatedClasses', id);
   const snapshot = await getDoc(docRef);
   if (snapshot.exists()) {
-    return { id: snapshot.id, ...snapshot.data() } as SimulatedClass;
+    return toPlainObject({ id: snapshot.id, ...snapshot.data() }) as SimulatedClass;
   }
   return null;
 };
@@ -184,7 +194,7 @@ export const getExams = async (classId: string) => {
     orderBy('createdAt', 'asc')
   );
   const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SimulatedExam));
+  return snapshot.docs.map(doc => toPlainObject({ id: doc.id, ...doc.data() }) as SimulatedExam);
 };
 
 export const addExamToClass = async (

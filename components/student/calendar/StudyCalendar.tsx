@@ -553,6 +553,19 @@ export const StudyCalendar: React.FC<StudyCalendarProps> = ({ userId, isReadOnly
         </div>
       )}
 
+      {/* MENSAGEM DE CRONOGRAMA NÃO GERADO */}
+      {currentPlanId && !lastScheduledDate && !loading && (
+        <div className="mb-10 p-8 bg-zinc-900/50 border-2 border-dashed border-zinc-800 rounded-3xl flex flex-col items-center text-center animate-in fade-in slide-in-from-top-4 duration-700">
+            <div className="mb-4 p-4 rounded-full bg-yellow-500/10 border border-yellow-500/20 text-yellow-500">
+                <Trophy size={32} />
+            </div>
+            <h3 className="text-xl font-black uppercase text-white tracking-tight">Seu plano está ativo!</h3>
+            <p className="text-sm font-medium text-zinc-500 max-w-sm mt-2 px-6">
+                Agora, clique em <strong className="text-white">&apos;Gerar Cronograma&apos;</strong> na aba <strong className="text-white">Configurações</strong> para montar sua rotina.
+            </p>
+        </div>
+      )}
+
       {/* CALENDAR BODY */}
       <div className="flex-1 min-h-[500px] border border-zinc-800 rounded-2xl overflow-hidden bg-zinc-950 flex flex-col shadow-xl">
         

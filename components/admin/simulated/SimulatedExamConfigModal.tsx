@@ -48,6 +48,15 @@ const SimulatedExamConfigModal: React.FC<SimulatedExamConfigModalProps> = ({
   const [hasPenalty, setHasPenalty] = useState(false);
   const [minApprovalPercent, setMinApprovalPercent] = useState<number>(50);
   const [isAutoDiagnosisEnabled, setIsAutoDiagnosisEnabled] = useState(false);
+
+  // Leveling System
+  const [isLeveling, setIsLeveling] = useState(false);
+  const [levelingRanges, setLevelingRanges] = useState({
+    beginner: 50,
+    intermediate: 70,
+    advanced: 89,
+    insane: 100
+  });
   
   // Blocks System
   const [hasBlocks, setHasBlocks] = useState(false);
@@ -66,6 +75,8 @@ const SimulatedExamConfigModal: React.FC<SimulatedExamConfigModalProps> = ({
         setHasPenalty(examToEdit.hasPenalty);
         setMinApprovalPercent(examToEdit.minApprovalPercent);
         setIsAutoDiagnosisEnabled(examToEdit.isAutoDiagnosisEnabled);
+        setIsLeveling(examToEdit.isLeveling || false);
+        if (examToEdit.levelingRanges) setLevelingRanges(examToEdit.levelingRanges);
         setHasBlocks(examToEdit.hasBlocks);
         setBlocks(examToEdit.blocks || []);
         
@@ -96,6 +107,13 @@ const SimulatedExamConfigModal: React.FC<SimulatedExamConfigModalProps> = ({
         setHasPenalty(false);
         setMinApprovalPercent(50);
         setIsAutoDiagnosisEnabled(false);
+        setIsLeveling(false);
+        setLevelingRanges({
+            beginner: 50,
+            intermediate: 70,
+            advanced: 89,
+            insane: 100
+        });
         setHasBlocks(false);
         setBlocks([]);
         setExistingFiles({});
@@ -153,6 +171,8 @@ const SimulatedExamConfigModal: React.FC<SimulatedExamConfigModalProps> = ({
             hasBlocks,
             minApprovalPercent: Number(minApprovalPercent),
             isAutoDiagnosisEnabled,
+            isLeveling,
+            levelingRanges: isLeveling ? levelingRanges : undefined,
             status: status
         };
 
@@ -414,6 +434,22 @@ const SimulatedExamConfigModal: React.FC<SimulatedExamConfigModalProps> = ({
                         </p>
                     </div>
 
+                    {/* Simulado de Nivelamento */}
+                    <div className={`p-4 rounded-xl border transition-all ${isLeveling ? 'bg-purple-900/20 border-purple-500/50' : 'bg-zinc-900/50 border-zinc-800'}`}>
+                        <div className="flex items-center justify-between mb-2">
+                            <span className={`text-xs font-black uppercase ${isLeveling ? 'text-purple-400' : 'text-zinc-400'}`}>Simulado de Nivelamento?</span>
+                            <div 
+                                onClick={() => setIsLeveling(!isLeveling)}
+                                className={`w-10 h-5 rounded-full relative cursor-pointer transition-colors ${isLeveling ? 'bg-purple-500' : 'bg-zinc-700'}`}
+                            >
+                                <div className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-transform ${isLeveling ? 'translate-x-5' : ''}`} />
+                            </div>
+                        </div>
+                        <p className="text-[10px] text-zinc-500 leading-tight">
+                            Define automaticamente o nível do aluno (Iniciante, Intermediário, Avançado ou Insano) baseado no resultado.
+                        </p>
+                    </div>
+
                     {/* Auto Diagnóstico */}
                     <div className={`p-4 rounded-xl border transition-all ${isAutoDiagnosisEnabled ? 'bg-emerald-900/20 border-emerald-500/50' : 'bg-zinc-900/50 border-zinc-800'}`}>
                         <div className="flex items-center justify-between mb-2">
@@ -430,6 +466,51 @@ const SimulatedExamConfigModal: React.FC<SimulatedExamConfigModalProps> = ({
                         </p>
                     </div>
                 </div>
+
+                {/* Leveling Ranges Config */}
+                {isLeveling && (
+                  <div className="bg-zinc-900/30 rounded-xl border border-purple-500/30 p-4 space-y-4 animate-in slide-in-from-top-2">
+                    <h4 className="text-[10px] font-black text-purple-400 uppercase tracking-widest">Faixas de Rendimento (Até %)</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-bold text-zinc-500 uppercase">Iniciante</label>
+                        <input 
+                          type="number"
+                          value={levelingRanges.beginner}
+                          onChange={e => setLevelingRanges({...levelingRanges, beginner: Number(e.target.value)})}
+                          className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-bold text-zinc-500 uppercase">Intermediário</label>
+                        <input 
+                          type="number"
+                          value={levelingRanges.intermediate}
+                          onChange={e => setLevelingRanges({...levelingRanges, intermediate: Number(e.target.value)})}
+                          className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-bold text-zinc-500 uppercase">Avançado</label>
+                        <input 
+                          type="number"
+                          value={levelingRanges.advanced}
+                          onChange={e => setLevelingRanges({...levelingRanges, advanced: Number(e.target.value)})}
+                          className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-bold text-zinc-500 uppercase">Insano</label>
+                        <input 
+                          type="number"
+                          value={levelingRanges.insane}
+                          onChange={e => setLevelingRanges({...levelingRanges, insane: Number(e.target.value)})}
+                          className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Divisão por Blocos */}
                 <div className="bg-zinc-900/30 rounded-xl border border-zinc-800 p-4 space-y-4">

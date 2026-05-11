@@ -90,7 +90,7 @@ export const uploadPlanImage = async (file: File): Promise<string> => {
 export const getPlans = async (): Promise<Plan[]> => {
   const q = query(collection(db, 'plans'), orderBy('createdAt', 'desc'));
   const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Plan));
+  return snapshot.docs.map(doc => toPlainObject({ id: doc.id, ...doc.data() }) as Plan);
 };
 
 export const getPlanById = async (id: string): Promise<Plan | null> => {
@@ -311,7 +311,7 @@ export const duplicatePlan = async (originalPlanId: string) => {
 // Category Functions
 export const getCategories = async (): Promise<Category[]> => {
   const snapshot = await getDocs(collection(db, 'categories'));
-  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Category));
+  return snapshot.docs.map(doc => toPlainObject({ id: doc.id, ...doc.data() }) as Category);
 };
 
 export const createCategory = async (name: string) => {

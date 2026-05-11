@@ -21,6 +21,7 @@ import {
   FieldValue
 } from 'firebase/firestore';
 import { db, auth as mainAuth, firebaseConfig } from './firebase';
+import { toPlainObject } from './firestoreUtils';
 
 // === TYPES ===
 
@@ -60,6 +61,7 @@ export interface Student {
   
   // Statistics
   lifetimeMinutes?: number; // Tempo total acumulado na vida (minutos)
+  studentLevel?: 'beginner' | 'intermediate' | 'advanced' | 'insane';
   currentPlanId?: string;
   planStats?: Record<string, { // Chave é o planId
     minutes: number;
@@ -194,10 +196,10 @@ export const getStudents = async (): Promise<Student[]> => {
   );
 
   const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => ({
+  return snapshot.docs.map(doc => toPlainObject({
     ...doc.data(),
     uid: doc.id
-  } as Student));
+  }) as Student);
 };
 
 /**
@@ -208,7 +210,7 @@ export const getStudentById = async (uid: string): Promise<Student | null> => {
   const docRef = doc(db, 'users', uid);
   const docSnap = await getDoc(docRef);
   if (docSnap.exists()) {
-    return { ...docSnap.data(), uid: docSnap.id } as Student;
+    return toPlainObject({ ...docSnap.data(), uid: docSnap.id }) as Student;
   }
   return null;
 };

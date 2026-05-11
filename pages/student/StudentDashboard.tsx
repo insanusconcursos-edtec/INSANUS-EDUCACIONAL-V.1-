@@ -2,13 +2,13 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { 
-  LayoutDashboard, Coffee, Loader2, AlertTriangle, 
-  RefreshCw, CheckCircle2, Clock, ShieldCheck, X, Check, Trophy, PlusCircle
+  LayoutDashboard, Coffee, Loader2, 
+  RefreshCw, CheckCircle2, Clock, X, Check, Trophy, PlusCircle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { StudentGoalCard, StudentGoal } from '../../components/student/StudentGoalCard';
 import { DelayedGoalsSection } from '../../components/student/dashboard/DelayedGoalsSection';
-import { getDashboardData, toggleGoalStatus, getStudentConfig, getStudentCompletedMetas, getLocalISODate, checkAndUnlockSimulados, getStudentPlans } from '../../services/studentService';
+import { getDashboardData, toggleGoalStatus, getStudentConfig, getStudentCompletedMetas, getLocalISODate, checkAndUnlockSimulados, getStudentPlans, saveStudentRoutine } from '../../services/studentService';
 import { fetchFullPlanData, scheduleUserSimulado, anticipateAndShiftGoals, generateSchedule, rescheduleOverdueTasks } from '../../services/scheduleService';
 import { getAllPlanMetas, Meta } from '../../services/metaService';
 import { EditalNotebookModal } from '../../components/student/tools/EditalNotebookModal';
@@ -30,7 +30,6 @@ import { useNavigate } from 'react-router-dom';
 
 import { useSpacedReviewModal } from '../../contexts/SpacedReviewModalContext';
 import { PlanHeroBanner } from '../../components/student/PlanHeroBanner';
-import { SupportFloatingButton } from '../../components/student/support/SupportFloatingButton';
 import { usePWAInstall } from '../../hooks/usePWAInstall';
 import { Smartphone, Download } from 'lucide-react';
 
@@ -87,6 +86,8 @@ const StudentDashboard: React.FC = () => {
   const [completedMetaIds, setCompletedMetaIds] = useState<Set<string>>(cachedData?.completedMetaIds || new Set());
   const [fullPlanData, setFullPlanData] = useState<any>(cachedData?.fullPlanData || null);
   const [metaLookup, setMetaLookup] = useState<Record<string, Meta>>(cachedData?.metaLookup || {});
+  const [isEdictLoading, setIsEdictLoading] = useState(false);
+  const prefetchPromiseRef = React.useRef<Promise<void> | null>(null);
   
   // NOTEBOOK MODAL STATE
   const [notebookModal, setNotebookModal] = useState<{
@@ -113,68 +114,123 @@ const StudentDashboard: React.FC = () => {
   // NOVO: Prefetching Silencioso do Edital
   const prefetchEditalData = async (planId: string) => {
     if (!currentUser || prefetchStartedRef.current === planId) return;
-    prefetchStartedRef.current = planId;
     
-    // Se já temos cache para este plano, não busca novamente
+    // Se já temos cache para este plano, alimenta os estados locais imediatamente
     if (cachedData?.planId === planId) {
         console.log("⚡ [Prefetch] Dados já em cache para o plano:", planId);
+        setEdictStructure(cachedData.structure);
+        setFullPlanData(cachedData.fullPlanData);
+        setMetaLookup(cachedData.metaLookup);
+        setCompletedMetaIds(cachedData.completedMetaIds);
         return;
     }
 
+    prefetchStartedRef.current = planId;
     console.log("🔍 [Prefetch] Iniciando carregamento antecipado do Edital...");
-    try {
-        const [edictData, completedIds, planData, allMetas, fullPlan] = await Promise.all([
-            getEdict(planId),
-            getStudentCompletedMetas(currentUser.uid, planId),
-            getPlanById(planId),
-            getAllPlanMetas(planId),
-            fetchFullPlanData(planId)
-        ]);
+    
+    const promise = (async () => {
+        setIsEdictLoading(true);
+        try {
+            const [edictData, completedIds, planData, allMetas, fullPlan] = await Promise.all([
+                getEdict(planId),
+                getStudentCompletedMetas(currentUser.uid, planId),
+                getPlanById(planId),
+                getAllPlanMetas(planId),
+                fetchFullPlanData(planId)
+            ]);
 
-        const lookup: Record<string, Meta> = {};
-        allMetas.forEach(m => {
-            if (m.id) lookup[m.id] = m;
-        });
+            const lookup: Record<string, Meta> = {};
+            allMetas.forEach(m => {
+                if (m.id) lookup[m.id] = m;
+            });
 
-        // Atualiza Estados Locais
-        setEdictStructure(edictData);
-        setCompletedMetaIds(completedIds);
-        setFullPlanData(fullPlan);
-        setMetaLookup(toPlainObject(lookup));
+            const plainLookup = toPlainObject(lookup);
 
-        // Alimenta o Cache Global para a aba Edital
-        setCachedData({
-            structure: toPlainObject(edictData),
-            completedMetaIds: completedIds, // Set is fine for local state, but avoid stringifying it directly
-            planTitle: planData?.title || '',
-            activeUserMode: planData?.isActiveUserMode || false,
-            planId: planId,
-            metaLookup: toPlainObject(lookup),
-            fullPlanData: toPlainObject(fullPlan)
-        });
-        
-        console.log("✅ [Prefetch] Edital carregado silenciosamente.");
-    } catch (error) {
-        console.error("❌ [Prefetch] Erro no carregamento silencioso:", error);
-        prefetchStartedRef.current = null;
-    }
+            // Atualiza Estados Locais
+            setEdictStructure(edictData);
+            setCompletedMetaIds(completedIds);
+            setFullPlanData(fullPlan);
+            setMetaLookup(plainLookup);
+
+            // Alimenta o Cache Global para a aba Edital
+            setCachedData({
+                structure: toPlainObject(edictData),
+                completedMetaIds: completedIds,
+                planTitle: planData?.title || '',
+                activeUserMode: planData?.isActiveUserMode || false,
+                planId: planId,
+                metaLookup: plainLookup,
+                fullPlanData: toPlainObject(fullPlan)
+            });
+            
+            console.log("✅ [Prefetch] Edital carregado silenciosamente.");
+        } catch (error) {
+            console.error("❌ [Prefetch] Erro no carregamento silencioso:", error);
+            prefetchStartedRef.current = null;
+        } finally {
+            setIsEdictLoading(false);
+            prefetchPromiseRef.current = null;
+        }
+    })();
+
+    prefetchPromiseRef.current = promise;
+    return promise;
   };
 
   const fetchSchedule = async () => {
     if (!currentUser) return;
     setLoading(true);
     try {
-        const { planId, overdue, today, lastScheduledDate: fetchedLastDate, hasFuturePendingGoals: fetchedHasFuture } = await getDashboardData(currentUser.uid);
-        setCurrentPlanId(planId);
+        const { planId, overdue: overdueData, today: todayData, lastScheduledDate: fetchedLastDateRaw, hasFuturePendingGoals: fetchedHasFutureRaw } = await getDashboardData(currentUser.uid);
+        
+        let overdue = overdueData;
+        let today = todayData;
+        let fetchedLastDate = fetchedLastDateRaw;
+        let fetchedHasFuture = fetchedHasFutureRaw;
+        
+        let finalPlanId = planId;
+        const plans = await getStudentPlans(currentUser.uid);
+
+        // LÓGICA DE ATIVAÇÃO AUTOMÁTICA (REDIRECIONAMENTO INTELIGENTE)
+        if (!planId && plans.length === 1) {
+            const singlePlan = plans[0];
+            finalPlanId = singlePlan.id;
+            
+            // Busca configurações existentes para não sobrescrever com lixo
+            const currentConfig = await getStudentConfig(currentUser.uid);
+            
+            await saveStudentRoutine(currentUser.uid, {
+                currentPlanId: finalPlanId,
+                routine: currentConfig?.routine || { 0: 180, 1: 180, 2: 180, 3: 180, 4: 180, 5: 180, 6: 180 },
+                studyProfile: currentConfig?.studyProfile || { 
+                  level: 'beginner', 
+                  semiActiveClass: false, 
+                  semiActiveMaterial: false, 
+                  semiActiveLaw: false 
+                }
+            });
+            
+            toast.success(`Plano "${singlePlan.title}" ativado automaticamente!`, { icon: '🚀' });
+            
+            // Recarrega os dados do dashboard agora com o novo plano ativo
+            const newData = await getDashboardData(currentUser.uid);
+            overdue = newData.overdue || [];
+            today = newData.today || [];
+            fetchedLastDate = newData.lastScheduledDate;
+            fetchedHasFuture = newData.hasFuturePendingGoals;
+        }
+
+        setCurrentPlanId(finalPlanId);
         setLastScheduledDate(fetchedLastDate);
         setHasFuturePendingGoals(fetchedHasFuture);
 
         // Dispara Prefetching Silencioso sem bloquear a renderização das Metas de Hoje
-        prefetchEditalData(planId);
+        if (finalPlanId) {
+            prefetchEditalData(finalPlanId);
+        }
 
         // Fetch Scholarship Status (Crucial para o Dash, mas pode ser rápido)
-        const plans = await getStudentPlans(currentUser.uid);
-        const currentPlan = plans.find(p => p.id === planId);
+        const currentPlan = plans.find(p => p.id === finalPlanId);
         setIsScholarship(currentPlan?.isScholarship || false);
 
         // Helper Mapper
@@ -690,13 +746,23 @@ const StudentDashboard: React.FC = () => {
   
   const { isInstallable, installApp } = usePWAInstall();
 
-  const handleOpenMaterial = (goal: StudentGoal, fileUrl: string) => {
-    if (!edictStructure) {
-        toast.error("Edital não carregado.");
+  const handleOpenMaterial = async (goal: StudentGoal, fileUrl: string) => {
+    // Se estiver carregando o edital, aguarda a resolução
+    if (isEdictLoading && prefetchPromiseRef.current) {
+        console.log("🔄 Aguardando sincronização final do Edital para abrir material.");
+        await prefetchPromiseRef.current;
+    }
+
+    // Tenta pegar do cache local se ainda for nulo
+    const currentStructure = edictStructure;
+    const currentLookup = metaLookup;
+
+    if (!currentStructure) {
+        toast.error("Processando dados do Edital... Tente novamente em instantes.", { icon: '⏳' });
         return;
     }
 
-    const target = findTargetTopic(goal.topicId, goal.metaId, edictStructure.disciplines, goal.topic, fileUrl, metaLookup);
+    const target = findTargetTopic(goal.topicId, goal.metaId, currentStructure.disciplines, goal.topic, fileUrl, currentLookup);
     
     if (target) {
         // Encontrou vínculo no Edital!
@@ -1281,13 +1347,27 @@ const StudentDashboard: React.FC = () => {
 
         {todayGoals.length === 0 ? (
             <div className="py-16 flex flex-col items-center justify-center text-zinc-600 border-2 border-dashed border-zinc-800 rounded-3xl bg-zinc-900/20">
-                <div className="mb-4 p-4 rounded-full bg-zinc-900 border border-zinc-800">
-                    <Coffee size={32} className="text-zinc-500" />
-                </div>
-                <h3 className="text-lg font-black uppercase text-zinc-400 tracking-tight">Tudo Limpo!</h3>
-                <p className="text-xs font-medium text-zinc-500 max-w-xs text-center mt-1">
-                    Você não tem mais metas para hoje.
-                </p>
+                {currentPlanId && !lastScheduledDate ? (
+                    <div className="flex flex-col items-center animate-in fade-in zoom-in duration-500">
+                        <div className="mb-4 p-4 rounded-full bg-[var(--plan-theme)]/10 border border-[var(--plan-theme)]/20 text-[var(--plan-theme)]">
+                            <CheckCircle2 size={32} />
+                        </div>
+                        <h3 className="text-lg font-black uppercase text-white tracking-tight">Seu plano está ativo!</h3>
+                        <p className="text-xs font-medium text-zinc-500 max-w-sm text-center mt-2 px-6">
+                            Agora, clique em <strong className="text-white">&apos;Gerar Cronograma&apos;</strong> na aba <strong className="text-white">Configurações</strong> para montar sua rotina.
+                        </p>
+                    </div>
+                ) : (
+                    <>
+                        <div className="mb-4 p-4 rounded-full bg-zinc-900 border border-zinc-800">
+                            <Coffee size={32} className="text-zinc-500" />
+                        </div>
+                        <h3 className="text-lg font-black uppercase text-zinc-400 tracking-tight">Tudo Limpo!</h3>
+                        <p className="text-xs font-medium text-zinc-500 max-w-xs text-center mt-1">
+                            Você não tem mais metas para hoje.
+                        </p>
+                    </>
+                )}
             </div>
         ) : (
             <div className="flex flex-col gap-8">
@@ -1517,16 +1597,6 @@ const StudentDashboard: React.FC = () => {
       {/* MODAL DE REVISÃO ESPAÇADA (DIRETRIZ ESTRITA - MONTADO NO DASHBOARD) */}
       {/* Spaced Review Modal (GERENCIADO VIA CONTEXTO) */}
       </div>
-
-      {currentPlanId && (
-        <SupportFloatingButton 
-          productInfo={{
-            type: 'plano',
-            id: currentPlanId,
-            name: fullPlanData?.title || 'Meu Plano de Estudos'
-          }}
-        />
-      )}
 
       {/* MODAL DE CADERNO DE ANOTAÇÕES (EDIIAL VERTICALIZADO) */}
       {notebookModal.isOpen && (
