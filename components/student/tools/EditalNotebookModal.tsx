@@ -16,7 +16,7 @@ import { EdictDiscipline, EdictTopic, EdictSubtopic } from '../../../services/ed
 import { Meta } from '../../../services/metaService';
 import toast from 'react-hot-toast';
 
-interface NotebookEditorModalProps {
+export interface NotebookEditorModalProps {
   isOpen: boolean;
   onClose: () => void;
   planId: string;
@@ -27,6 +27,7 @@ interface NotebookEditorModalProps {
   editalNode?: EdictDiscipline | EdictTopic | EdictSubtopic;
   metaLookup?: Record<string, Meta>;
   initialPdfUrl?: string | null;
+  isEmbedded?: boolean;
 }
 
 type QuestionNode = {
@@ -106,7 +107,8 @@ export const EditalNotebookModal: React.FC<NotebookEditorModalProps> = ({
   materials = [],
   editalNode,
   metaLookup,
-  initialPdfUrl
+  initialPdfUrl,
+  isEmbedded
 }) => {
   const { currentUser } = useAuth();
   
@@ -408,13 +410,17 @@ export const EditalNotebookModal: React.FC<NotebookEditorModalProps> = ({
     }
   };
 
-  if (!isOpen) return null;
+  if (!isOpen && !isEmbedded) return null;
 
   const isErrorNotebook = type === 'error';
   const isQuestionsNotebook = type === 'questions';
 
-  return createPortal(
-    <div className="fixed inset-0 z-[110] bg-[#09090b] flex flex-col md:flex-row overflow-hidden animate-in fade-in duration-300">
+  const containerClass = isEmbedded 
+    ? "relative w-full h-full bg-[#09090b] flex flex-col md:flex-row overflow-hidden shadow-2xl"
+    : "fixed inset-0 z-[110] bg-[#09090b] flex flex-col md:flex-row overflow-hidden animate-in fade-in duration-300";
+
+  const contentAsModal = (
+    <div className={containerClass}>
       
       <div className="relative w-full h-full flex flex-col overflow-hidden animate-in zoom-in-95 duration-300 transition-all">
         
@@ -455,12 +461,14 @@ export const EditalNotebookModal: React.FC<NotebookEditorModalProps> = ({
               </p>
             </div>
           </div>
-          <button 
-            onClick={onClose}
-            className="p-2 hover:bg-white/5 rounded-full text-zinc-500 hover:text-white transition-all"
-          >
-            <X size={24} />
-          </button>
+          {!isEmbedded && (
+            <button 
+              onClick={onClose}
+              className="p-2 hover:bg-white/5 rounded-full text-zinc-500 hover:text-white transition-all"
+            >
+              <X size={24} />
+            </button>
+          )}
         </div>
 
         {/* Main Content (Split Layout) */}
@@ -747,7 +755,12 @@ export const EditalNotebookModal: React.FC<NotebookEditorModalProps> = ({
         variant="danger"
       />
 
-    </div>,
-    document.body
+    </div>
   );
+
+  if (isEmbedded) {
+    return contentAsModal;
+  }
+
+  return createPortal(contentAsModal, document.body);
 };

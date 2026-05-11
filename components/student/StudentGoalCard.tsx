@@ -89,6 +89,7 @@ interface StudentGoalCardProps {
   onToggleComplete?: (goal: StudentGoal) => void;
   onRefresh?: () => void; // Callback to refresh dashboard after merge
   onPdfClick?: (goal: StudentGoal, fileUrl: string, index: number) => void; // New prop
+  renderNotebookNode?: (goal: StudentGoal) => React.ReactNode;
   isDelayed?: boolean;
 }
 
@@ -103,7 +104,7 @@ const TYPE_CONFIG: Record<GoalType, { label: string; color: string; icon: any }>
   free_study: { label: 'ESTUDO LIVRE', color: '#10b981', icon: Trophy },
 };
 
-export const StudentGoalCard: React.FC<StudentGoalCardProps> = ({ goal, onStart, onToggleComplete, onRefresh, onPdfClick, isDelayed }) => {
+export const StudentGoalCard: React.FC<StudentGoalCardProps> = ({ goal, onStart, onToggleComplete, onRefresh, onPdfClick, isDelayed, renderNotebookNode }) => {
   const { userData, currentUser } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   
@@ -971,6 +972,8 @@ export const StudentGoalCard: React.FC<StudentGoalCardProps> = ({ goal, onStart,
             onMinimize={handleMinimizePlayer}
             onClose={handleClosePlayer}
             onComplete={handleCompleteVideo}
+            hasNotebook={!!renderNotebookNode}
+            embeddedNotebookNode={renderNotebookNode ? renderNotebookNode(goal) : undefined}
         />
       )}
 

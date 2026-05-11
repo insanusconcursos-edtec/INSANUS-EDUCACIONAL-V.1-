@@ -1,7 +1,7 @@
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Minimize2, CheckCircle, Clock, Play, Pause } from 'lucide-react';
+import { X, Minimize2, CheckCircle, Clock, Play, Pause, BookOpen } from 'lucide-react';
 
 interface VideoPlayerModalProps {
   isVisible: boolean; // Controls CSS visibility (hidden vs flex)
@@ -15,6 +15,8 @@ interface VideoPlayerModalProps {
   onMinimize: () => void; // Hides visually (keeps mounted)
   onClose: () => void;    // Unmounts/Destroys
   onComplete: () => void; // Completes task and Unmounts
+  embeddedNotebookNode?: React.ReactNode; // Optional notebook to render
+  hasNotebook?: boolean; // Indicates if there's a notebook available
 }
 
 const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
@@ -28,7 +30,9 @@ const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
   onTimerPause,
   onMinimize,
   onClose,
-  onComplete
+  onComplete,
+  embeddedNotebookNode,
+  hasNotebook
 }) => {
   // Use CSS display control instead of conditional rendering to keep Iframe state (buffer/playhead)
   const containerClass = isVisible 
@@ -36,6 +40,7 @@ const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
     : "hidden"; 
 
   const isTimerRunning = timerStatus === 'running';
+  const [isNotebookOpen, setIsNotebookOpen] = useState(false);
 
   // Garante parâmetros necessários para funcionamento correto do iframe e autoplay
   const secureUrl = videoUrl.includes('?') 
@@ -80,32 +85,55 @@ const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
             </span>
         </div>
         
-        {/* Close Button (Destroy) */}
-        <button 
-            onClick={onClose}
-            className="text-zinc-500 hover:text-red-500 transition-colors"
-            title="Fechar Player (Sair)"
-        >
-            <X size={24} />
-        </button>
+        <div className="flex items-center gap-2">
+            {hasNotebook && (
+                <button
+                    onClick={() => setIsNotebookOpen(!isNotebookOpen)}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-all ${
+                        isNotebookOpen 
+                            ? 'bg-blue-600 text-white shadow-lg' 
+                            : 'bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 border border-blue-500/20'
+                    }`}
+                >
+                    <BookOpen size={16} />
+                    {isNotebookOpen ? 'Fechar Caderno' : 'Caderno de Anotações'}
+                </button>
+            )}
+            {/* Close Button (Destroy) */}
+            <button 
+                onClick={onClose}
+                className="p-2 text-zinc-500 hover:text-red-500 transition-colors ml-4"
+                title="Fechar Player (Sair)"
+            >
+                <X size={24} />
+            </button>
+        </div>
       </div>
 
-      {/* ÁREA CENTRAL (VÍDEO) */}
-      <div className="flex-1 w-full bg-black flex items-center justify-center p-4 md:p-8 overflow-hidden">
+      {/* ÁREA CENTRAL (VÍDEO E ANOTAÇÕES) */}
+      <div className="flex-1 w-full bg-black flex overflow-hidden">
         
-        {/* MOLDURA DO VÍDEO (Wrapper com Aspect Ratio fixo) */}
-        <div className="relative w-full max-w-6xl aspect-video bg-zinc-900 rounded-xl overflow-hidden shadow-2xl border border-zinc-800">
-          
-          <iframe
-            src={secureUrl}
-            title={videoTitle}
-            className="absolute top-0 left-0 w-full h-full"
-            allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture; fullscreen"
-            allowFullScreen
-            style={{ border: 'none' }}
-          />
-          
+        {/* PARTE DO VÍDEO */}
+        <div className={`flex flex-col items-center justify-center p-4 md:p-8 overflow-hidden transition-all duration-300 ${isNotebookOpen ? 'w-1/2 border-r border-zinc-800' : 'w-full'}`}>
+            {/* MOLDURA DO VÍDEO (Wrapper com Aspect Ratio fixo) */}
+            <div className={`relative w-full aspect-video bg-zinc-900 rounded-xl overflow-hidden shadow-2xl border border-zinc-800 ${!isNotebookOpen ? 'max-w-6xl' : ''}`}>
+              <iframe
+                src={secureUrl}
+                title={videoTitle}
+                className="absolute top-0 left-0 w-full h-full"
+                allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture; fullscreen"
+                allowFullScreen
+                style={{ border: 'none' }}
+              />
+            </div>
         </div>
+
+        {/* PARTE DO CADERNO */}
+        {isNotebookOpen && embeddedNotebookNode && (
+            <div className="w-1/2 h-full flex flex-col bg-[#09090b] animate-in slide-in-from-right-8 duration-300">
+                {embeddedNotebookNode}
+            </div>
+        )}
         
       </div>
 

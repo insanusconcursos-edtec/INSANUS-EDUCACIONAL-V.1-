@@ -757,6 +757,57 @@ const StudentDashboard: React.FC = () => {
   
   const { isInstallable, installApp } = usePWAInstall();
 
+  const renderEmbeddedNotebook = (goal: StudentGoal) => {
+      const currentStructure = edictStructure;
+      const currentLookup = metaLookup;
+      
+      if (!currentStructure) return null;
+
+      // Usando undefined para fileUrl para não forçar correspondência de arquivo no finder
+      const target = findTargetTopic(goal.topicId, goal.metaId, currentStructure.disciplines, goal.title, goal.discipline, currentLookup);
+      
+      if (!target) return null;
+      
+      const targetTopic = target.topic;
+      const relatedMaterials: any[] = [];
+      
+      if (targetTopic.linkedGoals && currentLookup) {
+          Object.keys(targetTopic.linkedGoals).forEach(category => {
+              const goalIds = targetTopic.linkedGoals[category];
+              if (Array.isArray(goalIds)) {
+                  goalIds.forEach((goalId: string) => {
+                      const m = currentLookup[goalId];
+                      if (m && m.files) {
+                          const pdfFiles = m.files
+                              .filter((f: any) => (f.url || f.fileUrl)?.toLowerCase().includes('.pdf'))
+                              .map((f: any) => ({
+                                  ...f,
+                                  url: f.url || f.fileUrl,
+                                  goalContext: m.title
+                              }));
+                          relatedMaterials.push(...pdfFiles);
+                      }
+                  });
+              }
+          });
+      }
+
+      return (
+          <EditalNotebookModal 
+            isOpen={true}
+            onClose={() => {}} // Não gerencia fechamento globalmente
+            planId={currentPlanId || ''}
+            editalNodeId={targetTopic.id}
+            topicTitle={targetTopic.name}
+            type="note"
+            materials={relatedMaterials}
+            editalNode={targetTopic}
+            metaLookup={currentLookup}
+            isEmbedded={true}
+          />
+      );
+  };
+
   const handleOpenMaterial = async (goal: StudentGoal, fileUrl: string) => {
     // Se estiver carregando o edital, aguarda a resolução
     if (isEdictLoading && prefetchPromiseRef.current) {
@@ -773,7 +824,7 @@ const StudentDashboard: React.FC = () => {
         return;
     }
 
-    const target = findTargetTopic(goal.topicId, goal.metaId, currentStructure.disciplines, goal.topic, fileUrl, currentLookup);
+    const target = findTargetTopic(goal.topicId, goal.metaId, currentStructure.disciplines, goal.title, goal.discipline, currentLookup);
     
     if (target) {
         // Encontrou vínculo no Edital!
@@ -1393,6 +1444,7 @@ const StudentDashboard: React.FC = () => {
         onToggleComplete={handleToggleComplete}
         onRefresh={fetchSchedule}
         onPdfClick={handleOpenMaterial}
+        renderNotebookNode={renderEmbeddedNotebook}
       />
 
       {/* --- SEÇÃO 1: REVISÕES ESPAÇADAS (OCULTA SE HOUVER ATRASOS PARA EVITAR DUPLICIDADE) --- */}
@@ -1446,6 +1498,7 @@ const StudentDashboard: React.FC = () => {
                                     onToggleComplete={(g) => handleToggleComplete(g)}
                                     onRefresh={fetchSchedule}
                                     onPdfClick={handleOpenMaterial}
+                                    renderNotebookNode={renderEmbeddedNotebook}
                                 />
                             ))}
                         </div>
@@ -1493,6 +1546,7 @@ const StudentDashboard: React.FC = () => {
                                         onToggleComplete={(g) => handleToggleComplete(g)}
                                         onRefresh={fetchSchedule}
                                         onPdfClick={handleOpenMaterial}
+                                        renderNotebookNode={renderEmbeddedNotebook}
                                         onStart={goal.type === 'simulado' ? handleStartSimulado : undefined}
                                     />
                                 </React.Fragment>
