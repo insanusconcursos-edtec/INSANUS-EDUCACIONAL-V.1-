@@ -1,8 +1,12 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { 
     XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area 
 } from 'recharts';
 import { SimulatedAttempt } from '../../../services/simulatedAttemptService';
+import { SimulatedExam } from '../../../services/simulatedService';
+import { Trophy } from 'lucide-react';
+import { useAuth } from '../../../contexts/AuthContext';
+import { updateStudent } from '../../../services/userService';
 
 interface ConsolidatedData {
     strong: number;
@@ -58,50 +62,65 @@ const ConsolidatedSubjectCard: React.FC<{ subject: string; data: ConsolidatedDat
 };
 
 // --- COMPONENTE PRINCIPAL ---
-export const StudentPerformanceDashboard: React.FC<{ attempts: SimulatedAttempt[] }> = ({ attempts }) => {
+export const StudentPerformanceDashboard: React.FC<{ 
+    attempts: SimulatedAttempt[];
+    exams: SimulatedExam[];
+}> = ({ attempts, exams }) => {
+    const { currentUser, userData } = useAuth();
     
     // 1. PROCESSAMENTO DE DADOS (MEMOIZADO)
     const dashboardData = useMemo(() => {
         if (!attempts || attempts.length === 0) return null;
 
-        // Ordena por data (Antigo -> Novo) para o gráfico
+        // B. DADOS DO GRÁFICO
         const sortedAttempts = [...attempts].sort((a, b) => 
             (a.completedAt?.seconds || 0) - (b.completedAt?.seconds || 0)
         );
 
-        // A. DADOS GERAIS
+        // C. NIVELAMENTO RETROATIVO
+        const levelingExam = exams.find(e => e.isLeveling && e.levelingRanges);
+        let identifiedLevel: 'beginner' | 'intermediate' | 'advanced' | 'insane' | null = null;
+        let levelingAttempt: SimulatedAttempt | null = null;
+
+        if (levelingExam) {
+            levelingAttempt = attempts.find(a => a.simulatedId === levelingExam.id) || null;
+            if (levelingAttempt && levelingExam.levelingRanges) {
+                const percent = (levelingAttempt.score / levelingAttempt.totalQuestions) * 100;
+                
+                if (percent > levelingExam.levelingRanges.advanced) identifiedLevel = 'insane';
+                else if (percent > levelingExam.levelingRanges.intermediate) identifiedLevel = 'advanced';
+                else if (percent > levelingExam.levelingRanges.beginner) identifiedLevel = 'intermediate';
+                else identifiedLevel = 'beginner';
+            }
+        }
+
+        // D. DADOS GERAIS
         const totalSimulados = sortedAttempts.length;
         const totalScore = sortedAttempts.reduce((acc, curr) => acc + (curr.score || 0), 0);
         const averageScore = totalSimulados > 0 ? Math.round(totalScore / totalSimulados) : 0;
         const approvedCount = sortedAttempts.filter(a => a.isApproved).length;
         const approvalRate = totalSimulados > 0 ? Math.round((approvedCount / totalSimulados) * 100) : 0;
 
-        // B. DADOS DO GRÁFICO
+        // ... chartData and consolidatedMap logic remains ...
         const chartData = sortedAttempts.map((att, index) => ({
             name: `Simulado ${index + 1}`,
             nota: att.score,
             data: att.completedAt ? new Date(att.completedAt.seconds * 1000).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : '-'
         }));
 
-        // C. INTELIGÊNCIA CONSOLIDADA (AGRUPAR TODOS OS AUTODIAGNÓSTICOS)
         const consolidatedMap: Record<string, ConsolidatedData> = {};
-
         sortedAttempts.forEach(att => {
             // @ts-expect-error: Autodiagnosis might not be in interface yet
             const autodiagnosis = att.autodiagnosis;
-            const analysis = autodiagnosis?.analysis; // Pega o JSON salvo
+            const analysis = autodiagnosis?.analysis;
             if (analysis) {
                 Object.entries(analysis).forEach(([subject, data]: [string, any]) => {
                     if (!consolidatedMap[subject]) {
                         consolidatedMap[subject] = { strong: 0, weak: 0, review: 0, topicsToStudy: [], topicsToReview: [] };
                     }
-                    
-                    // Soma quantitativa
                     consolidatedMap[subject].strong += (data.strong || 0);
                     consolidatedMap[subject].weak += (data.weak || 0);
                     consolidatedMap[subject].review += (data.review || 0);
-
-                    // Merge de Tópicos (Sem duplicar)
                     if (data.topicsToStudy) {
                         data.topicsToStudy.forEach((t: string) => {
                             if (!consolidatedMap[subject].topicsToStudy.includes(t)) consolidatedMap[subject].topicsToStudy.push(t);
@@ -117,11 +136,31 @@ export const StudentPerformanceDashboard: React.FC<{ attempts: SimulatedAttempt[
         });
 
         return {
-            kpis: { totalSimulados, averageScore, approvalRate },
+            kpis: { totalSimulados, averageScore, approvalRate, identifiedLevel, levelingAttempt },
             chartData,
             consolidatedMap
         };
-    }, [attempts]);
+    }, [attempts, exams]);
+
+    // 2. SINCRONIZAÇÃO COM PERFIL
+    useEffect(() => {
+        if (currentUser && dashboardData?.kpis.identifiedLevel) {
+            const currentLevel = (userData as any)?.studentLevel;
+            const newLevel = dashboardData.kpis.identifiedLevel;
+            
+            // Sincroniza apenas se o nível mudou ou não existe
+            if (currentLevel !== newLevel) {
+                console.log(`[Dashboard] Sincronizando nível: ${newLevel}`);
+                updateStudent(currentUser.uid, {
+                    studentLevel: newLevel,
+                    studyProfile: {
+                        ...(userData?.studyProfile || {}),
+                        level: newLevel
+                    } as any
+                }).catch(err => console.error("Erro ao sincronizar nível:", err));
+            }
+        }
+    }, [currentUser, userData, dashboardData?.kpis.identifiedLevel]);
 
     if (!dashboardData) return (
         <div className="p-8 text-center text-gray-500 bg-[#1a1d24] rounded-2xl border border-gray-800">
@@ -131,6 +170,33 @@ export const StudentPerformanceDashboard: React.FC<{ attempts: SimulatedAttempt[
 
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
+            
+            {/* CARD DE NÍVEL IDENTIFICADO (RETROATIVO) */}
+            {dashboardData.kpis.identifiedLevel && (
+                <div className="bg-brand-red/10 border border-brand-red/30 p-6 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-6 animate-in slide-in-from-top-4 duration-500">
+                    <div className="flex items-center gap-5">
+                        <div className="w-16 h-16 bg-brand-red/20 rounded-2xl flex items-center justify-center text-brand-red shadow-[0_0_20px_rgba(220,38,38,0.2)]">
+                            <Trophy size={32} />
+                        </div>
+                        <div>
+                            <h4 className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.2em] mb-1">Nível de Preparação Identificado:</h4>
+                            <p className={`text-3xl font-black uppercase tracking-tight ${
+                                dashboardData.kpis.identifiedLevel === 'advanced' || dashboardData.kpis.identifiedLevel === 'insane' 
+                                ? 'text-purple-400 drop-shadow-[0_0_8px_rgba(168,85,247,0.4)]' 
+                                : 'text-yellow-400'
+                            }`}>
+                                {dashboardData.kpis.identifiedLevel === 'beginner' ? 'Iniciante' : 
+                                 dashboardData.kpis.identifiedLevel === 'intermediate' ? 'Intermediário' : 
+                                 dashboardData.kpis.identifiedLevel === 'advanced' ? 'Avançado' : 'Insano'}
+                            </p>
+                        </div>
+                    </div>
+                    <div className="bg-black/40 backdrop-blur-md px-5 py-3 rounded-xl border border-zinc-800 text-center md:text-right">
+                        <p className="text-[10px] text-zinc-500 font-bold uppercase mb-1">Baseado no Simulado:</p>
+                        <p className="text-white text-xs font-black uppercase truncate max-w-[200px]">{dashboardData.kpis.levelingAttempt?.simulatedTitle}</p>
+                    </div>
+                </div>
+            )}
             
             {/* 1. CARDS DE KPI */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

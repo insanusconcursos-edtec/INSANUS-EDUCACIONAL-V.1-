@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   BarChart2, ArrowLeft, Trophy, Search, ChevronDown, Brain, ListChecks, Check, X, Minus, Medal, AlertCircle, FileText
 } from 'lucide-react';
@@ -9,6 +10,7 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { SimulatedExam } from '../../../services/simulatedService';
 import { SimulatedAttempt } from '../../../services/simulatedAttemptService';
 import { StudentAutoDiagnosis } from './StudentAutoDiagnosis';
+import { updateStudent } from '../../../services/userService';
 
 // Helper Component para Linha do Ranking
 const RankingRow: React.FC<{ rank: SimulatedAttempt & { originalRank: number }, currentUserId?: string }> = ({ rank, currentUserId }) => {
@@ -62,7 +64,31 @@ interface ExamResultProps {
 }
 
 export const ExamResult: React.FC<ExamResultProps> = ({ exam, attemptData, onBack }) => {
-    const { currentUser } = useAuth();
+    const { currentUser, userData } = useAuth();
+    
+    // Sincronização de Nível (se for simulado de nivelamento)
+    useEffect(() => {
+        if (currentUser && exam.isLeveling && exam.levelingRanges) {
+            const percent = (attemptData.score / attemptData.totalQuestions) * 100;
+            let identifiedLevel: 'beginner' | 'intermediate' | 'advanced' | 'insane' = 'beginner';
+            
+            if (percent > exam.levelingRanges.advanced) identifiedLevel = 'insane';
+            else if (percent > exam.levelingRanges.intermediate) identifiedLevel = 'advanced';
+            else if (percent > exam.levelingRanges.beginner) identifiedLevel = 'intermediate';
+
+            const currentLevel = (userData as any)?.studentLevel;
+            if (currentLevel !== identifiedLevel) {
+                console.log(`[ExamResult] Atualizando nível para: ${identifiedLevel}`);
+                updateStudent(currentUser.uid, {
+                    studentLevel: identifiedLevel,
+                    studyProfile: {
+                        ...(userData?.studyProfile || {}),
+                        level: identifiedLevel
+                    } as any
+                }).catch(err => console.error("Erro ao atualizar nível:", err));
+            }
+        }
+    }, [currentUser, userData, exam, attemptData]);
     
     // Estado para controlar as Abas
     const [activeTab, setActiveTab] = useState<'PERFORMANCE' | 'RANKING' | 'AUTODIAGNOSIS'>('PERFORMANCE'); 
@@ -119,118 +145,168 @@ export const ExamResult: React.FC<ExamResultProps> = ({ exam, attemptData, onBac
         };
     }, [rankingData, rankingSearch]);
 
-    return (
-        <div className="flex flex-col h-full bg-zinc-950 animate-in fade-in slide-in-from-right-8 duration-500 rounded-2xl overflow-hidden border border-zinc-800">
+    return createPortal(
+        <div className="fixed inset-0 z-[100000] w-screen h-screen bg-[#0a0a0a] flex flex-col animate-in fade-in slide-in-from-right-8 duration-500 overflow-hidden">
             
             {/* CABEÇALHO DO RESULTADO */}
-            <div className="flex-none p-6 border-b border-zinc-800 bg-zinc-900/50">
-                <div className="flex justify-between items-center mb-6">
+            <div className="flex-none p-4 md:p-8 border-b border-zinc-800 bg-zinc-900/50 pt-8 md:pt-10">
+                <div className="max-w-7xl mx-auto flex justify-between items-center">
                     <div>
-                        <h2 className="text-2xl font-black text-white uppercase tracking-tighter">{exam.title}</h2>
-                        <span className="text-zinc-500 text-xs font-bold uppercase tracking-widest">Resultado Final</span>
+                        <h2 className="text-xl md:text-2xl font-black text-white uppercase tracking-tighter">{exam.title}</h2>
+                        <span className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest">Painel de Performance Final</span>
                     </div>
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2 md:gap-4">
                         {exam.files?.bookletUrl && (
                             <button 
                                 onClick={() => window.open(exam.files.bookletUrl, '_blank')}
-                                className="hidden md:flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl font-bold text-[10px] uppercase tracking-widest shadow-lg hover:shadow-blue-500/30 transition-all transform hover:-translate-y-0.5"
+                                className="hidden lg:flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl font-bold text-[10px] uppercase tracking-widest shadow-lg hover:shadow-blue-500/30 transition-all transform hover:-translate-y-0.5"
                             >
                                 <FileText size={16} />
                                 Baixar Caderno
                             </button>
                         )}
-                        <button onClick={onBack} className="text-zinc-400 hover:text-white flex items-center gap-2 transition-colors px-4 py-2 rounded-lg hover:bg-zinc-800">
-                            <ArrowLeft size={18} />
-                            <span className="text-xs font-bold uppercase tracking-widest">Voltar</span>
+                        <button 
+                            onClick={onBack} 
+                            className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white flex items-center gap-2 transition-all px-4 py-3 rounded-xl border border-zinc-700 font-black text-[10px] uppercase tracking-widest shadow-lg"
+                        >
+                            <ArrowLeft size={16} />
+                            <span>VOLTAR</span>
                         </button>
                     </div>
                 </div>
+            </div>
 
-                {/* NAVEGAÇÃO EM ABAS (TABS) - DESKTOP */}
-                <div className="hidden md:flex items-center gap-6 border-b border-gray-800 mb-8 overflow-x-auto">
-                    {/* Aba 1: Desempenho */}
-                    <button
-                        onClick={() => setActiveTab('PERFORMANCE')}
-                        className={`pb-4 px-2 text-sm font-bold uppercase tracking-wider transition-all border-b-2 ${activeTab === 'PERFORMANCE' ? 'border-red-600 text-white' : 'border-transparent text-gray-500 hover:text-gray-300'}`}
-                    >
-                        Meu Desempenho
-                    </button>
-
-                    {/* Aba 2: Autodiagnóstico (NOVO) - Só aparece se o simulado tiver a função ativa */}
-                    {exam.isAutoDiagnosisEnabled && (
+            {/* BARRA DE NAVEGAÇÃO DE ABAS */}
+            <div className="flex-none bg-zinc-900/30 border-b border-zinc-800">
+                <div className="max-w-7xl mx-auto px-6">
+                    {/* NAVEGAÇÃO EM ABAS (TABS) - DESKTOP */}
+                    <div className="hidden md:flex items-center gap-8 overflow-x-auto">
+                        {/* Aba 1: Desempenho */}
                         <button
-                            onClick={() => setActiveTab('AUTODIAGNOSIS')}
-                            className={`pb-4 px-2 text-sm font-bold uppercase tracking-wider transition-all border-b-2 flex items-center gap-2 ${activeTab === 'AUTODIAGNOSIS' ? 'border-yellow-500 text-yellow-500' : 'border-transparent text-gray-500 hover:text-gray-300'}`}
+                            onClick={() => setActiveTab('PERFORMANCE')}
+                            className={`py-4 px-2 text-xs font-bold uppercase tracking-widest transition-all border-b-2 ${activeTab === 'PERFORMANCE' ? 'border-red-600 text-white' : 'border-transparent text-gray-500 hover:text-gray-300'}`}
                         >
-                            <Brain className="w-4 h-4" />
-                            Autodiagnóstico
+                            Meu Desempenho
                         </button>
-                    )}
 
-                    {/* Aba 3: Ranking */}
-                    <button
-                        onClick={() => setActiveTab('RANKING')}
-                        className={`pb-4 px-2 text-sm font-bold uppercase tracking-wider transition-all border-b-2 ${activeTab === 'RANKING' ? 'border-red-600 text-white' : 'border-transparent text-gray-500 hover:text-gray-300'}`}
-                    >
-                        Ranking Geral
-                    </button>
-                </div>
-
-                {/* NAVEGAÇÃO EM ABAS (DROPDOWN) - MOBILE */}
-                <div className="flex md:hidden flex-col w-full mb-6 relative">
-                    <button 
-                        onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                        className="flex items-center justify-between w-full px-4 py-3 bg-zinc-900 border border-zinc-800 rounded-xl text-white text-[10px] font-black uppercase tracking-widest transition-all"
-                    >
-                        <div className="flex items-center gap-3">
-                            {activeTab === 'PERFORMANCE' && <BarChart2 size={16} className="text-red-600" />}
-                            {activeTab === 'AUTODIAGNOSIS' && <Brain size={16} className="text-red-600" />}
-                            {activeTab === 'RANKING' && <Trophy size={16} className="text-red-600" />}
-                            <span>
-                                {activeTab === 'PERFORMANCE' ? 'Meu Desempenho' : 
-                                 activeTab === 'AUTODIAGNOSIS' ? 'Autodiagnóstico' : 'Ranking Geral'}
-                            </span>
-                        </div>
-                        <ChevronDown className={`w-4 h-4 transition-transform duration-300 ${isDropdownOpen ? 'rotate-180' : ''}`} />
-                    </button>
-
-                    {isDropdownOpen && (
-                        <div className="absolute top-full left-0 right-0 mt-2 bg-[#1A1A1A] border border-zinc-800 rounded-xl shadow-2xl z-[60] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-                            <button 
-                                onClick={() => { setActiveTab('PERFORMANCE'); setIsDropdownOpen(false); }}
-                                className={`w-full flex items-center gap-3 px-4 py-4 text-[10px] font-black uppercase tracking-widest transition-colors border-b border-zinc-800/50 ${activeTab === 'PERFORMANCE' ? 'text-red-600 bg-red-600/5' : 'text-zinc-400 hover:text-red-600 hover:bg-zinc-800/50'}`}
+                        {/* Aba 2: Autodiagnóstico (NOVO) */}
+                        {exam.isAutoDiagnosisEnabled && (
+                            <button
+                                onClick={() => setActiveTab('AUTODIAGNOSIS')}
+                                className={`py-4 px-2 text-xs font-bold uppercase tracking-widest transition-all border-b-2 flex items-center gap-2 ${activeTab === 'AUTODIAGNOSIS' ? 'border-yellow-500 text-yellow-500' : 'border-transparent text-gray-500 hover:text-gray-300'}`}
                             >
-                                <BarChart2 size={16} />
-                                Meu Desempenho
+                                <Brain className="w-4 h-4" />
+                                Autodiagnóstico
                             </button>
-                            {exam.isAutoDiagnosisEnabled && (
-                                <button 
-                                    onClick={() => { setActiveTab('AUTODIAGNOSIS'); setIsDropdownOpen(false); }}
-                                    className={`w-full flex items-center gap-3 px-4 py-4 text-[10px] font-black uppercase tracking-widest transition-colors border-b border-zinc-800/50 ${activeTab === 'AUTODIAGNOSIS' ? 'text-red-600 bg-red-600/5' : 'text-zinc-400 hover:text-red-600 hover:bg-zinc-800/50'}`}
-                                >
-                                    <Brain size={16} />
-                                    Autodiagnóstico
-                                </button>
+                        )}
+
+                        {/* Aba 3: Ranking */}
+                        <button
+                            onClick={() => setActiveTab('RANKING')}
+                            className={`py-4 px-2 text-xs font-bold uppercase tracking-widest transition-all border-b-2 ${activeTab === 'RANKING' ? 'border-red-600 text-white' : 'border-transparent text-gray-500 hover:text-gray-300'}`}
+                        >
+                            Ranking Geral
+                        </button>
+                    </div>
+
+                    {/* NAVEGAÇÃO EM ABAS (DROPDOWN) - MOBILE */}
+                    <div className="flex md:hidden py-4">
+                        <div className="relative w-full">
+                            <button 
+                                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                                className="flex items-center justify-between w-full px-4 py-3 bg-zinc-900 border border-zinc-800 rounded-xl text-white text-[10px] font-black uppercase tracking-widest"
+                            >
+                                <div className="flex items-center gap-3">
+                                    {activeTab === 'PERFORMANCE' && <BarChart2 size={16} className="text-red-500" />}
+                                    {activeTab === 'AUTODIAGNOSIS' && <Brain size={16} className="text-yellow-500" />}
+                                    {activeTab === 'RANKING' && <Trophy size={16} className="text-emerald-500" />}
+                                    <span>
+                                        {activeTab === 'PERFORMANCE' ? 'Meu Desempenho' : 
+                                         activeTab === 'AUTODIAGNOSIS' ? 'Autodiagnóstico' : 'Ranking Geral'}
+                                    </span>
+                                </div>
+                                <ChevronDown className={`w-4 h-4 transition-transform duration-300 ${isDropdownOpen ? 'rotate-180' : ''}`} />
+                            </button>
+
+                            {isDropdownOpen && (
+                                <div className="absolute top-full left-0 right-0 mt-2 bg-[#1A1A1A] border border-zinc-800 rounded-xl shadow-2xl z-[210] overflow-hidden">
+                                    <button 
+                                        onClick={() => { setActiveTab('PERFORMANCE'); setIsDropdownOpen(false); }}
+                                        className={`w-full flex items-center gap-3 px-4 py-4 text-[10px] font-black uppercase tracking-widest transition-colors border-b border-zinc-800/50 ${activeTab === 'PERFORMANCE' ? 'text-red-500 bg-red-500/5' : 'text-zinc-500 hover:bg-zinc-800'}`}
+                                    >
+                                        <BarChart2 size={16} />
+                                        Meu Desempenho
+                                    </button>
+                                    {exam.isAutoDiagnosisEnabled && (
+                                        <button 
+                                            onClick={() => { setActiveTab('AUTODIAGNOSIS'); setIsDropdownOpen(false); }}
+                                            className={`w-full flex items-center gap-3 px-4 py-4 text-[10px] font-black uppercase tracking-widest transition-colors border-b border-zinc-800/50 ${activeTab === 'AUTODIAGNOSIS' ? 'text-yellow-500 bg-yellow-500/5' : 'text-zinc-500 hover:bg-zinc-800'}`}
+                                        >
+                                            <Brain size={16} />
+                                            Autodiagnóstico
+                                        </button>
+                                    )}
+                                    <button 
+                                        onClick={() => { setActiveTab('RANKING'); setIsDropdownOpen(false); }}
+                                        className={`w-full flex items-center gap-3 px-4 py-4 text-[10px] font-black uppercase tracking-widest transition-colors ${activeTab === 'RANKING' ? 'text-emerald-500 bg-emerald-500/5' : 'text-zinc-500 hover:bg-zinc-800'}`}
+                                    >
+                                        <Trophy size={16} />
+                                        Ranking Geral
+                                    </button>
+                                </div>
                             )}
-                            <button 
-                                onClick={() => { setActiveTab('RANKING'); setIsDropdownOpen(false); }}
-                                className={`w-full flex items-center gap-3 px-4 py-4 text-[10px] font-black uppercase tracking-widest transition-colors ${activeTab === 'RANKING' ? 'text-red-600 bg-red-600/5' : 'text-zinc-400 hover:text-red-600 hover:bg-zinc-800/50'}`}
-                            >
-                                <Trophy size={16} />
-                                Ranking Geral
-                            </button>
                         </div>
-                    )}
+                    </div>
                 </div>
             </div>
 
             {/* CONTEÚDO DAS ABAS */}
-            <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-zinc-800">
+            <div className="flex-1 overflow-y-auto p-4 md:p-8 pt-10 md:pt-20">
                 <div className="max-w-7xl mx-auto">
                     
                     {/* --- ABA 1: DESEMPENHO (Cards + Gabarito) --- */}
                     {activeTab === 'PERFORMANCE' && (
                         <div className="space-y-8 animate-in fade-in duration-300">
+                            
+                            {/* SELO DE NIVELAMENTO (Se for simulado de nivelamento) */}
+                            {exam.isLeveling && exam.levelingRanges && (
+                                <div className="bg-brand-red/10 border border-brand-red/30 p-8 rounded-3xl flex flex-col items-center text-center animate-in zoom-in-95 duration-700">
+                                    <div className="w-16 h-16 bg-brand-red/20 rounded-2xl flex items-center justify-center text-brand-red mb-4 shadow-[0_0_30px_rgba(220,38,38,0.2)]">
+                                        <Trophy size={32} />
+                                    </div>
+                                    <h4 className="text-zinc-500 text-[11px] font-black uppercase tracking-[0.3em] mb-2">Nível de Preparação Identificado</h4>
+                                    <p className={`text-6xl font-black uppercase tracking-tighter drop-shadow-2xl ${
+                                        (() => {
+                                            const percent = (attemptData.score / attemptData.totalQuestions) * 100;
+                                            if (percent > exam.levelingRanges.advanced || percent > exam.levelingRanges.intermediate) return 'text-purple-400 drop-shadow-[0_0_15px_rgba(168,85,247,0.6)]';
+                                            return 'text-yellow-400 drop-shadow-[0_0_15px_rgba(250,204,21,0.4)]';
+                                        })()
+                                    }`}>
+                                        {(() => {
+                                            const percent = (attemptData.score / attemptData.totalQuestions) * 100;
+                                            if (percent > exam.levelingRanges.advanced) return 'Insano';
+                                            if (percent > exam.levelingRanges.intermediate) return 'Avançado';
+                                            if (percent > exam.levelingRanges.beginner) return 'Intermediário';
+                                            return 'Iniciante';
+                                        })()}
+                                    </p>
+                                    <div className="mt-6 flex flex-col items-center gap-2">
+                                        <div className="h-1.5 w-64 bg-zinc-800 rounded-full overflow-hidden">
+                                            <div 
+                                                className="h-full bg-brand-red shadow-[0_0_10px_rgba(220,38,38,0.5)] transition-all duration-1000" 
+                                                style={{ width: `${(attemptData.score / attemptData.totalQuestions) * 100}%` }}
+                                            />
+                                        </div>
+                                        <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">
+                                            Aproveitamento de {((attemptData.score / attemptData.totalQuestions) * 100).toFixed(1)}%
+                                        </span>
+                                    </div>
+                                    <p className="text-xs text-zinc-500 font-medium mt-6 max-w-lg leading-relaxed">
+                                        Seu perfil de estudos foi recalibrado. Este nível define a velocidade de liberação dos seus materiais e a complexidade das metas diárias.
+                                    </p>
+                                </div>
+                            )}
+
                             {/* CARDS DE PLACAR */}
                             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                                 {/* Nota Final */}
@@ -508,6 +584,7 @@ export const ExamResult: React.FC<ExamResultProps> = ({ exam, attemptData, onBac
                     )}
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };

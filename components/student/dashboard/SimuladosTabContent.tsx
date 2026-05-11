@@ -350,18 +350,14 @@ export const SimuladosTabContent: React.FC<SimuladosTabContentProps> = ({ planId
 
       {/* TELA DE RESULTADO / GABARITO (OVERLAY) */}
       {viewingAttempt && viewingExamForResult && (
-        <div className="fixed inset-0 z-[150] bg-zinc-950 flex flex-col p-0 md:p-4 animate-in fade-in duration-300">
-           <div className="w-full max-w-7xl mx-auto flex-1 flex flex-col">
-              <ExamResult 
-                exam={viewingExamForResult}
-                attemptData={viewingAttempt}
-                onBack={() => {
-                  setViewingAttempt(null);
-                  setViewingExamForResult(null);
-                }}
-              />
-           </div>
-        </div>
+        <ExamResult 
+          exam={viewingExamForResult}
+          attemptData={viewingAttempt}
+          onBack={() => {
+            setViewingAttempt(null);
+            setViewingExamForResult(null);
+          }}
+        />
       )}
     </div>
   );
