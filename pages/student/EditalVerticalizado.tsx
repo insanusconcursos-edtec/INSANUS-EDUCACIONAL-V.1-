@@ -52,6 +52,23 @@ const EditalVerticalizado: React.FC = () => {
   const [activeHighlightGoal, setActiveHighlightGoal] = useState<string | null>(null);
   const [fullPlanData, setFullPlanData] = useState<any>(cachedData?.fullPlanData || null);
   
+  // Trigger spaced review
+  const [pendingTopicReview, setPendingTopicReview] = useState<any>(null);
+
+  // Sincronização de Estado: Garante que se o Dashboard marcar uma meta, o Edital reflita
+  useEffect(() => {
+    if (cachedData?.completedMetaIds) {
+      setCompletedMetaIds(cachedData.completedMetaIds);
+    }
+  }, [cachedData?.completedMetaIds]);
+
+  useEffect(() => {
+    if (pendingTopicReview) {
+      openSpacedReviewModal(pendingTopicReview);
+      setPendingTopicReview(null);
+    }
+  }, [pendingTopicReview, openSpacedReviewModal]);
+
   // Video Player State
   const [activeVideo, setActiveVideo] = useState<string | null>(null);
 
@@ -439,13 +456,15 @@ const EditalVerticalizado: React.FC = () => {
                 }
 
                 const isEditalComplete = editalTotal > 0 && editalCompleted >= editalTotal;
-                if (isEditalComplete) {
+                const isPlanComplete = planTotal > 0 && planCompleted >= planTotal;
+                
+                if (isEditalComplete && isPlanComplete) {
                     // Check for existing reviews of type 'topic_revision'
                     const allReviews = await courseReviewService.getReviewsByTopic(currentUser.uid, String(topic.id));
                     const existingTopicReviews = allReviews.filter(r => r.type === 'topic_revision');
 
                     if (existingTopicReviews.length === 0) {
-                        openSpacedReviewModal({
+                        setPendingTopicReview({
                             planId: planId,
                             disciplineId: discipline.id,
                             disciplineName: discipline.name,

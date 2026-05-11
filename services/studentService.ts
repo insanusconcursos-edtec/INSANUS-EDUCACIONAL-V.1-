@@ -172,32 +172,30 @@ export const toggleGoalStatus = async (
 
       await updateDoc(docRef, cleanObject({ items }));
 
+      // Extrai o ID canônico ignorando formatações do calendário
+      const event = items[index];
+      const canonicalId = String(event.taskId || event.metaId || event.id).trim();
+
+      // Persiste a conclusão na fonte da verdade do edital (Sempre atualiza, seja 'completed' ou 'pending')
+      const progressRef = doc(db, `users/${uid}/plans/${planId}/edital_progress`, canonicalId);
+      await setDoc(progressRef, cleanObject({ 
+        metaId: canonicalId,
+        completed: newStatus === 'completed', 
+        status: newStatus,
+        completedAt: newStatus === 'completed' ? new Date().toISOString() : null,
+        manuallyCompleted: isManual
+      }), { merge: true });
+
       // Trigger Spaced Review Logic only when completing
       if (newStatus === 'completed') {
-          const event = items[index];
           const intervals = event.spacedReviewIntervals || (event.reviewConfig?.active ? event.reviewConfig.intervals : null);
           
           if (intervals && !event.isSpacedReview) {
               await generateSpacedReviews(uid, planId, { ...event, spacedReviewIntervals: intervals }, todayStr);
           }
           
-          // Extrai o ID canônico ignorando formatações do calendário
-          const canonicalId = event.taskId || event.metaId || event.id;
-
-          // Persiste a conclusão na fonte da verdade do edital
-          const progressRef = doc(db, `users/${uid}/plans/${planId}/edital_progress`, canonicalId);
-          await setDoc(progressRef, cleanObject({ 
-            metaId: canonicalId,
-            completed: newStatus === 'completed', 
-            status: newStatus,
-            completedAt: newStatus === 'completed' ? new Date().toISOString() : null,
-            manuallyCompleted: isManual
-          }), { merge: true });
-
           // Trigger Simulado Unlock Check
-          if (newStatus === 'completed') {
-            await checkAndUnlockSimulados(uid, planId, event.cycleId);
-          }
+          await checkAndUnlockSimulados(uid, planId, event.cycleId);
       }
   };
 
@@ -243,33 +241,35 @@ export const toggleGoalStatus = async (
   }
 
   // 2. FALLBACK: Se não encontrou em nenhum calendário, mas é uma conclusão manual via Edital
-  if (!found && newStatus === 'completed') {
-      const canonicalId = eventId; // No Edital, o eventId passado é o ID da Meta
+  if (!found) {
+      const canonicalId = String(eventId).trim(); // No Edital, o eventId passado é o ID da Meta
       
       // Persiste a conclusão na fonte da verdade do edital
       const progressRef = doc(db, `users/${uid}/plans/${planId}/edital_progress`, canonicalId);
       await setDoc(progressRef, cleanObject({ 
         metaId: canonicalId,
-        completed: true, 
-        status: 'completed',
-        completedAt: new Date().toISOString(),
+        completed: newStatus === 'completed', 
+        status: newStatus,
+        completedAt: newStatus === 'completed' ? new Date().toISOString() : null,
         manuallyCompleted: isManual
       }), { merge: true });
 
-      // Trigger Spaced Review Logic se os dados da meta foram passados
-      if (goalData && goalData.reviewConfig?.active) {
-          const intervals = goalData.reviewConfig.intervals;
-          if (intervals) {
-              await generateSpacedReviews(uid, planId, { 
-                  ...goalData, 
-                  metaId: goalData.id, 
-                  spacedReviewIntervals: intervals 
-              }, todayStr);
+      if (newStatus === 'completed') {
+          // Trigger Spaced Review Logic se os dados da meta foram passados
+          if (goalData && goalData.reviewConfig?.active) {
+              const intervals = goalData.reviewConfig.intervals;
+              if (intervals) {
+                  await generateSpacedReviews(uid, planId, { 
+                      ...goalData, 
+                      metaId: goalData.id || String(goalData.id),
+                      spacedReviewIntervals: intervals 
+                  }, todayStr);
+              }
           }
-      }
 
-      // Trigger Simulado Unlock Check
-      await checkAndUnlockSimulados(uid, planId);
+          // Trigger Simulado Unlock Check
+          await checkAndUnlockSimulados(uid, planId);
+      }
   }
 };
 
@@ -581,26 +581,29 @@ export const getStudentCompletedMetas = async (uid: string, planId: string): Pro
       const planItems = items.filter(i => i.planId === planId);
       
       planItems.forEach(ev => {
-        const mId = ev.metaId || ev.taskId;
+        const mId = String(ev.metaId || ev.taskId || ev.id).trim();
         if (ev.status === 'completed' && mId) {
           completedIds.add(mId);
         }
       });
     });
 
-  // 2. Query Edital Progress Collection (Manual Completions)
-  // This ensures items marked manually (which don't create schedule entries) are included.
+  // 2. Query Edital Progress Collection (Manual Completions & Overrides)
   const progressRef = collection(db, 'users', uid, 'plans', planId, 'edital_progress');
   const snapshotProgress = await getDocs(progressRef);
 
   snapshotProgress.docs.forEach(docSnap => {
     const data = docSnap.data();
-    // CORREÇÃO: Aceita tanto o campo legado 'completed' quanto o novo 'status'
     const isCompleted = data.completed === true || data.status === 'completed';
-    const mId = data.metaId || docSnap.id;
+    const mId = String(data.metaId || docSnap.id).trim();
     
-    if (isCompleted && mId) {
+    if (mId) {
+      if (isCompleted) {
         completedIds.add(mId);
+      } else {
+        // Se explicitamente marcado como não concluído no edital_progress, remove (Sync total)
+        completedIds.delete(mId);
+      }
     }
   });
 

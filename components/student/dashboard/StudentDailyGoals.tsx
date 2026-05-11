@@ -164,7 +164,9 @@ export const StudentDailyGoals = ({ planData, userData }: { planData: any, userD
         if (!simuladoToSchedule) return;
         try {
             await scheduleUserSimulado(user.uid, planData.id, simuladoToSchedule, date);
-            window.location.reload(); 
+            // Removido reload para evitar refresh visual desnecessário
+            // O estado deve ser atualizado via props ou context se necessário, 
+            // ou o usuário pode navegar para outra aba.
         } catch (error) {
             console.error("Erro ao agendar:", error);
             alert("Erro ao agendar simulado.");

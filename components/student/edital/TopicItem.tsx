@@ -166,7 +166,7 @@ const TopicItem: React.FC<TopicItemProps> = memo(({
         if (Array.isArray(idList)) {
           totalGoals += idList.length;
           idList.forEach(id => {
-            const safeId = String(id);
+            const safeId = String(id).trim();
             ids.push(safeId);
             // Use EFFECTIVE IDs for calculation - NORMALIZAÇÃO RIGOROSA
             if (effectiveCompletedIds.has(safeId)) completedGoals++;
@@ -336,7 +336,7 @@ const TopicItem: React.FC<TopicItemProps> = memo(({
     return (
         <div className="flex flex-col gap-2 mt-2 mb-2 animate-in slide-in-from-left-2 duration-300">
             {metasToRender.map(meta => {
-                const isDone = effectiveCompletedIds.has(meta.id!);
+                const isDone = effectiveCompletedIds.has(String(meta.id).trim());
                 return (
                     <LinkedGoalItem 
                         // FORCE REMOUNT on status change OR manual trigger (remountToken)

@@ -25,6 +25,7 @@ import StudentChatView from '../../components/student/chat/StudentChatView';
 import { SimuladosTabContent } from '../../components/student/dashboard/SimuladosTabContent';
 import { LiveEventsTabContent } from '../../components/student/dashboard/LiveEventsTabContent';
 import { CourseReviewDashboard } from '../../components/student/courses/reviews/CourseReviewDashboard';
+import { TopicCompletionModal } from '../../components/student/dashboard/TopicCompletionModal';
 import { courseReviewService } from '../../services/courseReviewService';
 import { useNavigate } from 'react-router-dom';
 
@@ -87,7 +88,17 @@ const StudentDashboard: React.FC = () => {
   const [fullPlanData, setFullPlanData] = useState<any>(cachedData?.fullPlanData || null);
   const [metaLookup, setMetaLookup] = useState<Record<string, Meta>>(cachedData?.metaLookup || {});
   const [isEdictLoading, setIsEdictLoading] = useState(false);
+  const [pendingTopicReview, setPendingTopicReview] = useState<any>(null);
+  const [topicCompletionPayload, setTopicCompletionPayload] = useState<any>(null);
+  const closedTopicModalsRef = React.useRef<Set<string>>(new Set());
   const prefetchPromiseRef = React.useRef<Promise<void> | null>(null);
+
+  useEffect(() => {
+    if (pendingTopicReview) {
+      openSpacedReviewModal(pendingTopicReview);
+      setPendingTopicReview(null);
+    }
+  }, [pendingTopicReview, openSpacedReviewModal]);
   
   // NOTEBOOK MODAL STATE
   const [notebookModal, setNotebookModal] = useState<{
@@ -831,8 +842,8 @@ const StudentDashboard: React.FC = () => {
   ): { topic: any, discipline: any } | null => {
     if (!disciplines || !Array.isArray(disciplines)) return null;
 
-    const searchMetaId = metaId ? String(metaId) : null;
-    const searchTopicId = topicId ? String(topicId) : null;
+    const searchMetaId = metaId ? String(metaId).trim() : null;
+    const searchTopicId = topicId ? String(topicId).trim() : null;
 
     const normalizeUrl = (url: string) => {
         try {
@@ -860,7 +871,7 @@ const StudentDashboard: React.FC = () => {
         const isMatch = (item: any, depth: number = 0): boolean => {
           // 1. PRIORIDADE MÁXIMA: Check URL Identity (O Vínculo Real pelo arquivo)
           if (targetUrl && item.linkedGoals && metaLookup) {
-              const allLinkedIds = Object.values(item.linkedGoals).flat().map(String);
+              const allLinkedIds = Object.values(item.linkedGoals).flat().map(id => String(id).trim());
               for (const linkedId of allLinkedIds) {
                   const meta = metaLookup[linkedId];
                   if (meta && meta.files) {
@@ -876,8 +887,8 @@ const StudentDashboard: React.FC = () => {
           // 2. Check Linked Goals (IDs)
           if (item.linkedGoals) {
             const allLinkedIds = [
-                ...Object.keys(item.linkedGoals).map(String),
-                ...Object.values(item.linkedGoals).flat().map(String)
+                ...Object.keys(item.linkedGoals).map(id => String(id).trim()),
+                ...Object.values(item.linkedGoals).flat().map(id => String(id).trim())
             ];
             
             if ((searchMetaId && allLinkedIds.includes(searchMetaId)) || 
@@ -887,7 +898,7 @@ const StudentDashboard: React.FC = () => {
           }
 
           // 3. Check ID do item do edital
-          if (searchTopicId && String(item.id) === searchTopicId) return true;
+          if (searchTopicId && String(item.id).trim() === searchTopicId) return true;
 
           // 4. Check Name (Fallback Normalizado)
           if (targetNameNormalized && item.name) {
@@ -923,7 +934,7 @@ const StudentDashboard: React.FC = () => {
             ids.forEach(id => {
               if (id) {
                 total++;
-                if (completedIds.has(String(id))) completed++;
+                if (completedIds.has(String(id).trim())) completed++;
               }
             });
           }
@@ -987,6 +998,9 @@ const StudentDashboard: React.FC = () => {
 
     // 4. Persistência no Backend com Status Explícito
     if (currentUser && currentPlanId) {
+        const mId = goalToToggle.metaId || goalToToggle.id;
+
+        // I. SALVAR META (Backend Sync)
         await toggleGoalStatus(
             currentUser.uid, 
             currentPlanId, 
@@ -995,105 +1009,64 @@ const StudentDashboard: React.FC = () => {
             true, // isManual flag
             targetStatusString // <--- O NOVO PARÂMETRO QUE IMPEDE A INVERSÃO
         );
+
+        // II. ATUALIZAR EDITAL (Revalidação de Dados - Fetch-on-Click)
+        // Buscamos a lista real do banco para garantir que o Edital e o Dashboard estejam 100% sincronizados
+        const freshCompletedIds = await getStudentCompletedMetas(currentUser.uid, currentPlanId);
+        
+        // Atualiza estados locais e globais
+        setCompletedMetaIds(freshCompletedIds);
+        if (cachedData) {
+            setCachedData({ ...cachedData, completedMetaIds: freshCompletedIds });
+        }
         
         if (todayGoals.some(g => g.id === goalToToggle.id) && targetStatusBoolean) {
-            checkAndUnlockSimulados(currentUser.uid, currentPlanId, undefined, undefined, new Set([...Array.from(completedMetaIds), goalToToggle.metaId || goalToToggle.id]));
+            checkAndUnlockSimulados(currentUser.uid, currentPlanId, undefined, undefined, freshCompletedIds);
             checkAndTriggerAnticipation(novaListaDeMetasAtualizada);
         }
 
-        fetchSchedule();
+        // III. VERIFICAR CONCLUSÃO DO TÓPICO -> DISPARAR POPUP (Gatilho Pós-Sincronia)
+        // Somente após a confirmação do banco que as IDs frescas estão aqui
+        
+        // Reset da Referência de Bloqueio (Tarefa 3)
+        if (!targetStatusBoolean && goalToToggle.topicId) {
+            closedTopicModalsRef.current.delete(String(goalToToggle.topicId).trim());
+        }
 
-        // Update local completed IDs set optimistically
-        const mId = goalToToggle.metaId || goalToToggle.id;
-        setCompletedMetaIds(prev => {
-            const next = new Set(prev);
-            if (targetStatusBoolean) {
-                next.add(mId);
-            } else {
-                next.delete(mId);
-            }
-            
-            // Sincroniza com o Cache Global do Edital
-            if (cachedData) {
-                setCachedData({ ...cachedData, completedMetaIds: next });
-            }
-            
-            return next;
-        });
-
-        // NEW: Check for topic completion to trigger Spaced Review Modal (OPTIMISTIC)
         if (targetStatusBoolean && (goalToToggle.topicId || mId) && edictStructure) {
             try {
-                // 1. CONSTRÓI O ESTADO REAL DE AGORA (Ignora o atraso do React)
-                const currentCompletedIds = new Set(Array.from(completedMetaIds).map(String));
-                
-                // Adiciona a meta atual explicitamente
-                const metaIdStr = String(goalToToggle.metaId || goalToToggle.id);
-                if (targetStatusBoolean) currentCompletedIds.add(metaIdStr);
-                else currentCompletedIds.delete(metaIdStr);
+                // Use IDs normalizados
+                const normalizedTopicId = goalToToggle.topicId ? String(goalToToggle.topicId).trim() : null;
+                const normalizedMetaId = mId ? String(mId).trim() : null;
 
-                const result = findTargetTopic(goalToToggle.topicId, mId, edictStructure.disciplines, goalToToggle.topic);
+                const result = findTargetTopic(normalizedTopicId, normalizedMetaId, edictStructure.disciplines, goalToToggle.topic);
                 
                 if (result) {
                     const { topic, discipline } = result;
-                    const { total: editalTotal, completed: editalCompleted } = getTopicGoalStats(topic, currentCompletedIds);
+                    const { total: editalTotal, completed: editalCompleted } = getTopicGoalStats(topic, freshCompletedIds);
                     
-                    // 2. VERIFICAÇÃO NO PLANO INTEIRO (Busca Ultra-Flexível via Árvore de Disciplinas)
-                    let planTotal = 0;
-                    let planCompleted = 0;
-                    
-                    if (fullPlanData && fullPlanData.disciplines) {
-                        const searchTopicId = String(goalToToggle.topicId || topic.id || '');
-                        const searchTopicName = String(goalToToggle.topic || topic.name || '').trim().toLowerCase();
-                        const searchDiscipline = String(goalToToggle.discipline || discipline.name || '').trim().toLowerCase();
+                    // Tarefa 1: Simplificação do Gatilho (Remover loop manual e usar status do Edital)
+                    const isCompleted = editalTotal > 0 && editalCompleted >= editalTotal;
 
-                        fullPlanData.disciplines.forEach((disc: any) => {
-                            const discName = String(disc.name || disc.title || '').trim().toLowerCase();
-                            // Verifica se a disciplina bate (Match Flexível)
-                            const isSameDisc = !searchDiscipline || !discName || 
-                                               discName.includes(searchDiscipline) || 
-                                               searchDiscipline.includes(discName);
-                            
-                            if (isSameDisc) {
-                                disc.topics?.forEach((t: any) => {
-                                    const tId = String(t.id || '');
-                                    const tName = String(t.name || t.title || '').trim().toLowerCase();
-                                    
-                                    // Match de Tópico: ID igual OU Nomes se contém
-                                    const isMatch = (searchTopicId && tId === searchTopicId) ||
-                                                    (searchTopicName && tName && (searchTopicName.includes(tName) || tName.includes(searchTopicName)));
-                                    
-                                    if (isMatch) {
-                                        t.metas?.forEach((m: any) => {
-                                            planTotal++;
-                                            if (currentCompletedIds.has(String(m.id))) {
-                                                planCompleted++;
-                                            }
-                                        });
-                                    }
-                                });
-                            }
-                        });
-                    }
+                    if (isCompleted) {
+                        const tId = String(topic.id).trim();
+                        // Verificação de Inteligência (Não mostrar se já agendado OU se fechou nesta sessão)
+                        if (closedTopicModalsRef.current.has(tId)) return;
 
-                    const isEditalComplete = editalTotal > 0 && editalCompleted >= editalTotal;
-                    const isPlanComplete = planTotal === 0 || planCompleted >= planTotal;
-
-                    // 3. CONDIÇÃO DE DISPARO (Simplificada: Se o edital está 100%, oferecemos a revisão)
-                    if (isEditalComplete) {
-                        // Check if TOPIC reviews already exist for this topic to avoid double scheduling
-                        const allReviews = await courseReviewService.getReviewsByTopic(currentUser.uid, topic.id);
+                        const allReviews = await courseReviewService.getReviewsByTopic(currentUser.uid, tId);
                         const existingTopicReviews = allReviews.filter(r => r.type === 'topic_revision');
                         
+                        // Tarefa 4: Fluxo de Celebração (Modal -> pergunta Revisão)
+                        // This matches the current TopicCompletionModal onConfirm logic
                         if (existingTopicReviews.length === 0) {
-                            openSpacedReviewModal({
+                            setTopicCompletionPayload({
                                 planId: currentPlanId,
                                 disciplineId: discipline.id,
                                 disciplineName: discipline.name,
-                                topicId: topic.id,
+                                topicId: tId,
                                 topicName: topic.name,
                                 isAutoTriggered: true,
-                                message: `🎉 PARABÉNS! Você concluiu todas as metas do tópico [${topic.name}]. Deseja agendar seus flashcards agora?`
+                                message: `Você concluiu todas as metas do tópico [${topic.name}]. Deseja agendar suas revisões agora?`
                             });
                         }
                     }
@@ -1593,6 +1566,22 @@ const StudentDashboard: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* MODAL DE CELEBRAÇÃO DE TÓPICO */}
+      <TopicCompletionModal 
+        isOpen={!!topicCompletionPayload}
+        topicName={topicCompletionPayload?.topicName || ''}
+        onClose={() => {
+            if (topicCompletionPayload?.topicId) {
+                closedTopicModalsRef.current.add(topicCompletionPayload.topicId);
+            }
+            setTopicCompletionPayload(null);
+        }}
+        onConfirm={() => {
+            setPendingTopicReview(topicCompletionPayload);
+            setTopicCompletionPayload(null);
+        }}
+      />
 
       {/* MODAL DE REVISÃO ESPAÇADA (DIRETRIZ ESTRITA - MONTADO NO DASHBOARD) */}
       {/* Spaced Review Modal (GERENCIADO VIA CONTEXTO) */}

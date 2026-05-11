@@ -42,7 +42,8 @@ export const useEditalProgress = (
           if (Array.isArray(ids)) {
             discTotal += ids.length;
             ids.forEach(id => {
-              if (completedMetaIds.has(id as string)) {
+              const normalizedId = String(id).trim();
+              if (completedMetaIds.has(normalizedId)) {
                 discCompleted++;
               }
             });
