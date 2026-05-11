@@ -1,4 +1,5 @@
 
+import React, { useState, useEffect } from 'react';
 import { StudyCalendar } from '../../components/student/calendar/StudyCalendar';
 import { useAuth } from '../../contexts/AuthContext';
 import { PlanHeroBanner } from '../../components/student/PlanHeroBanner';
