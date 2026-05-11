@@ -284,10 +284,22 @@ async function setupVite(app: any) {
             userAvatar: userData.photoURL || '',
             enrollmentType: (courseAccess.id && String(courseAccess.id).startsWith('mig_')) ? 'MIGRACAO' : 'REGULAR',
             accessOrigin: (courseAccess.id && String(courseAccess.id).startsWith('mig_')) ? 'MIGRATION' : 'COMBO',
-            expiresAt: courseAccess.endDate ? ((courseAccess.endDate as any).toDate ? (courseAccess.endDate as any).toDate().toISOString() : String(courseAccess.endDate)) : null,
-            releasedAt: courseAccess.startDate ? ((courseAccess.startDate as any).toDate ? (courseAccess.startDate as any).toDate().toISOString() : String(courseAccess.startDate)) : ((userData.createdAt as any)?.toDate ? (userData.createdAt as any).toDate().toISOString() : String(userData.createdAt || '')),
+            expiresAt: (courseAccess.diaFim || courseAccess.endDate) ? (
+              (courseAccess.diaFim as any)?.toDate ? (courseAccess.diaFim as any).toDate().toISOString() : 
+              (courseAccess.endDate as any)?.toDate ? (courseAccess.endDate as any).toDate().toISOString() : 
+              String(courseAccess.diaFim || courseAccess.endDate)
+            ) : null,
+            releasedAt: (courseAccess.diaInicio || courseAccess.startDate) ? (
+              (courseAccess.diaInicio as any)?.toDate ? (courseAccess.diaInicio as any).toDate().toISOString() : 
+              (courseAccess.startDate as any)?.toDate ? (courseAccess.startDate as any).toDate().toISOString() : 
+              String(courseAccess.diaInicio || courseAccess.startDate)
+            ) : ((userData.createdAt as any)?.toDate ? (userData.createdAt as any).toDate().toISOString() : String(userData.createdAt || '')),
             active: courseAccess.isActive !== false
           });
+
+          // Adicionar aliases para compatibilidade com o frontend
+          (studentMap.get(doc.id) as any).diaInicio = (studentMap.get(doc.id) as any).releasedAt;
+          (studentMap.get(doc.id) as any).diaFim = (studentMap.get(doc.id) as any).expiresAt;
         }
       });
 
@@ -336,10 +348,27 @@ async function setupVite(app: any) {
             ...userProfile,
             enrollmentType: enrollmentData.enrollmentType || 'REGULAR',
             accessOrigin: 'DIRECT',
-            expiresAt: enrollmentData.expiresAt ? (enrollmentData.expiresAt.toDate ? (enrollmentData.expiresAt.toDate() as Date).toISOString() : String(enrollmentData.expiresAt)) : null,
-            releasedAt: enrollmentData.releasedAt ? (enrollmentData.releasedAt.toDate ? (enrollmentData.releasedAt.toDate() as Date).toISOString() : String(enrollmentData.releasedAt)) : (enrollmentData.createdAt ? (enrollmentData.createdAt.toDate ? (enrollmentData.createdAt.toDate() as Date).toISOString() : String(enrollmentData.createdAt)) : (userProfile.createdAt && (userProfile.createdAt as any).toDate ? (userProfile.createdAt as any).toDate().toISOString() : String(userProfile.createdAt || ''))),
+            expiresAt: (enrollmentData.diaFim || enrollmentData.expiresAt || enrollmentData.endDate) ? (
+              (enrollmentData.diaFim as any)?.toDate ? (enrollmentData.diaFim as any).toDate().toISOString() : 
+              (enrollmentData.expiresAt as any)?.toDate ? (enrollmentData.expiresAt as any).toDate().toISOString() : 
+              (enrollmentData.endDate as any)?.toDate ? (enrollmentData.endDate as any).toDate().toISOString() : 
+              String(enrollmentData.diaFim || enrollmentData.expiresAt || enrollmentData.endDate)
+            ) : null,
+            releasedAt: (enrollmentData.diaInicio || enrollmentData.releasedAt || enrollmentData.startDate) ? (
+              (enrollmentData.diaInicio as any)?.toDate ? (enrollmentData.diaInicio as any).toDate().toISOString() : 
+              (enrollmentData.releasedAt as any)?.toDate ? (enrollmentData.releasedAt as any).toDate().toISOString() : 
+              (enrollmentData.startDate as any)?.toDate ? (enrollmentData.startDate as any).toDate().toISOString() : 
+              String(enrollmentData.diaInicio || enrollmentData.releasedAt || enrollmentData.startDate)
+            ) : (enrollmentData.createdAt ? (enrollmentData.createdAt.toDate ? (enrollmentData.createdAt.toDate() as Date).toISOString() : String(enrollmentData.createdAt)) : (userProfile.createdAt && (userProfile.createdAt as any).toDate ? (userProfile.createdAt as any).toDate().toISOString() : String(userProfile.createdAt || ''))),
             active: enrollmentData.active !== false
           });
+
+          // Adicionar aliases para compatibilidade
+          const updated = studentMap.get(userId) as any;
+          if (updated) {
+            updated.diaInicio = updated.releasedAt;
+            updated.diaFim = updated.expiresAt;
+          }
         }
       }
 

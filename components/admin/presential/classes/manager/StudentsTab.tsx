@@ -82,11 +82,21 @@ export const StudentsTab: React.FC<Props> = ({ classId }) => {
         {/* Dados de Acesso e Ações */}
         <div className="flex flex-col md:items-end gap-2 w-full md:w-auto">
           <div className="text-xs text-gray-400 grid grid-cols-2 md:text-right gap-x-4 gap-y-1 bg-gray-900/50 p-2 rounded-lg">
-            <span>Início: <strong className="text-gray-300">
-              {access?.startDate ? (typeof access.startDate.toDate === 'function' ? access.startDate.toDate().toLocaleDateString('pt-BR') : new Date(access.startDate).toLocaleDateString('pt-BR')) : 'N/A'}
+            <span>Dia Início: <strong className="text-gray-300">
+              {(() => {
+                const dateVal = access?.diaInicio || access?.startDate;
+                if (!dateVal) return 'N/A';
+                if (typeof dateVal.toDate === 'function') return dateVal.toDate().toLocaleDateString('pt-BR');
+                return new Date(dateVal).toLocaleDateString('pt-BR');
+              })()}
             </strong></span>
-            <span>Expira: <strong className="text-gray-300">
-              {access?.endDate ? (typeof access.endDate.toDate === 'function' ? access.endDate.toDate().toLocaleDateString('pt-BR') : new Date(access.endDate).toLocaleDateString('pt-BR')) : 'N/A'}
+            <span>Dia Fim: <strong className="text-gray-300">
+              {(() => {
+                const dateVal = access?.diaFim || access?.endDate;
+                if (!dateVal) return 'N/A';
+                if (typeof dateVal.toDate === 'function') return dateVal.toDate().toLocaleDateString('pt-BR');
+                return new Date(dateVal).toLocaleDateString('pt-BR');
+              })()}
             </strong></span>
             <span className="col-span-2">Acesso: <strong className="text-gray-300">{access?.days || 0} dias</strong></span>
           </div>

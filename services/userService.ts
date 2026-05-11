@@ -31,8 +31,8 @@ export interface AccessItem {
   targetId: string; // The ID of the Plan, Simulated Class, Course or Product
   title: string;
   days: number;
-  startDate: Timestamp;
-  endDate: Timestamp;
+  diaInicio: Timestamp;
+  diaFim: Timestamp;
   isActive: boolean;
   isScholarship?: boolean;
   tictoId?: string;
@@ -236,9 +236,9 @@ export const grantStudentAccess = async (
   const currentAccess = student.access || [];
 
   // Calculate Dates
-  const startDate = new Date();
-  const endDate = new Date();
-  endDate.setDate(startDate.getDate() + data.days);
+  const diaInicio = new Date();
+  const diaFim = new Date();
+  diaFim.setDate(diaInicio.getDate() + data.days);
 
   const newAccessItem: AccessItem = {
     id: crypto.randomUUID(),
@@ -246,8 +246,10 @@ export const grantStudentAccess = async (
     targetId: data.targetId,
     title: data.title,
     days: data.days,
-    startDate: Timestamp.fromDate(startDate),
-    endDate: Timestamp.fromDate(endDate),
+    diaInicio: Timestamp.fromDate(diaInicio),
+    diaFim: Timestamp.fromDate(diaFim),
+    startDate: Timestamp.fromDate(diaInicio), // Mirror for compatibility
+    endDate: Timestamp.fromDate(diaFim),     // Mirror for compatibility
     isActive: true,
     isScholarship: data.isScholarship || false
   };
@@ -273,8 +275,8 @@ export const grantStudentAccess = async (
         userCpf: student.cpf,
         userPhone: student.whatsapp || '',
         enrollmentType: data.isScholarship ? 'BOLSISTA' : 'REGULAR',
-        releasedAt: startDate.toISOString(),
-        expiresAt: endDate.toISOString(),
+        releasedAt: diaInicio.toISOString(),
+        expiresAt: diaFim.toISOString(),
         active: true,
         createdAt: serverTimestamp()
       });
@@ -378,7 +380,7 @@ export const extendStudentAccess = async (uid: string, accessId: string, additio
   const updatedAccess = currentAccess.map(item => {
     if (item.id === accessId || (tictoIdToExtend && item.tictoId === tictoIdToExtend)) {
       // Calculate new end date based on current end date (or now if expired)
-      const currentEnd = item.endDate.toDate();
+      const currentEnd = item.diaFim.toDate();
       const now = new Date();
       const baseDate = currentEnd > now ? currentEnd : now; // If expired, start extension from now
       
@@ -387,7 +389,7 @@ export const extendStudentAccess = async (uid: string, accessId: string, additio
 
       return { 
         ...item, 
-        endDate: Timestamp.fromDate(newEnd),
+        diaFim: Timestamp.fromDate(newEnd),
         days: item.days + additionalDays,
         isActive: true // Reactivate if it was expired
       };
@@ -397,7 +399,7 @@ export const extendStudentAccess = async (uid: string, accessId: string, additio
 
   const updatedProducts = currentProducts.map(item => {
     if (item.id === accessId || (tictoIdToExtend && item.tictoId === tictoIdToExtend)) {
-      const currentEnd = item.endDate.toDate();
+      const currentEnd = item.diaFim.toDate();
       const now = new Date();
       const baseDate = currentEnd > now ? currentEnd : now;
       
@@ -406,7 +408,7 @@ export const extendStudentAccess = async (uid: string, accessId: string, additio
 
       return { 
         ...item, 
-        endDate: Timestamp.fromDate(newEnd),
+        diaFim: Timestamp.fromDate(newEnd),
         days: item.days + additionalDays,
         isActive: true
       };
@@ -426,7 +428,7 @@ export const extendStudentAccess = async (uid: string, accessId: string, additio
       const enrollmentRef = doc(db, 'course_enrollments', enrollmentId);
       
       // Calculate new end date again for the enrollment record
-      const currentEnd = itemToExtend.endDate.toDate();
+      const currentEnd = itemToExtend.diaFim.toDate();
       const now = new Date();
       const baseDate = currentEnd > now ? currentEnd : now;
       const newEnd = new Date(baseDate);

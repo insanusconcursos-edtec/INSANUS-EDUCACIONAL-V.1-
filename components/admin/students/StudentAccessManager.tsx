@@ -104,20 +104,53 @@ const StudentAccessManager: React.FC<StudentAccessManagerProps> = ({ student: in
   }, [fetchStudentData]);
 
   // === HELPERS ===
-  const getDaysRemaining = (endDate: Timestamp) => {
-    if (!endDate || typeof endDate.toDate !== 'function') return 0;
-    const end = endDate.toDate();
+  const ensureDate = (val: any): Date | null => {
+    if (!val) return null;
+    
+    // 1. Firebase Timestamp (Object with toDate method)
+    if (typeof val.toDate === 'function') return val.toDate();
+    
+    // 2. Date Object
+    if (val instanceof Date) return isNaN(val.getTime()) ? null : val;
+    
+    // 3. ISO String or Date String
+    if (typeof val === 'string' && val.trim() !== '') {
+      const d = new Date(val);
+      return isNaN(d.getTime()) ? null : d;
+    }
+    
+    // 4. Plain object with seconds (from JSON or similar)
+    if (typeof val === 'object' && val.seconds !== undefined) {
+      return new Date(val.seconds * 1000);
+    }
+
+    return null;
+  };
+
+  const getDaysRemaining = (diaFim: any) => {
+    const end = ensureDate(diaFim);
+    if (!end) return 0;
+    
     const now = new Date();
+    // Use 00:00:00 for both if we want "calendar days" or precise time?
+    // User logic says "currentDate > diaFim", usually implies calendar comparison or precise.
+    // We stay with precise for now but allow for full day.
     const diffTime = end.getTime() - now.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     return diffDays > 0 ? diffDays : 0;
   };
 
-  const calculateProgress = (start: Timestamp, end: Timestamp) => {
-    if (!start || !end || typeof start.toDate !== 'function' || typeof end.toDate !== 'function') return 0;
-    const s = start.toDate().getTime();
-    const e = end.toDate().getTime();
+  const calculateProgress = (start: any, end: any) => {
+    const sDate = ensureDate(start);
+    const eDate = ensureDate(end);
+    if (!sDate || !eDate) return 0;
+    
+    const s = sDate.getTime();
+    const e = eDate.getTime();
     const now = new Date().getTime();
+    
+    if (e <= s) return 100; // Zero length duration is "complete" if reached
+    
     const total = e - s;
     const elapsed = now - s;
     
@@ -126,9 +159,28 @@ const StudentAccessManager: React.FC<StudentAccessManagerProps> = ({ student: in
     return (elapsed / total) * 100;
   };
 
-  const formatDate = (timestamp: Timestamp) => {
-    if (!timestamp || typeof timestamp.toDate !== 'function') return '---';
-    return timestamp.toDate().toLocaleDateString('pt-BR');
+  const getAccessStatus = (diaInicio: any, diaFim: any) => {
+    const start = ensureDate(diaInicio);
+    const end = ensureDate(diaFim);
+    
+    if (!start || !end) return 'EXPIRADO';
+    
+    // Use precise comparison following user instructions:
+    // "EXPIRADO" só se currentDate > diaFim
+    // "ATIVO" se currentDate estiver entre diaInicio e diaFim
+    const now = new Date();
+
+    if (now > end) return 'EXPIRADO';
+    if (now >= start && now <= end) return 'ATIVO';
+    if (now < start) return 'AGUARDANDO';
+    
+    return 'EXPIRADO';
+  };
+
+  const formatDate = (val: any) => {
+    const date = ensureDate(val);
+    if (!date) return '---';
+    return date.toLocaleDateString('pt-BR');
   };
 
   // === ACTIONS ===
@@ -195,12 +247,12 @@ const StudentAccessManager: React.FC<StudentAccessManagerProps> = ({ student: in
       const batch = writeBatch(db);
       const userRef = doc(db, 'users', localStudent.uid);
 
-      const startDate = new Date();
-      const endDate = new Date();
-      endDate.setDate(startDate.getDate() + daysInput);
+      const diaInicio = new Date();
+      const diaFim = new Date();
+      diaFim.setDate(diaInicio.getDate() + daysInput);
 
-      const startTimestamp = Timestamp.fromDate(startDate);
-      const endTimestamp = Timestamp.fromDate(endDate);
+      const startTimestamp = Timestamp.fromDate(diaInicio);
+      const endTimestamp = Timestamp.fromDate(diaFim);
 
       // 1. Adiciona o Produto na lista do aluno
       const productAccessId = crypto.randomUUID();
@@ -210,6 +262,8 @@ const StudentAccessManager: React.FC<StudentAccessManagerProps> = ({ student: in
         targetId: product.id!,
         title: product.name,
         days: daysInput,
+        diaInicio: startTimestamp,
+        diaFim: endTimestamp,
         startDate: startTimestamp,
         endDate: endTimestamp,
         isActive: true
@@ -229,6 +283,8 @@ const StudentAccessManager: React.FC<StudentAccessManagerProps> = ({ student: in
           targetId,
           title,
           days: daysInput,
+          diaInicio: startTimestamp,
+          diaFim: endTimestamp,
           startDate: startTimestamp,
           endDate: endTimestamp,
           isActive: true,
@@ -414,6 +470,7 @@ const StudentAccessManager: React.FC<StudentAccessManagerProps> = ({ student: in
                                 onExtend={() => openExtendModal(access.id)}
                                 getDaysRemaining={getDaysRemaining}
                                 calculateProgress={calculateProgress}
+                                getAccessStatus={getAccessStatus}
                                 formatDate={formatDate}
                             />
                         ))
@@ -449,6 +506,7 @@ const StudentAccessManager: React.FC<StudentAccessManagerProps> = ({ student: in
                                 onExtend={() => openExtendModal(access.id)}
                                 getDaysRemaining={getDaysRemaining}
                                 calculateProgress={calculateProgress}
+                                getAccessStatus={getAccessStatus}
                                 formatDate={formatDate}
                             />
                         ))
@@ -484,6 +542,7 @@ const StudentAccessManager: React.FC<StudentAccessManagerProps> = ({ student: in
                                 onExtend={() => openExtendModal(access.id)}
                                 getDaysRemaining={getDaysRemaining}
                                 calculateProgress={calculateProgress}
+                                getAccessStatus={getAccessStatus}
                                 formatDate={formatDate}
                             />
                         ))
@@ -519,6 +578,7 @@ const StudentAccessManager: React.FC<StudentAccessManagerProps> = ({ student: in
                                 onExtend={() => openExtendModal(access.id)}
                                 getDaysRemaining={getDaysRemaining}
                                 calculateProgress={calculateProgress}
+                                getAccessStatus={getAccessStatus}
                                 formatDate={formatDate}
                             />
                         ))
@@ -554,6 +614,7 @@ const StudentAccessManager: React.FC<StudentAccessManagerProps> = ({ student: in
                                 onExtend={() => openExtendModal(access.id)}
                                 getDaysRemaining={getDaysRemaining}
                                 calculateProgress={calculateProgress}
+                                getAccessStatus={getAccessStatus}
                                 formatDate={formatDate}
                             />
                         ))
@@ -589,6 +650,7 @@ const StudentAccessManager: React.FC<StudentAccessManagerProps> = ({ student: in
                                 onExtend={() => openExtendModal(access.id)}
                                 getDaysRemaining={getDaysRemaining}
                                 calculateProgress={calculateProgress}
+                                getAccessStatus={getAccessStatus}
                                 formatDate={formatDate}
                             />
                         ))
@@ -724,14 +786,20 @@ interface AccessCardProps {
     colorClass: string;
     onRevoke: () => void;
     onExtend: () => void;
-    getDaysRemaining: (endDate: Timestamp) => number;
+    getDaysRemaining: (diaFim: Timestamp) => number;
     calculateProgress: (start: Timestamp, end: Timestamp) => number;
+    getAccessStatus: (start: Timestamp, end: Timestamp) => string;
     formatDate: (timestamp: Timestamp) => string;
 }
 
-const AccessCard = ({ access, colorClass, onRevoke, onExtend, getDaysRemaining, calculateProgress, formatDate }: AccessCardProps) => {
-    const daysLeft = getDaysRemaining(access.endDate);
-    const progress = calculateProgress(access.startDate, access.endDate);
+const AccessCard = ({ access, colorClass, onRevoke, onExtend, getDaysRemaining, calculateProgress, getAccessStatus, formatDate }: AccessCardProps) => {
+    // Check both names for compatibility
+    const diaInicio = access.diaInicio || (access as any).startDate;
+    const diaFim = access.diaFim || (access as any).endDate;
+
+    const daysLeft = getDaysRemaining(diaFim);
+    const progress = calculateProgress(diaInicio, diaFim);
+    const status = getAccessStatus(diaInicio, diaFim);
     
     // Color setup
     let colors = {
@@ -762,8 +830,8 @@ const AccessCard = ({ access, colorClass, onRevoke, onExtend, getDaysRemaining, 
                     {access.title}
                 </h4>
                 <div className="flex items-center gap-2">
-                    <div className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest border ${daysLeft > 0 ? 'border-emerald-500/30 text-emerald-500 bg-emerald-500/10' : 'border-red-500/30 text-red-500 bg-red-500/10'}`}>
-                        {daysLeft > 0 ? 'Ativo' : 'Expirado'}
+                    <div className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest border ${status === 'ATIVO' ? 'border-emerald-500/30 text-emerald-500 bg-emerald-500/10' : 'border-red-500/30 text-red-500 bg-red-500/10'}`}>
+                        {status}
                     </div>
                     {access.isScholarship && (
                         <span className="bg-blue-900/50 text-blue-400 border border-blue-800 text-[10px] font-bold px-2 py-0.5 rounded">
@@ -776,12 +844,12 @@ const AccessCard = ({ access, colorClass, onRevoke, onExtend, getDaysRemaining, 
             {/* Dates Grid */}
             <div className="grid grid-cols-2 gap-2 text-[10px] text-zinc-500 font-mono uppercase tracking-wide mb-3">
                 <div>
-                    <span className="block text-zinc-600 font-bold mb-0.5">Início</span>
-                    {formatDate(access.startDate)}
+                    <span className="block text-zinc-600 font-bold mb-0.5">Dia Início</span>
+                    {formatDate(diaInicio)}
                 </div>
                 <div className="text-right">
-                    <span className="block text-zinc-600 font-bold mb-0.5">Fim</span>
-                    {formatDate(access.endDate)}
+                    <span className="block text-zinc-600 font-bold mb-0.5">Dia Fim</span>
+                    {formatDate(diaFim)}
                 </div>
             </div>
 

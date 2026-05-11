@@ -132,8 +132,8 @@ export default function MigrationEnrollment() {
             targetId: linkData.courseId,
             isActive: true,
             enrollmentType: 'MIGRACAO',
-            startDate: Timestamp.fromDate(startDate),
-            endDate: Timestamp.fromDate(endDate)
+            diaInicio: Timestamp.fromDate(startDate),
+            diaFim: Timestamp.fromDate(endDate)
           }
         ]
       };
@@ -200,6 +200,8 @@ export default function MigrationEnrollment() {
           targetId: linkData.courseId,
           isActive: true,
           enrollmentType: 'MIGRACAO',
+          diaInicio: Timestamp.fromDate(startDate),
+          diaFim: Timestamp.fromDate(endDate),
           startDate: Timestamp.fromDate(startDate),
           endDate: Timestamp.fromDate(endDate)
         })

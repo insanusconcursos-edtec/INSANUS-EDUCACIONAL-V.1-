@@ -175,7 +175,27 @@ const StudentManager: React.FC = () => {
   };
 
   const isActive = (student: Student) => {
-    return student.access?.some(a => a.isActive) || student.products?.some(a => a.isActive);
+    const now = new Date();
+    const checkItem = (a: any) => {
+        if (a.isActive === false) return false;
+        
+        // Handle dates robustly (Timestamp objects or ISO strings)
+        let end: Date | null = null;
+        const rawEnd = a.diaFim || a.endDate || a.expiresAt;
+        
+        if (rawEnd) {
+          if (typeof rawEnd.toDate === 'function') {
+            end = rawEnd.toDate();
+          } else {
+            const d = new Date(rawEnd);
+            if (!isNaN(d.getTime())) end = d;
+          }
+        }
+
+        if (end && now > end) return false;
+        return a.isActive;
+    };
+    return student.access?.some(checkItem) || student.products?.some(checkItem);
   };
 
   const getInitials = (name: string) => {

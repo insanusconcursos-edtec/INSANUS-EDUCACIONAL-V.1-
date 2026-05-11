@@ -314,7 +314,7 @@ export const getStudentPlans = async (uid: string): Promise<StudentPlan[]> => {
           ...planData,
           id: planSnap.id,
           accessId: access.id,
-          expiryDate: access.endDate,
+          expiryDate: access.diaFim || access.endDate,
           isScholarship: access.isScholarship || false
         } as StudentPlan;
       }
