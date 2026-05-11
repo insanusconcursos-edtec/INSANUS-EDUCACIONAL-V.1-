@@ -836,111 +836,163 @@ const StudentDashboard: React.FC = () => {
     topicId: string | undefined, 
     metaId: string | undefined, 
     disciplines: any[], 
-    goalTopicName?: string,
-    fileUrl?: string,
-    metaLookup?: Record<string, Meta>
+    goalTitle?: string,
+    disciplineName?: string,
+    metaLookup?: Record<string, any>
   ): { topic: any, discipline: any } | null => {
     if (!disciplines || !Array.isArray(disciplines)) return null;
 
-    const searchMetaId = metaId ? String(metaId).trim() : null;
-    const searchTopicId = topicId ? String(topicId).trim() : null;
+    const normalize = (str: string) => 
+      str.normalize("NFD")
+         .replace(/[\u0300-\u036f]/g, "")
+         .toLowerCase()
+         .replace(/\s+/g, ' ')
+         .trim();
 
-    const normalizeUrl = (url: string) => {
-        try {
-            const u = new URL(url);
-            u.searchParams.delete('token');
-            return u.toString().split('&token=')[0].toLowerCase().trim();
-        } catch (e) {
-            return url.toLowerCase().trim();
-        }
-    };
+    const targetTitle = goalTitle ? normalize(goalTitle) : null;
+    const targetDisc = disciplineName ? normalize(disciplineName) : null;
 
-    const normalizeName = (name: string) => {
-        return name.trim().toLowerCase()
-            .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-            .replace(/[^\w\s]/gi, '');
-    };
-
-    const targetUrl = fileUrl ? normalizeUrl(fileUrl) : null;
-    const targetNameNormalized = goalTopicName ? normalizeName(goalTopicName) : null;
+    if (targetTitle) {
+        console.log(`[DEBUG] Dashboard Normalizado: [${targetTitle}]`);
+    }
 
     for (const disc of disciplines) {
       if (!disc.topics) continue;
       
+      // Validação por Disciplina se disponível
+      if (targetDisc && disc.name) {
+          const discNameNorm = normalize(disc.name);
+          // Se a meta tem disciplina, mas o edital é de outra, pula (evita falso positivo global)
+          if (discNameNorm !== targetDisc && !discNameNorm.includes(targetDisc) && !targetDisc.includes(discNameNorm)) {
+              continue;
+          }
+      }
+      
       for (const topic of disc.topics) {
-        const isMatch = (item: any, depth: number = 0): boolean => {
-          // 1. PRIORIDADE MÁXIMA: Check URL Identity (O Vínculo Real pelo arquivo)
-          if (targetUrl && item.linkedGoals && metaLookup) {
-              const allLinkedIds = Object.values(item.linkedGoals).flat().map(id => String(id).trim());
-              for (const linkedId of allLinkedIds) {
-                  const meta = metaLookup[linkedId];
-                  if (meta && meta.files) {
-                      const hasUrlMatch = meta.files.some((f: any) => {
-                          const fUrl = f.url || f.fileUrl;
-                          return fUrl && normalizeUrl(fUrl) === targetUrl;
-                      });
-                      if (hasUrlMatch) return true;
+        const searchInTopic = (item: any): any => {
+          // PRIORIDADE ABSOLUTA: Busca por Título da Meta (Match de String Limpa)
+          if (targetTitle) {
+              // Check metas array matches
+              if (item.metas && Array.isArray(item.metas)) {
+                  for (const m of item.metas) {
+                      const mTitle = m.title || m.name;
+                      if (mTitle) {
+                          const editalTitle = normalize(String(mTitle));
+                          console.log(`[DEBUG] Edital Normalizado: [${editalTitle}]`);
+                          
+                          if (editalTitle === targetTitle) {
+                              console.log(`[DEBUG] RESULTADO DO MATCH: [SUCESSO] para o tópico [${item.name}]`);
+                              return item;
+                          }
+                      }
+                  }
+              }
+
+              // Check linkedGoals resolving IDs via metaLookup
+              if (item.linkedGoals) {
+                  const goalIds = Object.values(item.linkedGoals).flat() as string[];
+                  for (const id of goalIds) {
+                      const m = metaLookup ? metaLookup[id] : null;
+                      if (m && (m.title || m.name)) {
+                          const editalTitle = normalize(String(m.title || m.name));
+                          console.log(`[DEBUG] Edital Normalizado (via linkedGoals ID ${id}): [${editalTitle}]`);
+                          if (editalTitle === targetTitle) {
+                              console.log(`[DEBUG] RESULTADO DO MATCH: [SUCESSO] (via Chave LinkedGoals Resolvida) para o tópico [${item.name}]`);
+                              return item;
+                          }
+                      }
                   }
               }
           }
 
-          // 2. Check Linked Goals (IDs)
-          if (item.linkedGoals) {
-            const allLinkedIds = [
-                ...Object.keys(item.linkedGoals).map(id => String(id).trim()),
-                ...Object.values(item.linkedGoals).flat().map(id => String(id).trim())
-            ];
-            
-            if ((searchMetaId && allLinkedIds.includes(searchMetaId)) || 
-                (searchTopicId && allLinkedIds.includes(searchTopicId))) {
-              return true;
+          // Busca em Subtópicos (Recursão Profunda)
+          if (item.subtopics && Array.isArray(item.subtopics) && item.subtopics.length > 0) {
+            for (const sub of item.subtopics) {
+                const found = searchInTopic(sub);
+                if (found) return found;
             }
           }
-
-          // 3. Check ID do item do edital
-          if (searchTopicId && String(item.id).trim() === searchTopicId) return true;
-
-          // 4. Check Name (Fallback Normalizado)
-          if (targetNameNormalized && item.name) {
-            const normalizedItemName = normalizeName(item.name);
-            if (normalizedItemName === targetNameNormalized || 
-                normalizedItemName.includes(targetNameNormalized) || 
-                targetNameNormalized.includes(normalizedItemName)) {
-              return true;
-            }
-          }
-          
-          if (item.subtopics && item.subtopics.length > 0) {
-            return item.subtopics.some((s: any) => isMatch(s, depth + 1));
-          }
-          return false;
+          return null;
         };
 
-        if (isMatch(topic)) return { topic, discipline: disc };
+        const match = searchInTopic(topic);
+        if (match) return { topic: match, discipline: disc };
       }
     }
     return null;
   };
 
   // Helper to count goals in a topic and its subtopics recursively
-  const getTopicGoalStats = (topic: any, completedIds: Set<string>) => {
+  const getTopicGoalStats = (topic: any, completedIds: Set<string>, completedTitles?: Set<string>, metaLookup?: Record<string, any>) => {
     let total = 0;
     let completed = 0;
 
+    const normalize = (str: string) => 
+      str.normalize("NFD")
+         .replace(/[\u0300-\u036f]/g, "")
+         .toLowerCase()
+         .replace(/\s+/g, ' ')
+         .trim();
+
     const processTopic = (t: any) => {
+      // Analisa linkedGoals
       if (t.linkedGoals) {
-        Object.values(t.linkedGoals).forEach((ids: any) => {
+        Object.keys(t.linkedGoals).forEach((key: any) => {
+          const ids = t.linkedGoals[key];
+          
           if (Array.isArray(ids)) {
             ids.forEach(id => {
               if (id) {
                 total++;
-                if (completedIds.has(String(id).trim())) completed++;
+                let isDone = false;
+                if (completedIds.has(String(id).trim())) isDone = true;
+                
+                if (!isDone && completedTitles && metaLookup && metaLookup[id]) {
+                    const m = metaLookup[id];
+                    const mTitle = m.title || m.name;
+                    if (mTitle && completedTitles.has(normalize(String(mTitle)))) {
+                        isDone = true;
+                    }
+                }
+                
+                if (isDone) completed++;
               }
             });
+          } else if (typeof ids === 'string' && ids.trim()) {
+             total++;
+             let isDone = false;
+             if (completedIds.has(ids.trim())) isDone = true;
+             
+             if (!isDone && completedTitles && metaLookup && metaLookup[ids]) {
+                 const mTitle = metaLookup[ids].title || metaLookup[ids].name;
+                 if (mTitle && completedTitles.has(normalize(String(mTitle)))) {
+                     isDone = true;
+                 }
+             }
+             
+             if (isDone) completed++;
           }
         });
       }
-      if (t.subtopics && t.subtopics.length > 0) {
+
+      // Analisa array de metas se existir
+      if (t.metas && Array.isArray(t.metas)) {
+          t.metas.forEach((m: any) => {
+              const mId = m.linkedGoalId || m.id;
+              const mTitle = m.title || m.name;
+              
+              if (mId || mTitle) {
+                  total++;
+                  let isDone = false;
+                  if (mId && completedIds.has(String(mId).trim())) isDone = true;
+                  if (!isDone && mTitle && completedTitles && completedTitles.has(normalize(String(mTitle)))) isDone = true;
+                  
+                  if (isDone) completed++;
+              }
+          });
+      }
+
+      if (t.subtopics && Array.isArray(t.subtopics) && t.subtopics.length > 0) {
         t.subtopics.forEach(processTopic);
       }
     };
@@ -1033,43 +1085,78 @@ const StudentDashboard: React.FC = () => {
             closedTopicModalsRef.current.delete(String(goalToToggle.topicId).trim());
         }
 
+        if (!edictStructure) {
+            console.log("[DEBUG] handleToggleComplete - edictStructure is NULL. Cannot check topic completion.");
+        }
+
         if (targetStatusBoolean && (goalToToggle.topicId || mId) && edictStructure) {
             try {
                 // Use IDs normalizados
                 const normalizedTopicId = goalToToggle.topicId ? String(goalToToggle.topicId).trim() : null;
                 const normalizedMetaId = mId ? String(mId).trim() : null;
 
-                const result = findTargetTopic(normalizedTopicId, normalizedMetaId, edictStructure.disciplines, goalToToggle.topic);
+                const firstFileUrl = goalToToggle.files?.[0]?.url || goalToToggle.files?.[0]?.fileUrl;
+                
+                const result = findTargetTopic(
+                    normalizedTopicId, 
+                    normalizedMetaId, 
+                    edictStructure.disciplines, 
+                    goalToToggle.title,
+                    goalToToggle.discipline,
+                    metaLookup // Injetando metaLookup para resolver os nomes dos linkedGoals
+                );
                 
                 if (result) {
+                    console.log(`[DEBUG] RESULTADO DO MATCH: [SUCESSO]`);
                     const { topic, discipline } = result;
-                    const { total: editalTotal, completed: editalCompleted } = getTopicGoalStats(topic, freshCompletedIds);
+
+                    // Prepara set de títulos concluídos para o check de 100%
+                    const normalize = (str: string) => 
+                      str.normalize("NFD")
+                         .replace(/[\u0300-\u036f]/g, "")
+                         .toLowerCase()
+                         .replace(/\s+/g, ' ')
+                         .trim();
+                    const completedTitles = new Set<string>();
+                    if (fullPlanData) {
+                        const goalsArray = Array.isArray(fullPlanData) ? fullPlanData : 
+                                         (fullPlanData.days ? Object.values(fullPlanData.days).flat() : []);
+                        
+                        (goalsArray as any[]).forEach((g: any) => {
+                            if (freshCompletedIds.has(String(g.id)) && g.title) {
+                                completedTitles.add(normalize(g.title));
+                            }
+                        });
+                    }
+
+                    const { total: editalTotal, completed: editalCompleted } = getTopicGoalStats(topic, freshCompletedIds, completedTitles, metaLookup);
                     
-                    // Tarefa 1: Simplificação do Gatilho (Remover loop manual e usar status do Edital)
+                    // Tarefa 1: Simplificação do Gatilho
                     const isCompleted = editalTotal > 0 && editalCompleted >= editalTotal;
 
                     if (isCompleted) {
                         const tId = String(topic.id).trim();
+                        
                         // Verificação de Inteligência (Não mostrar se já agendado OU se fechou nesta sessão)
                         if (closedTopicModalsRef.current.has(tId)) return;
 
                         const allReviews = await courseReviewService.getReviewsByTopic(currentUser.uid, tId);
                         const existingTopicReviews = allReviews.filter(r => r.type === 'topic_revision');
                         
-                        // Tarefa 4: Fluxo de Celebração (Modal -> pergunta Revisão)
-                        // This matches the current TopicCompletionModal onConfirm logic
-                        if (existingTopicReviews.length === 0) {
-                            setTopicCompletionPayload({
-                                planId: currentPlanId,
-                                disciplineId: discipline.id,
-                                disciplineName: discipline.name,
-                                topicId: tId,
-                                topicName: topic.name,
-                                isAutoTriggered: true,
-                                message: `Você concluiu todas as metas do tópico [${topic.name}]. Deseja agendar suas revisões agora?`
-                            });
-                        }
+                        console.log(`[DEBUG] Triggering Celebration Modal for Topic: [${topic.name}]. Goals: ${editalCompleted}/${editalTotal}`);
+                        
+                        setTopicCompletionPayload({
+                            planId: currentPlanId,
+                            disciplineId: discipline.id,
+                            disciplineName: discipline.name,
+                            topicId: tId,
+                            topicName: topic.name,
+                            isAutoTriggered: true,
+                            message: `Você concluiu todas as metas do tópico [${topic.name}]. Deseja agendar suas revisões agora?`
+                        });
                     }
+                } else {
+                    console.log(`[DEBUG] RESULTADO DO MATCH: [FALHA] - Meta [${goalToToggle.title}] não localizada.`);
                 }
             } catch (error) {
                 console.error("Error checking topic completion:", error);
