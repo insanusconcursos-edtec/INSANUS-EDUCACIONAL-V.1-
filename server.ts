@@ -36,8 +36,8 @@ interface UserAccess {
   targetId: string;
   isActive: boolean;
   id?: string | number;
-  endDate?: unknown;
-  startDate?: unknown;
+  diaInicio?: any;
+  diaFim?: any;
 }
 
 interface StudentProfile {
@@ -284,15 +284,13 @@ async function setupVite(app: any) {
             userAvatar: userData.photoURL || '',
             enrollmentType: (courseAccess.id && String(courseAccess.id).startsWith('mig_')) ? 'MIGRACAO' : 'REGULAR',
             accessOrigin: (courseAccess.id && String(courseAccess.id).startsWith('mig_')) ? 'MIGRATION' : 'COMBO',
-            expiresAt: (courseAccess.diaFim || courseAccess.endDate) ? (
+            expiresAt: courseAccess.diaFim ? (
               (courseAccess.diaFim as any)?.toDate ? (courseAccess.diaFim as any).toDate().toISOString() : 
-              (courseAccess.endDate as any)?.toDate ? (courseAccess.endDate as any).toDate().toISOString() : 
-              String(courseAccess.diaFim || courseAccess.endDate)
+              String(courseAccess.diaFim)
             ) : null,
-            releasedAt: (courseAccess.diaInicio || courseAccess.startDate) ? (
+            releasedAt: courseAccess.diaInicio ? (
               (courseAccess.diaInicio as any)?.toDate ? (courseAccess.diaInicio as any).toDate().toISOString() : 
-              (courseAccess.startDate as any)?.toDate ? (courseAccess.startDate as any).toDate().toISOString() : 
-              String(courseAccess.diaInicio || courseAccess.startDate)
+              String(courseAccess.diaInicio)
             ) : ((userData.createdAt as any)?.toDate ? (userData.createdAt as any).toDate().toISOString() : String(userData.createdAt || '')),
             active: courseAccess.isActive !== false
           });
@@ -348,17 +346,15 @@ async function setupVite(app: any) {
             ...userProfile,
             enrollmentType: enrollmentData.enrollmentType || 'REGULAR',
             accessOrigin: 'DIRECT',
-            expiresAt: (enrollmentData.diaFim || enrollmentData.expiresAt || enrollmentData.endDate) ? (
+            expiresAt: (enrollmentData.diaFim || enrollmentData.expiresAt) ? (
               (enrollmentData.diaFim as any)?.toDate ? (enrollmentData.diaFim as any).toDate().toISOString() : 
               (enrollmentData.expiresAt as any)?.toDate ? (enrollmentData.expiresAt as any).toDate().toISOString() : 
-              (enrollmentData.endDate as any)?.toDate ? (enrollmentData.endDate as any).toDate().toISOString() : 
-              String(enrollmentData.diaFim || enrollmentData.expiresAt || enrollmentData.endDate)
+              String(enrollmentData.diaFim || enrollmentData.expiresAt)
             ) : null,
-            releasedAt: (enrollmentData.diaInicio || enrollmentData.releasedAt || enrollmentData.startDate) ? (
+            releasedAt: (enrollmentData.diaInicio || enrollmentData.releasedAt) ? (
               (enrollmentData.diaInicio as any)?.toDate ? (enrollmentData.diaInicio as any).toDate().toISOString() : 
               (enrollmentData.releasedAt as any)?.toDate ? (enrollmentData.releasedAt as any).toDate().toISOString() : 
-              (enrollmentData.startDate as any)?.toDate ? (enrollmentData.startDate as any).toDate().toISOString() : 
-              String(enrollmentData.diaInicio || enrollmentData.releasedAt || enrollmentData.startDate)
+              String(enrollmentData.diaInicio || enrollmentData.releasedAt)
             ) : (enrollmentData.createdAt ? (enrollmentData.createdAt.toDate ? (enrollmentData.createdAt.toDate() as Date).toISOString() : String(enrollmentData.createdAt)) : (userProfile.createdAt && (userProfile.createdAt as any).toDate ? (userProfile.createdAt as any).toDate().toISOString() : String(userProfile.createdAt || ''))),
             active: enrollmentData.active !== false
           });

@@ -201,9 +201,7 @@ export default function MigrationEnrollment() {
           isActive: true,
           enrollmentType: 'MIGRACAO',
           diaInicio: Timestamp.fromDate(startDate),
-          diaFim: Timestamp.fromDate(endDate),
-          startDate: Timestamp.fromDate(startDate),
-          endDate: Timestamp.fromDate(endDate)
+          diaFim: Timestamp.fromDate(endDate)
         })
       });
 

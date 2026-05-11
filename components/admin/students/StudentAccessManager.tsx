@@ -264,8 +264,6 @@ const StudentAccessManager: React.FC<StudentAccessManagerProps> = ({ student: in
         days: daysInput,
         diaInicio: startTimestamp,
         diaFim: endTimestamp,
-        startDate: startTimestamp,
-        endDate: endTimestamp,
         isActive: true
       };
 
@@ -285,8 +283,6 @@ const StudentAccessManager: React.FC<StudentAccessManagerProps> = ({ student: in
           days: daysInput,
           diaInicio: startTimestamp,
           diaFim: endTimestamp,
-          startDate: startTimestamp,
-          endDate: endTimestamp,
           isActive: true,
           sourceProductId: productAccessId // Vincula ao produto pai
         });
@@ -794,8 +790,8 @@ interface AccessCardProps {
 
 const AccessCard = ({ access, colorClass, onRevoke, onExtend, getDaysRemaining, calculateProgress, getAccessStatus, formatDate }: AccessCardProps) => {
     // Check both names for compatibility
-    const diaInicio = access.diaInicio || (access as any).startDate;
-    const diaFim = access.diaFim || (access as any).endDate;
+    const diaInicio = access.diaInicio;
+    const diaFim = access.diaFim;
 
     const daysLeft = getDaysRemaining(diaFim);
     const progress = calculateProgress(diaInicio, diaFim);

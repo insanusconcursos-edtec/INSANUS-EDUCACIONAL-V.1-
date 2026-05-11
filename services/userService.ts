@@ -248,8 +248,6 @@ export const grantStudentAccess = async (
     days: data.days,
     diaInicio: Timestamp.fromDate(diaInicio),
     diaFim: Timestamp.fromDate(diaFim),
-    startDate: Timestamp.fromDate(diaInicio), // Mirror for compatibility
-    endDate: Timestamp.fromDate(diaFim),     // Mirror for compatibility
     isActive: true,
     isScholarship: data.isScholarship || false
   };

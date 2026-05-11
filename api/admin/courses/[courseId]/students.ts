@@ -30,8 +30,8 @@ interface CourseAccess {
   type: string;
   targetId: string;
   isActive?: boolean;
-  endDate?: any;
-  startDate?: any;
+  diaFim?: any;
+  diaInicio?: any;
 }
 
 interface UserProfile {
@@ -115,8 +115,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           userAvatar: userData.photoURL || '',
           enrollmentType: (courseAccess.id && String(courseAccess.id).startsWith('mig_')) ? 'MIGRACAO' : 'REGULAR',
           accessOrigin: (courseAccess.id && String(courseAccess.id).startsWith('mig_')) ? 'MIGRATION' : 'COMBO',
-          expiresAt: courseAccess.endDate ? (courseAccess.endDate.toDate ? courseAccess.endDate.toDate().toISOString() : courseAccess.endDate) : null,
-          releasedAt: courseAccess.startDate ? (courseAccess.startDate.toDate ? courseAccess.startDate.toDate().toISOString() : courseAccess.startDate) : (userData.createdAt?.toDate ? userData.createdAt.toDate().toISOString() : userData.createdAt),
+          expiresAt: courseAccess.diaFim ? (courseAccess.diaFim.toDate ? courseAccess.diaFim.toDate().toISOString() : courseAccess.diaFim) : null,
+          releasedAt: courseAccess.diaInicio ? (courseAccess.diaInicio.toDate ? courseAccess.diaInicio.toDate().toISOString() : courseAccess.diaInicio) : (userData.createdAt?.toDate ? userData.createdAt.toDate().toISOString() : userData.createdAt),
           active: courseAccess.isActive !== false
         });
       }

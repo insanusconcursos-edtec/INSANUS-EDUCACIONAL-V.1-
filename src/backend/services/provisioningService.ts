@@ -143,8 +143,6 @@ export const provisionPurchase = async (customerData: CustomerData, targetId: st
         days: accessDays,
         diaInicio: Timestamp.now(),
         diaFim: Timestamp.fromDate(expirationDate),
-        startDate: Timestamp.now(),
-        endDate: Timestamp.fromDate(expirationDate),
         isActive: true,
         resources: linkedResources
       });
@@ -193,8 +191,6 @@ export const provisionPurchase = async (customerData: CustomerData, targetId: st
         externalId: origin === 'ticto' ? safeTargetId : '',
         diaInicio: Timestamp.now(),
         diaFim: Timestamp.fromDate(expirationDate),
-        startDate: Timestamp.now(),
-        endDate: Timestamp.fromDate(expirationDate),
         orderIndex: index,
         sourceProductId: productAccessId // Vincula ao produto pai se existir
       });
