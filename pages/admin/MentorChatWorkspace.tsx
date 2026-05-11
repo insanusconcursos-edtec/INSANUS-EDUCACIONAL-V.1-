@@ -25,6 +25,7 @@ const MentorChatWorkspace: React.FC<MentorChatWorkspaceProps> = ({ planId }) => 
   const [sending, setSending] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
   
   // Advanced Chat States
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
@@ -35,6 +36,11 @@ const MentorChatWorkspace: React.FC<MentorChatWorkspaceProps> = ({ planId }) => 
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+
+  // Preview Image Flow
+  const [previewFile, setPreviewFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewCaption, setPreviewCaption] = useState('');
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -83,8 +89,8 @@ const MentorChatWorkspace: React.FC<MentorChatWorkspaceProps> = ({ planId }) => 
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSendMessage = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!selectedCall || !newMessage.trim() || sending) return;
 
     setSending(true);
@@ -122,37 +128,75 @@ const MentorChatWorkspace: React.FC<MentorChatWorkspaceProps> = ({ planId }) => 
     setNewMessage(prev => prev + emojiData.emoji);
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !selectedCall) return;
-
+  const handleImageSelect = (file: File) => {
     if (!file.type.startsWith('image/')) {
       toast.error("Por favor, selecione uma imagem.");
       return;
     }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('A imagem deve ter no máximo 5MB');
+      return;
+    }
+    setPreviewFile(file);
+    setPreviewUrl(URL.createObjectURL(file));
+    setPreviewCaption(newMessage);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handleImageSelect(file);
+  };
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+            e.preventDefault();
+            const file = items[i].getAsFile();
+            if (file) {
+                handleImageSelect(file);
+                break;
+            }
+        }
+    }
+  };
+
+  const cancelPreview = () => {
+    setPreviewFile(null);
+    setPreviewUrl(null);
+    setPreviewCaption('');
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const confirmImageUpload = async () => {
+    if (!previewFile || !selectedCall) return;
 
     setIsUploadingImage(true);
     try {
-      const storageRef = ref(storage, `chat_images/${selectedCall.id}/${Date.now()}_${file.name}`);
-      await uploadBytes(storageRef, file);
+      const storageRef = ref(storage, `chat_images/${selectedCall.id}/${Date.now()}_${previewFile.name}`);
+      await uploadBytes(storageRef, previewFile);
       const imageUrl = await getDownloadURL(storageRef);
 
       await sendMessage(
         selectedCall.id,
         selectedCall.mentorId,
         'mentor',
-        '',
+        previewCaption.trim(),
         undefined,
         undefined,
         imageUrl
       );
+
       toast.success("Imagem enviada!");
+      cancelPreview();
+      setNewMessage('');
     } catch (error) {
       console.error(error);
-      toast.error("Erro ao enviar imagem.");
+      toast.error("Erro ao enviar imagem");
     } finally {
       setIsUploadingImage(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -227,6 +271,13 @@ const MentorChatWorkspace: React.FC<MentorChatWorkspaceProps> = ({ planId }) => 
     }
   };
 
+  const filteredCalls = calls
+    .filter(call => call.lastMessage && call.lastMessage.trim() !== '')
+    .filter(call => {
+      if (!searchTerm) return true;
+      return call.studentName?.toLowerCase().includes(searchTerm.toLowerCase());
+    });
+
   return (
     <div className="h-full flex bg-zinc-950 border border-zinc-800 rounded-2xl overflow-hidden shadow-2xl animate-in fade-in duration-500">
       
@@ -238,6 +289,8 @@ const MentorChatWorkspace: React.FC<MentorChatWorkspaceProps> = ({ planId }) => 
             <Search size={14} className="absolute left-3 top-3 text-zinc-600" />
             <input 
               placeholder="Buscar conversa..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full bg-zinc-950 border border-zinc-800 rounded-xl py-2 pl-9 pr-4 text-xs text-white placeholder-zinc-700 focus:border-brand-red focus:outline-none"
             />
           </div>
@@ -248,13 +301,13 @@ const MentorChatWorkspace: React.FC<MentorChatWorkspaceProps> = ({ planId }) => 
             <div className="flex justify-center py-10">
               <Loader2 className="animate-spin text-brand-red" />
             </div>
-          ) : calls.length === 0 ? (
+          ) : filteredCalls.length === 0 ? (
             <div className="text-center py-10 px-4">
               <MessageSquare size={32} className="mx-auto text-zinc-800 mb-2" />
               <p className="text-zinc-600 text-[10px] font-bold uppercase">Nenhuma conversa ativa</p>
             </div>
           ) : (
-            calls.map(call => (
+            filteredCalls.map(call => (
               <div 
                 key={call.id}
                 onClick={() => setSelectedCall(call)}
@@ -498,7 +551,7 @@ const MentorChatWorkspace: React.FC<MentorChatWorkspaceProps> = ({ planId }) => 
                   <input 
                     type="file" 
                     ref={fileInputRef}
-                    onChange={handleImageUpload}
+                    onChange={handleFileInputChange}
                     accept="image/*"
                     className="hidden"
                   />
@@ -512,17 +565,30 @@ const MentorChatWorkspace: React.FC<MentorChatWorkspaceProps> = ({ planId }) => 
                   </button>
                 </div>
                 <div className="flex-1 relative">
-                  <input 
+                  <textarea 
+                    rows={1}
                     value={newMessage}
-                    onChange={e => setNewMessage(e.target.value)}
+                    onChange={(e) => {
+                      setNewMessage(e.target.value);
+                      e.target.style.height = 'auto';
+                      e.target.style.height = `${Math.min(e.target.scrollHeight, 128)}px`;
+                    }}
+                    onPaste={handlePaste}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSendMessage();
+                      }
+                    }}
                     placeholder={editingMessage ? "Edite sua mensagem..." : "Digite sua resposta..."}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl py-3 px-4 text-xs text-white placeholder-zinc-700 focus:border-brand-red focus:outline-none"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl py-3 px-4 text-xs text-white placeholder-zinc-700 focus:border-brand-red focus:outline-none resize-none custom-scrollbar min-h-[44px] max-h-32"
                   />
                 </div>
                 <button 
-                  type="submit"
+                  type="button"
+                  onClick={(e) => handleSendMessage(e)}
                   disabled={!newMessage.trim() || sending}
-                  className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-lg transition-all disabled:opacity-50 disabled:scale-95 ${
+                  className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-lg transition-all disabled:opacity-50 disabled:scale-95 shrink-0 self-stretch min-h-[44px] ${
                     editingMessage ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-900/20' : 'bg-brand-red hover:bg-red-600 shadow-red-900/20'
                   }`}
                 >
@@ -629,6 +695,79 @@ const MentorChatWorkspace: React.FC<MentorChatWorkspaceProps> = ({ planId }) => 
             className="max-w-full max-h-full rounded-lg shadow-2xl animate-in zoom-in-95 duration-300"
             onClick={(e) => e.stopPropagation()}
           />
+        </div>
+      )}
+
+      {/* Upload Preview Modal */}
+      {previewUrl && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-300">
+          <div className="bg-zinc-950 border border-zinc-800 rounded-2xl max-w-xl w-full shadow-2xl overflow-hidden flex flex-col">
+            <div className="p-4 border-b border-zinc-800 flex items-center justify-between bg-zinc-900/50 shrink-0">
+              <h3 className="text-white text-xs font-black uppercase tracking-widest flex items-center gap-2">
+                <Paperclip size={16} className="text-brand-red" />
+                Anexar Imagem
+              </h3>
+              <button 
+                onClick={cancelPreview} 
+                disabled={isUploadingImage} 
+                className="text-zinc-500 hover:text-white transition-colors disabled:opacity-50"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="p-4 flex-1 overflow-y-auto flex items-center justify-center bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-fixed" style={{ maxHeight: '60vh' }}>
+              <img src={previewUrl} alt="Preview" className="max-w-full max-h-[50vh] rounded-lg shadow-2xl ring-1 ring-white/10" />
+            </div>
+            
+            <div className="p-4 border-t border-zinc-800 bg-zinc-900/50 space-y-4 shrink-0">
+              <textarea
+                value={previewCaption}
+                onChange={(e) => {
+                    setPreviewCaption(e.target.value);
+                    e.target.style.height = 'auto';
+                    e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
+                }}
+                onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        if (!isUploadingImage) confirmImageUpload();
+                    }
+                }}
+                placeholder="Adicione uma legenda... (opcional)"
+                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl py-3 px-4 text-xs text-white placeholder-zinc-700 focus:border-brand-red focus:outline-none resize-none custom-scrollbar min-h-[46px]"
+                rows={1}
+                disabled={isUploadingImage}
+              />
+              
+              <div className="flex gap-3">
+                <button 
+                  onClick={cancelPreview}
+                  disabled={isUploadingImage}
+                  className="flex-1 py-3 px-4 bg-zinc-800 hover:bg-zinc-700 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={confirmImageUpload}
+                  disabled={isUploadingImage}
+                  className="flex-[2] py-3 px-4 bg-brand-red hover:bg-red-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-red-900/20 disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {isUploadingImage ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin" />
+                      Enviando...
+                    </>
+                  ) : (
+                    <>
+                      <Send size={14} />
+                      Enviar
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -10,7 +10,8 @@ import {
   serverTimestamp,
   onSnapshot,
   increment,
-  deleteDoc
+  deleteDoc,
+  limit
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { Call, Message } from '../types/chat';
@@ -102,6 +103,22 @@ export const deleteMessage = async (callId: string, messageId: string) => {
     text: '',
     imageUrl: null
   });
+
+  const messagesRef = collection(db, 'calls', callId, 'messages');
+  const q = query(messagesRef, orderBy('timestamp', 'desc'), limit(50));
+  const snapshot = await getDocs(q);
+  const activeMessage = snapshot.docs.find(d => !d.data().isDeleted);
+
+  const callRef = doc(db, 'calls', callId);
+  if (!activeMessage) {
+    await updateDoc(callRef, { lastMessage: '' });
+  } else {
+    const lastMsgData = activeMessage.data();
+    await updateDoc(callRef, {
+      lastMessage: lastMsgData.imageUrl ? '📷 Imagem' : lastMsgData.text,
+      lastMessageTime: lastMsgData.timestamp
+    });
+  }
 };
 
 export const subscribeToMessages = (callId: string, callback: (messages: Message[]) => void) => {

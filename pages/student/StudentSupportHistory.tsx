@@ -19,10 +19,14 @@ export const StudentSupportHistory: React.FC<{ onBack: () => void }> = ({ onBack
   const [messages, setMessages] = useState<TicketMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
-  const [selectedImage, setSelectedImage] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  // Preview Flow
+  const [previewFile, setPreviewFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewCaption, setPreviewCaption] = useState('');
+
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -55,36 +59,79 @@ export const StudentSupportHistory: React.FC<{ onBack: () => void }> = ({ onBack
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if ((!newMessage.trim() && !selectedImage) || !selectedTicket || !currentUser || isSending || isUploading) return;
+  const handleSendMessage = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!newMessage.trim() || !selectedTicket || !currentUser || isSending || isUploadingImage) return;
 
     setIsSending(true);
-    let imageUrl = '';
 
     try {
-      if (selectedImage) {
-        setIsUploading(true);
-        imageUrl = await uploadSupportImage(selectedTicket.id, selectedImage);
-        setIsUploading(false);
-      }
-
       await supportService.sendMessage(selectedTicket.id, {
         senderId: currentUser.uid,
         senderRole: 'student',
         senderName: userProfile?.name || currentUser.displayName || 'Aluno',
         text: newMessage,
-        imageUrl,
+        imageUrl: '',
       }, false);
 
       setNewMessage('');
-      setSelectedImage(null);
-      setImagePreview(null);
     } catch (error) {
       console.error(error);
     } finally {
       setIsSending(false);
-      setIsUploading(false);
+    }
+  };
+
+  const cancelPreview = () => {
+    setPreviewFile(null);
+    setPreviewUrl(null);
+    setPreviewCaption('');
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const confirmImageUpload = async () => {
+    if (!previewFile || !selectedTicket || !currentUser) return;
+
+    setIsUploadingImage(true);
+    try {
+      const imageUrl = await uploadSupportImage(selectedTicket.id, previewFile);
+
+      await supportService.sendMessage(selectedTicket.id, {
+        senderId: currentUser.uid,
+        senderRole: 'student',
+        senderName: userProfile?.name || currentUser.displayName || 'Aluno',
+        text: previewCaption.trim(),
+        imageUrl,
+      }, false);
+
+      cancelPreview();
+      setNewMessage('');
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+            e.preventDefault();
+            const file = items[i].getAsFile();
+            if (file) {
+                if (file.size > 5 * 1024 * 1024) {
+                    alert('A imagem deve ter no máximo 5MB');
+                    return;
+                }
+                setPreviewFile(file);
+                setPreviewUrl(URL.createObjectURL(file));
+                setPreviewCaption(newMessage);
+                break;
+            }
+        }
     }
   };
 
@@ -95,20 +142,10 @@ export const StudentSupportHistory: React.FC<{ onBack: () => void }> = ({ onBack
         alert('A imagem deve ter no máximo 5MB');
         return;
       }
-      setSelectedImage(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const removeSelectedImage = () => {
-    setSelectedImage(null);
-    setImagePreview(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+      setPreviewFile(file);
+      setPreviewUrl(URL.createObjectURL(file));
+      setPreviewCaption(newMessage);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -270,26 +307,6 @@ export const StudentSupportHistory: React.FC<{ onBack: () => void }> = ({ onBack
                       </div>
                     ) : (
                       <div className="flex flex-col gap-2">
-                        {imagePreview && (
-                          <div className="flex px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-2xl animate-in fade-in slide-in-from-bottom-2">
-                            <div className="relative group">
-                              <img src={imagePreview} alt="Preview" className="w-16 h-16 object-cover rounded-lg border border-zinc-700" />
-                              <button 
-                                type="button"
-                                onClick={removeSelectedImage}
-                                className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-zinc-900 border border-zinc-800 rounded-full flex items-center justify-center text-zinc-400 hover:text-white transition-colors"
-                              >
-                                <X size={12} />
-                              </button>
-                              {isUploading && (
-                                <div className="absolute inset-0 bg-black/60 rounded-lg flex items-center justify-center">
-                                  <Loader2 size={16} className="animate-spin text-white" />
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
-
                         <form onSubmit={handleSendMessage} className="flex gap-2">
                           <input 
                             type="file"
@@ -299,11 +316,23 @@ export const StudentSupportHistory: React.FC<{ onBack: () => void }> = ({ onBack
                             className="hidden"
                           />
                           <div className="flex-1 relative flex items-center">
-                            <input
+                            <textarea
+                              rows={1}
                               value={newMessage}
-                              onChange={(e) => setNewMessage(e.target.value)}
+                              onChange={(e) => {
+                                setNewMessage(e.target.value);
+                                e.target.style.height = 'auto';
+                                e.target.style.height = `${Math.min(e.target.scrollHeight, 128)}px`;
+                              }}
+                              onPaste={handlePaste}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                  e.preventDefault();
+                                  handleSendMessage();
+                                }
+                              }}
                               placeholder="Digite aqui sua mensagem..."
-                              className="flex-1 bg-black/50 border border-zinc-800 rounded-2xl px-5 py-4 text-sm text-white placeholder:text-zinc-700 focus:outline-none focus:border-orange-500/30 transition-all font-medium pr-12"
+                              className="w-full bg-black/50 border border-zinc-800 rounded-2xl pl-5 pr-12 py-4 text-sm text-white placeholder:text-zinc-700 focus:outline-none focus:border-orange-500/30 transition-all font-medium resize-none custom-scrollbar min-h-[52px] max-h-32"
                             />
                             <button 
                               type="button"
@@ -314,11 +343,12 @@ export const StudentSupportHistory: React.FC<{ onBack: () => void }> = ({ onBack
                             </button>
                           </div>
                           <button
-                            type="submit"
-                            disabled={(!newMessage.trim() && !selectedImage) || isSending || isUploading}
-                            className="w-14 h-14 bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-white rounded-2xl flex items-center justify-center transition-all shadow-xl shadow-orange-950/20 shrink-0"
+                            type="button"
+                            onClick={() => handleSendMessage()}
+                            disabled={!newMessage.trim() || isSending || isUploadingImage}
+                            className="w-14 bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-white rounded-2xl flex items-center justify-center transition-all shadow-xl shadow-orange-950/20 shrink-0 self-stretch min-h-[52px]"
                           >
-                            {(isSending || isUploading) ? <Loader2 size={24} className="animate-spin" /> : <Send size={24} />}
+                            {isSending ? <Loader2 size={24} className="animate-spin" /> : <Send size={24} />}
                           </button>
                         </form>
                       </div>
@@ -339,6 +369,94 @@ export const StudentSupportHistory: React.FC<{ onBack: () => void }> = ({ onBack
           </div>
         </div>
       </div>
+
+      {/* Upload Preview Modal */}
+      <AnimatePresence>
+        {previewUrl && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => !isUploadingImage && cancelPreview()}
+              className="absolute inset-0 bg-black/80 backdrop-blur-md"
+            />
+            
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-xl bg-zinc-950 border border-zinc-800 rounded-2xl overflow-hidden shadow-2xl flex flex-col"
+            >
+              <div className="p-4 border-b border-zinc-800 flex items-center justify-between bg-zinc-900/50 shrink-0">
+                <h3 className="text-white text-xs font-black uppercase tracking-widest flex items-center gap-2">
+                  <Paperclip size={16} className="text-orange-500" />
+                  Anexar Imagem
+                </h3>
+                <button 
+                  onClick={cancelPreview} 
+                  disabled={isUploadingImage} 
+                  className="text-zinc-500 hover:text-white transition-colors disabled:opacity-50"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              
+              <div className="p-4 flex-1 overflow-y-auto flex items-center justify-center bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-fixed" style={{ maxHeight: '60vh' }}>
+                <img src={previewUrl} alt="Preview" className="max-w-full max-h-[50vh] rounded-lg shadow-2xl ring-1 ring-white/10" />
+              </div>
+              
+              <div className="p-4 border-t border-zinc-800 bg-zinc-900/50 space-y-4 shrink-0">
+                <textarea
+                  value={previewCaption}
+                  onChange={(e) => {
+                      setPreviewCaption(e.target.value);
+                      e.target.style.height = 'auto';
+                      e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
+                  }}
+                  onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          if (!isUploadingImage) confirmImageUpload();
+                      }
+                  }}
+                  placeholder="Adicione uma legenda... (opcional)"
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl py-3 px-4 text-xs text-white placeholder-zinc-700 focus:border-orange-500 focus:outline-none resize-none custom-scrollbar min-h-[46px]"
+                  rows={1}
+                  disabled={isUploadingImage}
+                />
+                
+                <div className="flex gap-3">
+                  <button 
+                    onClick={cancelPreview}
+                    disabled={isUploadingImage}
+                    className="flex-1 py-3 px-4 bg-zinc-800 hover:bg-zinc-700 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all disabled:opacity-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    onClick={confirmImageUpload}
+                    disabled={isUploadingImage}
+                    className="flex-[2] py-3 px-4 bg-orange-600 hover:bg-orange-500 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-orange-900/20 disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {isUploadingImage ? (
+                      <>
+                        <Loader2 size={14} className="animate-spin" />
+                        Enviando...
+                      </>
+                    ) : (
+                      <>
+                        <Send size={14} />
+                        Enviar
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
