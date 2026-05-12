@@ -366,7 +366,7 @@ export const getPagarmeRecipientBalance = async (recipientId: string) => {
   let proxyAgent;
   if (proxyUrl) {
     const parsed = new URL(proxyUrl);
-    let agentOptions: any = { keepAlive: true };
+    let agentOptions: any = { keepAlive: true, timeout: 30000 };
     if (parsed.username && parsed.password) {
       const proxyAuth = Buffer.from(`${parsed.username}:${parsed.password}`).toString('base64');
       agentOptions.headers = { 'Proxy-Authorization': `Basic ${proxyAuth}` };
@@ -395,17 +395,34 @@ export const getPagarmeRecipientBalance = async (recipientId: string) => {
   
   try {
     try {
-      const ipCheck = await axios.get('https://ifconfig.me/ip', { httpsAgent: proxyAgent, proxy: false });
-      console.log("[DEBUG-PAGARME] IP real saindo pelo túnel:", ipCheck.data);
-    } catch (ipErr: any) {
-      console.log("[DEBUG-PAGARME] Falha ao verificar IP do túnel:", ipErr.message);
+      const test = await axios.get('https://api.ipify.org?format=json', { httpsAgent: proxyAgent });
+      console.log("[CHECK-TÚNEL] O proxy está respondendo? Sim. IP:", test.data.ip);
+    } catch (e: any) {
+      console.log("[CHECK-TÚNEL] O proxy FALHOU:", e.message);
     }
 
-    const response = await axios.get(url, {
-      headers: headers,
-      httpsAgent: proxyAgent,
-      proxy: false
-    });
+    let response;
+    const maxRetries = 1;
+    for (let i = 0; i <= maxRetries; i++) {
+        try {
+            response = await axios.get(url, {
+                headers: headers,
+                httpsAgent: proxyAgent,
+                proxy: false,
+                timeout: 30000
+            });
+            break;
+        } catch (error: any) {
+            if (i < maxRetries && error.response && (error.response.status === 502 || error.response.status === 407 || error.response.status === 503 || error.response.status === 504)) {
+                console.warn(`[RETRY-PAGARME] Recebeu erro ${error.response.status} ao consultar saldo. Tentando novamente em 2 segundos... (${i + 1}/${maxRetries})`);
+                await new Promise(res => setTimeout(res, 2000));
+                continue;
+            }
+            throw error;
+        }
+    }
+
+    if (!response) throw new Error("A resposta final da Pagar.me foi vazia.");
 
     const result = response.data;
     console.log("[Pagarme] Saldo recebido com sucesso para:", recipientId);
@@ -435,7 +452,7 @@ export const requestPagarmeTransfer = async (recipientId: string, amount: number
   let proxyAgent;
   if (proxyUrl) {
     const parsed = new URL(proxyUrl);
-    let agentOptions: any = { keepAlive: true };
+    let agentOptions: any = { keepAlive: true, timeout: 30000 };
     if (parsed.username && parsed.password) {
       const proxyAuth = Buffer.from(`${parsed.username}:${parsed.password}`).toString('base64');
       agentOptions.headers = { 'Proxy-Authorization': `Basic ${proxyAuth}` };
@@ -513,13 +530,30 @@ export const requestPagarmeTransfer = async (recipientId: string, amount: number
     console.log(`[SAQUE] Valor Bruto: ${amount} | Taxa: ${PAGARME_TRANSFER_FEE} | Valor Líquido a Enviar: ${liquidAmount}`);
 
     console.log(`[PAGARME-V5] Tentando saque via rota de Recipient para o ID: ${actualRecipientId}`);
-    const response = await axios.post(`https://api.pagar.me/core/v5/recipients/${actualRecipientId.trim()}/transfers`, {
-      amount: liquidAmount
-    }, {
-      headers: headers,
-      httpsAgent: proxyAgent,
-      proxy: false
-    });
+    let response;
+    const maxRetries = 1;
+    for (let i = 0; i <= maxRetries; i++) {
+        try {
+            response = await axios.post(`https://api.pagar.me/core/v5/recipients/${actualRecipientId.trim()}/transfers`, {
+                amount: liquidAmount
+            }, {
+                headers: headers,
+                httpsAgent: proxyAgent,
+                proxy: false,
+                timeout: 30000
+            });
+            break;
+        } catch (error: any) {
+            if (i < maxRetries && error.response && (error.response.status === 502 || error.response.status === 407 || error.response.status === 503 || error.response.status === 504)) {
+                console.warn(`[RETRY-PAGARME] Recebeu erro ${error.response.status} ao solicitar saque. Tentando novamente em 2 segundos... (${i + 1}/${maxRetries})`);
+                await new Promise(res => setTimeout(res, 2000));
+                continue;
+            }
+            throw error;
+        }
+    }
+
+    if (!response) throw new Error("A resposta final da Pagar.me foi vazia.");
 
     const result = response.data;
 
