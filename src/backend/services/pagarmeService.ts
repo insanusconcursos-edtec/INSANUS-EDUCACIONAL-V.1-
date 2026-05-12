@@ -407,26 +407,49 @@ export const getPagarmeRecipientBalance = async (recipientId: string) => {
 export const requestPagarmeTransfer = async (recipientId: string, amount: number) => {
   console.log(`[Pagarme] Requesting transfer for recipient: ${recipientId}, amount: ${amount}`);
   
+  // 2. Proteção de Operação (Somente saques protegidos por proxy estático)
+  const isProduction = process.env.NODE_ENV === 'production';
+  const proxyUrl = process.env.PROXY_URL || process.env.FIXIE_URL;
+
+  if (isProduction && !proxyUrl) {
+    const errorMsg = "[ERRO] Proxy de IP Estático não configurado. Operação abortada para segurança.";
+    console.error(errorMsg);
+    throw new Error(errorMsg);
+  }
+
+  // 1. Instância do Proxy Agent
+  const HttpsProxyAgent = (await import('https-proxy-agent')).HttpsProxyAgent;
+  const axios = (await import('axios')).default;
+  const proxyAgent = (isProduction && proxyUrl) ? new HttpsProxyAgent(proxyUrl) : undefined;
+
+  const headers = getHeaders();
+  console.log(`[DEBUG-PAGARME] Headers sendo enviados: ${Object.keys(headers).join(', ')} (Authorization presente: ${!!headers['Authorization']})`);
+
   try {
-    const response = await fetch(`https://api.pagar.me/core/v5/transfers`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify({
-        amount: amount,
-        source_id: recipientId
-      })
+    const response = await axios.post(`https://api.pagar.me/core/v5/transfers`, {
+      amount: amount,
+      source_id: recipientId
+    }, {
+      headers: {
+        'Authorization': headers['Authorization'],
+        'Content-Type': headers['Content-Type'],
+        'Accept': headers['Accept']
+      },
+      httpsAgent: proxyAgent,
+      proxy: false // Evita autenticação dupla ou conflitos se Axios tentar usar as vars de ambiente
     });
 
-    const result = await response.json();
+    const result = response.data;
 
-    if (!response.ok) {
-      console.error('[Pagarme] Transfer API Error:', result);
-      throw new Error(result.message || 'Erro ao processar transferência no Pagar.me');
-    }
+    console.log("[Pagarme] Saque solicitado com sucesso através do Proxy Autorizado.");
 
     return result;
-  } catch (error) {
-    console.error('[Pagarme] Error requesting transfer:', error);
+  } catch (error: any) {
+    if (error.response) {
+      console.error('[Pagarme] Transfer API Error:', error.response.data);
+      throw new Error(error.response.data.message || 'Erro ao processar transferência no Pagar.me');
+    }
+    console.error('[Pagarme] Error requesting transfer:', error.message);
     throw error;
   }
 };

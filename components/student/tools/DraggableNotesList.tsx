@@ -86,9 +86,14 @@ function NoteItem({
               <button onClick={handleRename} className="text-emerald-500 p-0.5 hover:bg-emerald-500/10 rounded"><Check size={10} /></button>
             </div>
           ) : (
-            <p title={note.title || 'Sem título'} className={`text-[11px] font-bold truncate ${isSelected ? 'text-white' : 'text-zinc-400'}`}>
-              {note.title || 'Sem título'}
-            </p>
+            <div className="relative group/tooltip flex-1 min-w-0">
+              <p className={`text-[11px] font-bold truncate ${isSelected ? 'text-white' : 'text-zinc-400'}`}>
+                {note.title || 'Sem título'}
+              </p>
+              <div className="absolute left-0 bottom-full mb-2 hidden group-hover/tooltip:block z-[9999] w-max max-w-[200px] p-2 bg-zinc-800 text-white text-[10px] rounded shadow-xl leading-tight border border-white/10 whitespace-normal break-words">
+                {note.title || 'Sem título'}
+              </div>
+            </div>
           )}
         </div>
 
@@ -228,9 +233,14 @@ function FolderItem({
                 <button onClick={handleRename} className="text-emerald-500 p-0.5 hover:bg-emerald-500/10 rounded"><Check size={10} /></button>
               </div>
             ) : (
-              <p title={folder.title || 'Nova Pasta'} className={`text-[10px] font-black uppercase tracking-widest truncate ${isOpen ? 'text-amber-500' : (isSelected ? 'text-white' : 'text-zinc-400')}`}>
-                {folder.title || 'Nova Pasta'}
-              </p>
+              <div className="relative group/tooltip flex-1 min-w-0">
+                <p className={`text-[10px] font-black uppercase tracking-widest truncate ${isOpen ? 'text-amber-500' : (isSelected ? 'text-white' : 'text-zinc-400')}`}>
+                  {folder.title || 'Nova Pasta'}
+                </p>
+                <div className="absolute left-0 bottom-full mb-2 hidden group-hover/tooltip:block z-[9999] w-max max-w-[200px] p-2 bg-zinc-800 text-white text-[10px] font-bold rounded shadow-xl leading-tight border border-white/10 uppercase tracking-widest whitespace-normal break-words">
+                  {folder.title || 'Nova Pasta'}
+                </div>
+              </div>
             )}
             <span className="text-[9px] px-1.5 py-0.5 bg-black/40 text-zinc-500 rounded font-black">{notesInside.length}</span>
         </div>

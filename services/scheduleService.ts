@@ -961,26 +961,24 @@ export const rescheduleOverdueTasks = async (
   const batch = writeBatch(db);
 
   try {
-    // 1. Captura todas as metas em atraso (não concluídas e data < hoje)
     const schedulesRef = collection(db, 'users', userId, 'schedules');
+    const allPendingGoals: any[] = [];
+
+    // 1. Captura todas as metas em atraso (não concluídas e data < hoje)
     const overdueQuery = query(schedulesRef, where('date', '<', todayStr));
     const overdueSnap = await getDocs(overdueQuery);
 
-    const delayedGoals: any[] = [];
     overdueSnap.docs.forEach(docSnap => {
       const data = docSnap.data();
       const items = data.items || [];
       
-      // 1. Filtra apenas metas ATRASADAS do PLANO ATUAL
       const uncompletedOfThisPlan = items.filter((item: any) => 
         item.status !== 'completed' && String(item.planId) === String(planId)
       );
       
       if (uncompletedOfThisPlan.length > 0) {
-        delayedGoals.push(...uncompletedOfThisPlan);
+        allPendingGoals.push(...uncompletedOfThisPlan);
         
-        // 2. Remove apenas os itens que foram movidos para o "delayedGoals" do dia passado
-        // Mantemos: metas concluídas do plano atual E todas as metas de outros planos
         const itemsToKeep = items.filter((item: any) => 
           !(String(item.planId) === String(planId) && item.status !== 'completed')
         );
@@ -993,12 +991,34 @@ export const rescheduleOverdueTasks = async (
       }
     });
 
-    // 2. Captura e remove apenas agendamentos futuros DO PLANO ATUAL para reconstrução
+    // 2. Captura os agendamentos de hoje e futuros para este plano
     const futureQuery = query(schedulesRef, where('date', '>=', todayStr));
     const futureSnap = await getDocs(futureQuery);
-    futureSnap.docs.forEach(docSnap => {
-      const currentItems = docSnap.data().items || [];
-      const keptItems = currentItems.filter((item: any) => String(item.planId) !== String(planId));
+    
+    // Precisamos ordenar cronologicamente para mesclar as partes na ordem correta
+    const sortedFutureDocs = futureSnap.docs.sort((a, b) => {
+      const dateA = a.data().date || '9999-12-31';
+      const dateB = b.data().date || '9999-12-31';
+      return dateA.localeCompare(dateB);
+    });
+
+    sortedFutureDocs.forEach(docSnap => {
+      const data = docSnap.data();
+      const currentItems = data.items || [];
+      
+      // Filtrar itens não concluídos deste plano
+      const uncompletedOfThisPlan = currentItems.filter((item: any) => 
+        item.status !== 'completed' && String(item.planId) === String(planId)
+      );
+      
+      if (uncompletedOfThisPlan.length > 0) {
+        allPendingGoals.push(...uncompletedOfThisPlan);
+      }
+
+      // Filtrar o que vamos manter no documento (ítens concluídos deste plano e ítens de outros planos)
+      const keptItems = currentItems.filter((item: any) => 
+        !(String(item.planId) === String(planId) && item.status !== 'completed')
+      );
       
       if (keptItems.length === 0) {
         batch.delete(docSnap.ref);
@@ -1010,12 +1030,44 @@ export const rescheduleOverdueTasks = async (
     // Executa o batch de limpeza
     await batch.commit();
 
-    // 3. Re-gera o cronograma passando os atrasos como prioridade
-    await generateSchedule(userId, planId, studyProfile, routine, [], delayedGoals);
+    // 3. Mesclar as fatias de uma mesma meta de volta para a sua duração restante.
+    // Isso evita que a "Parte 2" seja descartada quando a "Parte 1" está em atraso.
+    const mergedTasksMap = new Map();
+    for (const item of allPendingGoals) {
+      // Ignorar simulados e revisões espaçadas aqui (ou mantê-los se o Replanejar também for movê-los)
+      // Se não removermos, eles também voltarão pra fila normal de prioridade e serão reagendados
+      const baseId = item.metaId || item.taskId || item.id;
+      if (mergedTasksMap.has(baseId)) {
+        const existing = mergedTasksMap.get(baseId);
+        
+        // Restaura o tempo total somando a fatia
+        existing.calculatedDuration += (item.calculatedDuration || 0);
+        existing.duration = (existing.duration || 0) + (item.duration || 0); 
+        
+        // Mantém a 'part' original mais baixa, já que queremos que inicie daí
+        if (!existing.part && item.part) existing.part = item.part;
+        
+        // Agrupa os materiais da meta original (vídeos, pdfs, etc.)
+        if (item.videos) existing.videos = [...(existing.videos || []), ...item.videos];
+        if (item.files) existing.files = [...(existing.files || []), ...item.files];
+        if (item.links) existing.links = [...(existing.links || []), ...item.links];
+        if (item.mindMap) existing.mindMap = [...(existing.mindMap || []), ...item.mindMap];
+        if (item.flashcards) existing.flashcards = [...(existing.flashcards || []), ...item.flashcards];
+        if (item.questions) existing.questions = [...(existing.questions || []), ...item.questions];
+      } else {
+        mergedTasksMap.set(baseId, { ...item });
+      }
+    }
+
+    const tasksToReschedule = Array.from(mergedTasksMap.values());
+
+    // 4. Re-gera o cronograma passando todas essas tarefas pendentes como prioridade
+    // Ele as alocará primeiro (preservando sequência e conteúdo), e preencherá o resto da semana caso sobre tempo 
+    await generateSchedule(userId, planId, studyProfile, routine, [], tasksToReschedule);
 
     return { 
       success: true, 
-      message: "Cronograma replanejado com sucesso! Seus atrasos foram priorizados." 
+      message: "Cronograma replanejado com sucesso! Seus atrasos e as sequências de tarefas foram reorganizados." 
     };
   } catch (error) {
     console.error("Erro ao replanejar atrasos:", error);
