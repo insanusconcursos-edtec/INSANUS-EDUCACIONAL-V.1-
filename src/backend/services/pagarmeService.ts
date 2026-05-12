@@ -353,10 +353,11 @@ export const createPagarmeRecipient = async (data: Record<string, any>) => {
 };
 
 export const getPagarmeRecipientBalance = async (recipientId: string) => {
-  if (!recipientId || recipientId === 'undefined' || recipientId === 'null') {
-    console.error('[Pagarme] Error: No recipientId provided for balance check');
-    return { available: 0, waiting_funds: 0, transferred: 0 };
-  }
+  const actualRecipientId = (recipientId && recipientId !== 'undefined' && recipientId !== 'null') 
+    ? recipientId 
+    : (process.env.PAGARME_RECIPIENT_ID || 're_cmouicmz204gz0l9tyr4jkmut');
+
+  console.log(`[Pagarme] Consulta de saldo para o recebedor: ${actualRecipientId}`);
 
   const proxyUrl = process.env.PROXY_URL || process.env.FIXIE_URL;
   const HttpsProxyAgent = (await import('https-proxy-agent')).HttpsProxyAgent;
@@ -389,7 +390,7 @@ export const getPagarmeRecipientBalance = async (recipientId: string) => {
     'Accept': 'application/json'
   };
 
-  const url = `https://api.pagar.me/core/v5/recipients/${recipientId.trim()}/balance`;
+  const url = `https://api.pagar.me/core/v5/recipients/${actualRecipientId.trim()}/balance`;
   console.log("[Pagarme] Tentando consulta de saldo na URL:", url);
   
   try {
@@ -421,32 +422,28 @@ export const getPagarmeRecipientBalance = async (recipientId: string) => {
 };
 
 export const requestPagarmeTransfer = async (recipientId: string, amount: number) => {
-  console.log(`[Pagarme] Requesting transfer for recipient: ${recipientId}, amount: ${amount}`);
+  const actualRecipientId = (recipientId && recipientId !== 'undefined' && recipientId !== 'null') 
+    ? recipientId 
+    : (process.env.PAGARME_RECIPIENT_ID || 're_cmouicmz204gz0l9tyr4jkmut');
+
+  console.log(`[Pagarme] Requesting transfer for recipient: ${actualRecipientId}, amount: ${amount}`);
   
   const proxyUrl = process.env.PROXY_URL || process.env.FIXIE_URL;
-
-  // 1. Instância do Proxy Agent
   const HttpsProxyAgent = (await import('https-proxy-agent')).HttpsProxyAgent;
   const axios = (await import('axios')).default;
   
   let proxyAgent;
   if (proxyUrl) {
-    console.log("[DEBUG-NETWORK] Proxy detectado, configurando túnel HTTPS para a Pagar.me.");
     const parsed = new URL(proxyUrl);
     let agentOptions: any = { keepAlive: true };
-    
     if (parsed.username && parsed.password) {
       const proxyAuth = Buffer.from(`${parsed.username}:${parsed.password}`).toString('base64');
-      agentOptions.headers = {
-        'Proxy-Authorization': `Basic ${proxyAuth}`
-      };
+      agentOptions.headers = { 'Proxy-Authorization': `Basic ${proxyAuth}` };
       const cleanProxyUrl = `${parsed.protocol}//${parsed.host}`;
       proxyAgent = new (HttpsProxyAgent as any)(cleanProxyUrl, agentOptions);
     } else {
       proxyAgent = new (HttpsProxyAgent as any)(proxyUrl, agentOptions);
     }
-  } else {
-    console.log("[DEBUG-NETWORK] Proxy NÃO detectado, usando conexão direta (Bypass).");
   }
 
   // Autenticação Explícita - Manual
@@ -459,26 +456,40 @@ export const requestPagarmeTransfer = async (recipientId: string, amount: number
   const headers = {
     'Authorization': `Basic ${auth}`,
     'Content-Type': 'application/json',
-    'Accept': 'application/json'
+    'Accept': 'application/json',
+    'Idempotency-Key': `saque_master_${Date.now()}`
   };
-
-  console.log(`[DEBUG-PAGARME] Tentando requisição com Proxy e Header de Auth manual. (Authorization presente: true)`);
 
   try {
     try {
       const ipCheck = await axios.get('https://ifconfig.me/ip', { httpsAgent: proxyAgent, proxy: false });
-      console.log("[DEBUG-PAGARME] IP real saindo pelo túnel (saque):", ipCheck.data);
+      console.log(`[DEBUG-SAQUE] Iniciando transferência via IP: ${ipCheck.data}`);
     } catch (ipErr: any) {
-      console.log("[DEBUG-PAGARME] Falha ao verificar IP do túnel (saque):", ipErr.message);
+      console.log("[DEBUG-SAQUE] Falha ao verificar IP do túnel:", ipErr.message);
+    }
+
+    try {
+      const test1 = await axios.get('https://api-bd.pagar.me/ip', { httpsAgent: proxyAgent, proxy: false });
+      console.log("[IP-CHECK-PAGARME] O que a Pagar.me vê:", typeof test1.data === 'object' ? JSON.stringify(test1.data) : test1.data);
+    } catch (e: any) {
+      console.log("[IP-CHECK-PAGARME] Erro ao verificar IP na Pagar.me:", e.message);
+    }
+
+    try {
+      const test2 = await axios.get('https://icanhazip.com', { httpsAgent: proxyAgent, proxy: false });
+      console.log("[IP-CHECK-EXTERNO] IP de saída real:", typeof test2.data === 'object' ? JSON.stringify(test2.data) : test2.data?.trim());
+    } catch (e: any) {
+      console.log("[IP-CHECK-EXTERNO] Erro ao verificar IP externo:", e.message);
     }
 
     const response = await axios.post(`https://api.pagar.me/core/v5/transfers`, {
       amount: amount,
-      source_id: recipientId
+      recipient_id: actualRecipientId,
+      metadata: { origem: "saque_app_insanus" }
     }, {
       headers: headers,
       httpsAgent: proxyAgent,
-      proxy: false // Evita autenticação dupla ou conflitos se Axios tentar usar as vars de ambiente
+      proxy: false
     });
 
     const result = response.data;
@@ -488,6 +499,9 @@ export const requestPagarmeTransfer = async (recipientId: string, amount: number
     return result;
   } catch (error: any) {
     if (error.response) {
+      console.log("[RAIO-X-SAQUE] Status:", error.response?.status);
+      console.log("[RAIO-X-SAQUE] Mensagem Bruta:", JSON.stringify(error.response?.data));
+      console.log("[RAIO-X-SAQUE] Payload enviado:", JSON.stringify(error.config?.data));
       console.error('[Pagarme] Transfer API Error:', error.response.data?.message || 'Erro desconhecido');
       throw new Error(error.response.data?.message || 'Erro ao processar transferência. Verifique os logs.');
     }
