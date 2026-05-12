@@ -138,7 +138,7 @@ const LoginPage: React.FC = () => {
                 </svg>
             </div>
           </div>
-          <h1 className="text-4xl font-black text-white uppercase tracking-tighter leading-none">Área de Acesso</h1>
+          <h1 className="text-4xl font-black text-white uppercase tracking-tighter leading-none text-center font-orbitron">Área de Acesso</h1>
           <div className="mt-3 opacity-60">
             <SystemLogo />
           </div>
