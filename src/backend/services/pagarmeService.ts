@@ -358,34 +358,55 @@ export const getPagarmeRecipientBalance = async (recipientId: string) => {
     return { available: 0, waiting_funds: 0, transferred: 0 };
   }
 
-  // Ajuste técnico: Endpoint singular 'balance' para V5
+  const proxyUrl = process.env.PROXY_URL || process.env.FIXIE_URL;
+  const HttpsProxyAgent = (await import('https-proxy-agent')).HttpsProxyAgent;
+  const axios = (await import('axios')).default;
+  
+  let proxyAgent;
+  if (proxyUrl) {
+    const parsed = new URL(proxyUrl);
+    let agentOptions: any = { keepAlive: true };
+    if (parsed.username && parsed.password) {
+      const proxyAuth = Buffer.from(`${parsed.username}:${parsed.password}`).toString('base64');
+      agentOptions.headers = { 'Proxy-Authorization': `Basic ${proxyAuth}` };
+      const cleanProxyUrl = `${parsed.protocol}//${parsed.host}`;
+      proxyAgent = new (HttpsProxyAgent as any)(cleanProxyUrl, agentOptions);
+    } else {
+      proxyAgent = new (HttpsProxyAgent as any)(proxyUrl, agentOptions);
+    }
+  }
+
+  // Autenticação Explícita - Manual
+  const api_key = process.env.PAGARME_API_KEY || process.env.PAGARME_SECRET_KEY || '';
+  if (!api_key) throw new Error('API Key da Pagar.me não encontrada.');
+  const auth = Buffer.from(api_key + ":").toString("base64");
+
+  console.log("[Pagarme] Verificando Key: " + api_key.substring(0, 5) + "****");
+
+  const headers = {
+    'Authorization': `Basic ${auth}`,
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
+  };
+
   const url = `https://api.pagar.me/core/v5/recipients/${recipientId.trim()}/balance`;
   console.log("[Pagarme] Tentando consulta de saldo na URL:", url);
   
   try {
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: getHeaders()
+    try {
+      const ipCheck = await axios.get('https://ifconfig.me/ip', { httpsAgent: proxyAgent, proxy: false });
+      console.log("[DEBUG-PAGARME] IP real saindo pelo túnel:", ipCheck.data);
+    } catch (ipErr: any) {
+      console.log("[DEBUG-PAGARME] Falha ao verificar IP do túnel:", ipErr.message);
+    }
+
+    const response = await axios.get(url, {
+      headers: headers,
+      httpsAgent: proxyAgent,
+      proxy: false
     });
 
-    const responseText = await response.text();
-    let result: any = {};
-    
-    try {
-      result = JSON.parse(responseText);
-    } catch (e) {
-      console.error("[Pagarme] Falha ao parsear JSON no saldo. Corpo da resposta:", responseText);
-    }
-
-    if (!response.ok) {
-      console.error(`[Pagarme] Balance Check API Error (${response.status}):`, {
-        url,
-        result,
-        responseText
-      });
-      return { available: 0, waiting_funds: 0, transferred: 0 };
-    }
-
+    const result = response.data;
     console.log("[Pagarme] Saldo recebido com sucesso para:", recipientId);
 
     return {
@@ -393,48 +414,69 @@ export const getPagarmeRecipientBalance = async (recipientId: string) => {
       waiting_funds: result.waiting_funds_amount || 0,
       transferred: result.transferred_amount || 0
     };
-  } catch (error) {
-    console.error('[Pagarme] Exception in getPagarmeRecipientBalance:', error);
-    // Return empty balance instead of throwing to prevent front-end crash
-    return {
-      available: 0,
-      waiting_funds: 0,
-      transferred: 0
-    };
+  } catch (error: any) {
+    console.error('[Pagarme] Exception in getPagarmeRecipientBalance:', error.message);
+    throw new Error(error.response?.data?.message || error.message || 'Erro ao consultar saldo da Pagar.me');
   }
 };
 
 export const requestPagarmeTransfer = async (recipientId: string, amount: number) => {
   console.log(`[Pagarme] Requesting transfer for recipient: ${recipientId}, amount: ${amount}`);
   
-  // 2. Proteção de Operação (Somente saques protegidos por proxy estático)
-  const isProduction = process.env.NODE_ENV === 'production';
   const proxyUrl = process.env.PROXY_URL || process.env.FIXIE_URL;
-
-  if (isProduction && !proxyUrl) {
-    const errorMsg = "[ERRO] Proxy de IP Estático não configurado. Operação abortada para segurança.";
-    console.error(errorMsg);
-    throw new Error(errorMsg);
-  }
 
   // 1. Instância do Proxy Agent
   const HttpsProxyAgent = (await import('https-proxy-agent')).HttpsProxyAgent;
   const axios = (await import('axios')).default;
-  const proxyAgent = (isProduction && proxyUrl) ? new HttpsProxyAgent(proxyUrl) : undefined;
+  
+  let proxyAgent;
+  if (proxyUrl) {
+    console.log("[DEBUG-NETWORK] Proxy detectado, configurando túnel HTTPS para a Pagar.me.");
+    const parsed = new URL(proxyUrl);
+    let agentOptions: any = { keepAlive: true };
+    
+    if (parsed.username && parsed.password) {
+      const proxyAuth = Buffer.from(`${parsed.username}:${parsed.password}`).toString('base64');
+      agentOptions.headers = {
+        'Proxy-Authorization': `Basic ${proxyAuth}`
+      };
+      const cleanProxyUrl = `${parsed.protocol}//${parsed.host}`;
+      proxyAgent = new (HttpsProxyAgent as any)(cleanProxyUrl, agentOptions);
+    } else {
+      proxyAgent = new (HttpsProxyAgent as any)(proxyUrl, agentOptions);
+    }
+  } else {
+    console.log("[DEBUG-NETWORK] Proxy NÃO detectado, usando conexão direta (Bypass).");
+  }
 
-  const headers = getHeaders();
-  console.log(`[DEBUG-PAGARME] Headers sendo enviados: ${Object.keys(headers).join(', ')} (Authorization presente: ${!!headers['Authorization']})`);
+  // Autenticação Explícita - Manual
+  const api_key = process.env.PAGARME_API_KEY || process.env.PAGARME_SECRET_KEY || '';
+  if (!api_key) throw new Error('API Key da Pagar.me não encontrada.');
+  const auth = Buffer.from(api_key + ":").toString("base64");
+
+  console.log("[Pagarme] Verificando Key: " + api_key.substring(0, 5) + "****");
+
+  const headers = {
+    'Authorization': `Basic ${auth}`,
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
+  };
+
+  console.log(`[DEBUG-PAGARME] Tentando requisição com Proxy e Header de Auth manual. (Authorization presente: true)`);
 
   try {
+    try {
+      const ipCheck = await axios.get('https://ifconfig.me/ip', { httpsAgent: proxyAgent, proxy: false });
+      console.log("[DEBUG-PAGARME] IP real saindo pelo túnel (saque):", ipCheck.data);
+    } catch (ipErr: any) {
+      console.log("[DEBUG-PAGARME] Falha ao verificar IP do túnel (saque):", ipErr.message);
+    }
+
     const response = await axios.post(`https://api.pagar.me/core/v5/transfers`, {
       amount: amount,
       source_id: recipientId
     }, {
-      headers: {
-        'Authorization': headers['Authorization'],
-        'Content-Type': headers['Content-Type'],
-        'Accept': headers['Accept']
-      },
+      headers: headers,
       httpsAgent: proxyAgent,
       proxy: false // Evita autenticação dupla ou conflitos se Axios tentar usar as vars de ambiente
     });
@@ -446,8 +488,8 @@ export const requestPagarmeTransfer = async (recipientId: string, amount: number
     return result;
   } catch (error: any) {
     if (error.response) {
-      console.error('[Pagarme] Transfer API Error:', error.response.data);
-      throw new Error(error.response.data.message || 'Erro ao processar transferência no Pagar.me');
+      console.error('[Pagarme] Transfer API Error:', error.response.data?.message || 'Erro desconhecido');
+      throw new Error(error.response.data?.message || 'Erro ao processar transferência. Verifique os logs.');
     }
     console.error('[Pagarme] Error requesting transfer:', error.message);
     throw error;

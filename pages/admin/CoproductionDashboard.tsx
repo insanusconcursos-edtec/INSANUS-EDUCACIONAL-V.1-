@@ -140,8 +140,13 @@ const CoproductionDashboard: React.FC = () => {
     setLoadingBalance(true);
     try {
       const response = await fetch(`/api/payments/pagarme/balance?recipientId=${recipientId}`);
+      let errorMessage = 'Falha ao carregar saldo';
       if (!response.ok) {
-        throw new Error('Falha ao carregar saldo');
+        try {
+          const errData = await response.json();
+          if (errData.error) errorMessage = errData.error;
+        } catch(e) {}
+        throw new Error(errorMessage);
       }
       const data = await response.json();
       if (data.success) {
@@ -149,10 +154,11 @@ const CoproductionDashboard: React.FC = () => {
       } else {
         // Fallback to zero if API returns success: false
         setBalance({ available: 0, waiting_funds: 0 });
+        console.error("Dashboard Pagarme: Erro retornado pela API ->", data.error);
       }
-    } catch (err) {
-      console.error('Error fetching balance:', err);
-      // Ensure UI shows 0,00 if error occurs
+    } catch (err: any) {
+      console.error('Error fetching Pagar.me balance:', err.message);
+      // Ensure UI shows 0,00 if error occurs, mas não trava
       setBalance({ available: 0, waiting_funds: 0 });
     } finally {
       setLoadingBalance(false);
