@@ -5,7 +5,7 @@ import {
   X, Plus, FileText, Trash2, 
   Loader2, AlertCircle, BookOpen, AlertTriangle, StickyNote,
   PanelLeftClose, PanelLeftOpen, ExternalLink, Link as LinkIcon,
-  ChevronDown, Maximize2, Minimize2
+  ChevronDown, Maximize2, Minimize2, MonitorUp
 } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { notebookService, EditalNote, NoteType } from '../../../services/notebookService';
@@ -31,6 +31,7 @@ export interface NotebookEditorModalProps {
   metaLookup?: Record<string, Meta>;
   initialPdfUrl?: string | null;
   isEmbedded?: boolean;
+  isPopoutMode?: boolean;
 }
 
 type QuestionNode = {
@@ -111,7 +112,8 @@ export const EditalNotebookModal: React.FC<NotebookEditorModalProps> = ({
   editalNode,
   metaLookup,
   initialPdfUrl,
-  isEmbedded
+  isEmbedded,
+  isPopoutMode
 }) => {
   const { currentUser } = useAuth();
   
@@ -128,6 +130,10 @@ export const EditalNotebookModal: React.FC<NotebookEditorModalProps> = ({
   const [activePdfUrl, setActivePdfUrl] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isNotebookMinimized, setIsNotebookMinimized] = useState(false);
+  
+  // Popout State
+  const [isPopoutOpen, setIsPopoutOpen] = useState(false);
+  const popoutChannelRef = React.useRef<BroadcastChannel | null>(null);
 
   // Editor State
   const [title, setTitle] = useState('');
@@ -402,7 +408,10 @@ export const EditalNotebookModal: React.FC<NotebookEditorModalProps> = ({
   };
 
   const loadNotes = async () => {
-    if (!currentUser) return;
+    if (!currentUser) {
+      setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
     setIsDataLoaded(false); 
     try {
@@ -453,6 +462,76 @@ export const EditalNotebookModal: React.FC<NotebookEditorModalProps> = ({
     // Ensure we mark as loaded after the state update has propagated to the editor
     setTimeout(() => setIsDataLoaded(true), 100);
   };
+
+  const titleRef = React.useRef(title);
+  const contentRef = React.useRef(content);
+  useEffect(() => { titleRef.current = title; }, [title]);
+  useEffect(() => { contentRef.current = content; }, [content]);
+
+  const handleOpenPopout = () => {
+    setIsPopoutOpen(true);
+    
+    // Create a local session cache for complex data
+    const sessionId = `popout_${Date.now()}`;
+    const pData = {
+        materials,
+        editalNode,
+        metaLookup
+    };
+    // Salvar no localStorage temporariamente
+    localStorage.setItem(sessionId, JSON.stringify(pData));
+    
+    // Ocultar a janela principal do caderno de aula
+    if (isEmbedded) {
+        window.dispatchEvent(new CustomEvent('TOGGLE_NOTEBOOK', { detail: { open: false } }));
+    }
+    
+    const params = new URLSearchParams({
+        sessionId,
+        planId,
+        editalNodeId,
+        type,
+        topicTitle,
+        initialPdfUrl: activePdfUrl || ''
+    });
+    
+    const popoutUrl = `/notebook-popout?${params.toString()}`;
+    window.open(popoutUrl, 'notebookPopout', 'width=1200,height=800');
+  };
+
+  useEffect(() => {
+    const handlePopoutClosed = (e: any) => {
+        if (e.detail?.sessionId) {
+            setIsPopoutOpen(false);
+        }
+    };
+    
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'REQUEST_SESSION_DATA') {
+          // Responder com os dados caso o localStorage tenha falhado no popout
+          const pData = {
+              materials,
+              editalNode,
+              metaLookup
+          };
+          if (event.source) {
+             (event.source as Window).postMessage({ 
+                 type: 'SYNC_SESSION_DATA', 
+                 sessionId: event.data.sessionId,
+                 pData 
+             }, '*');
+          }
+      }
+    };
+    
+    window.addEventListener('POPOUT_CLOSED', handlePopoutClosed);
+    window.addEventListener('message', handleMessage);
+    
+    return () => {
+        window.removeEventListener('POPOUT_CLOSED', handlePopoutClosed);
+        window.removeEventListener('message', handleMessage);
+    };
+  }, [materials, editalNode, metaLookup]);
 
   const handleSetActivePdf = async (url: string) => {
     if (activePdfUrl === url) return;
@@ -548,29 +627,65 @@ export const EditalNotebookModal: React.FC<NotebookEditorModalProps> = ({
               </p>
             </div>
           </div>
-          {!isEmbedded && (
-            <button 
-              onClick={onClose}
-              className="p-2 hover:bg-white/5 rounded-full text-zinc-500 hover:text-white transition-all"
-            >
-              <X size={24} />
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {!isPopoutOpen && (
+              <button
+                onClick={handleOpenPopout}
+                className="p-2 hover:bg-white/5 rounded-full text-zinc-500 hover:text-white transition-all flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-widest"
+                title="Modo Segundo Monitor"
+              >
+                <MonitorUp size={16} />
+                <span className="hidden md:inline">2º Monitor</span>
+              </button>
+            )}
+            {!isEmbedded && (
+              <button 
+                onClick={onClose}
+                className="p-2 hover:bg-white/5 rounded-full text-zinc-500 hover:text-white transition-all"
+              >
+                <X size={24} />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Main Content (Split Layout) */}
         <div className="flex-1 flex overflow-hidden relative">
           
-          {/* Sidebar Toggle (Open) - Only visible when sidebar is closed */}
-          {!isSidebarOpen && (
-            <button 
-              onClick={() => setIsSidebarOpen(true)}
-              className="absolute left-4 top-4 z-40 p-2 bg-[#121214] border border-white/10 rounded-lg text-zinc-400 hover:text-white shadow-xl transition-all animate-in fade-in slide-in-from-left-4 duration-300"
-              title="Abrir Menu"
-            >
-              <PanelLeftOpen size={20} />
-            </button>
-          )}
+          {isPopoutOpen ? (
+            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-[#09090b]">
+              <div className="w-20 h-20 bg-blue-500/10 rounded-full flex items-center justify-center mb-6 animate-pulse">
+                <MonitorUp size={40} className="text-blue-500" />
+              </div>
+              <h3 className="text-2xl font-black text-white uppercase tracking-tighter font-orbitron mb-2">Caderno Desacoplado</h3>
+              <p className="text-sm text-zinc-400 max-w-md">
+                O caderno está aberto no <strong>Modo Segundo Monitor</strong>. O conteúdo digitado lá está sendo salvo automaticamente.
+              </p>
+              <button 
+                onClick={() => {
+                  setIsPopoutOpen(false);
+                  if (isEmbedded) {
+                     window.dispatchEvent(new CustomEvent('TOGGLE_NOTEBOOK', { detail: { open: true } }));
+                  }
+                }}
+                className="mt-8 px-8 py-3 bg-white/5 hover:bg-white/10 text-white rounded-xl text-xs font-bold uppercase tracking-widest transition-all border border-white/10"
+              >
+                Forçar Retorno
+              </button>
+            </div>
+          ) : (
+            <>
+              {/* Sidebar Toggle (Open) - Only visible when sidebar is closed */}
+              {!isSidebarOpen && (
+                <button 
+                  onClick={() => setIsSidebarOpen(true)}
+                  className="absolute left-4 top-4 z-40 p-2 bg-[#121214] border border-white/10 rounded-lg text-zinc-400 hover:text-white shadow-xl transition-all animate-in fade-in slide-in-from-left-4 duration-300"
+                  title="Abrir Menu"
+                >
+                  <PanelLeftOpen size={20} />
+                </button>
+              )}
+
 
           {/* Sidebar (List) */}
           <div className={`relative flex flex-col h-full bg-[#0c0c0e] border-r border-white/10 transition-all duration-300 ease-in-out overflow-hidden shrink-0 ${
@@ -813,6 +928,8 @@ export const EditalNotebookModal: React.FC<NotebookEditorModalProps> = ({
                 </button>
              )}
           </div>
+            </>
+          )}
         </div>
       </div>
 

@@ -65,8 +65,20 @@ const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
       }
     };
 
+    const handleToggleNotebook = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      if (customEvent.detail && typeof customEvent.detail.open === 'boolean') {
+          setIsNotebookOpen(customEvent.detail.open);
+      }
+    };
+
     window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
+    window.addEventListener('TOGGLE_NOTEBOOK', handleToggleNotebook);
+    
+    return () => {
+      window.removeEventListener('message', handleMessage);
+      window.removeEventListener('TOGGLE_NOTEBOOK', handleToggleNotebook);
+    };
   }, [onComplete]);
 
   return createPortal(

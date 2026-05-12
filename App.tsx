@@ -38,6 +38,7 @@ import { EdictDataProvider } from './contexts/EdictDataContext';
 import PrivateRoute from './components/PrivateRoute';
 import StandaloneCheckout from './pages/checkout/StandaloneCheckout';
 import SuccessPage from './pages/checkout/SuccessPage';
+import { NotebookPopout } from './components/student/tools/NotebookPopout';
 
 // Student Pages Imports
 import { 
@@ -126,6 +127,7 @@ const App: React.FC = () => {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/checkout/:offerId" element={<StandaloneCheckout />} />
             <Route path="/obrigado" element={<SuccessPage />} />
+            <Route path="/notebook-popout" element={<PrivateRoute><NotebookPopout /></PrivateRoute>} />
             
             {/* Video Room (Full Screen) */}
             <Route path="/video-room/:callId" element={
