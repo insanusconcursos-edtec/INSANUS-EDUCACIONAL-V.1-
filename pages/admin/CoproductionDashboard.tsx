@@ -184,9 +184,11 @@ const CoproductionDashboard: React.FC = () => {
       const data = await response.json();
 
       if (data.success) {
+        const liquidFormatted = (data.transfer?.liquidAmount / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+        const feeFormatted = (data.transfer?.fee / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
         setPayoutMessage({
           type: 'success',
-          text: 'Solicitação enviada! O valor cairá em sua conta conforme o prazo bancário.'
+          text: `Saque de R$ ${liquidFormatted} solicitado (Desconto de R$ ${feeFormatted} de taxa aplicado). O valor cairá em sua conta conforme o prazo bancário.`
         });
         // Refresh balance after payout
         fetchBalance(userProfile.pagarmeRecipientId);
@@ -857,8 +859,25 @@ const CoproductionDashboard: React.FC = () => {
                   <Wallet className="w-8 h-8 text-green-400" />
                 </div>
                 <h3 className="text-xl font-bold text-white uppercase tracking-tight">Confirmar Saque</h3>
-                <p className="text-gray-400 text-sm font-medium">
-                  Deseja transferir <span className="text-white font-bold">{formatCurrency((balance?.available || 0) / 100)}</span> para sua conta bancária cadastrada na Pagar.me?
+                
+                <div className="w-full bg-[#1a1a1a] border border-[#333] rounded-xl p-4 my-2 flex flex-col gap-3">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-gray-400 text-left">Valor Bruto Solicitado:</span>
+                    <span className="text-white font-medium">{formatCurrency((balance?.available || 0) / 100)}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-red-400/80 text-left">Taxa de Transferência:</span>
+                    <span className="text-red-400/80 font-medium">- R$ 3,67</span>
+                  </div>
+                  <div className="w-full h-px bg-[#333] my-1"></div>
+                  <div className="flex justify-between items-center font-black">
+                    <span className="text-green-400 uppercase tracking-tight text-left">Você Recebe:</span>
+                    <span className="text-green-400 text-xl">{formatCurrency(Math.max(0, (balance?.available || 0) - 367) / 100)}</span>
+                  </div>
+                </div>
+
+                <p className="text-gray-500 text-xs font-medium mt-2">
+                  O valor líquido será enviado para a sua conta bancária cadastrada na Pagar.me.
                 </p>
 
                 {payoutMessage && (
@@ -1047,8 +1066,25 @@ const CoproductionDashboard: React.FC = () => {
                 <Wallet className="w-10 h-10 text-brand-blue" />
               </div>
               <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Confirmar Saque</h3>
-              <p className="text-gray-400 font-medium">
-                Deseja transferir <span className="text-white font-bold">R$ {((balance?.available || 0) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span> para sua conta bancária cadastrada na Pagar.me?
+              
+              <div className="w-full bg-brand-white/5 border border-brand-white/10 rounded-2xl p-5 my-2 flex flex-col gap-3">
+                <div className="flex justify-between items-center text-sm font-medium">
+                  <span className="text-gray-400 text-left">Valor Bruto Solicitado:</span>
+                  <span className="text-white">R$ {((balance?.available || 0) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                </div>
+                <div className="flex justify-between items-center text-sm font-medium">
+                  <span className="text-red-400/80 text-left">Taxa de Transferência:</span>
+                  <span className="text-red-400/80">- R$ 3,67</span>
+                </div>
+                <div className="w-full h-px bg-brand-white/10 my-2"></div>
+                <div className="flex justify-between items-center font-black">
+                  <span className="text-brand-blue uppercase tracking-tighter text-left">Você Recebe:</span>
+                  <span className="text-brand-blue text-2xl">R$ {(Math.max(0, (balance?.available || 0) - 367) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                </div>
+              </div>
+
+              <p className="text-gray-500 text-xs font-medium">
+                O valor líquido será enviado para a sua conta bancária cadastrada na Pagar.me.
               </p>
 
               {payoutMessage && (

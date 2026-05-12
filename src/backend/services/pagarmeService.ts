@@ -482,10 +482,39 @@ export const requestPagarmeTransfer = async (recipientId: string, amount: number
       console.log("[IP-CHECK-EXTERNO] Erro ao verificar IP externo:", e.message);
     }
 
-    const response = await axios.post(`https://api.pagar.me/core/v5/transfers`, {
-      amount: amount,
-      recipient_id: actualRecipientId,
-      metadata: { origem: "saque_app_insanus" }
+    // 1. Log Detalhado do Recebedor
+    try {
+      const recipientInfoRes = await axios.get(`https://api.pagar.me/core/v5/recipients/${actualRecipientId.trim()}`, {
+        headers,
+        httpsAgent: proxyAgent,
+        proxy: false
+      });
+      console.log(`[PAGARME-V5] Status do recebedor (${actualRecipientId}): ${recipientInfoRes.data?.status}`);
+    } catch (err: any) {
+      console.log(`[PAGARME-V5] Erro ao buscar status do recebedor:`, err.message);
+    }
+
+    // 2. Verificação de Saldo Disponível
+    const balance = await getPagarmeRecipientBalance(actualRecipientId);
+    console.log(`[PAGARME-V5] Saldo disponível (available) antes do saque: ${balance.available}`);
+    
+    if (balance.available < amount) {
+      console.warn(`[PAGARME-V5] AVISO: Valor disponível (${balance.available}) é menor que o valor solicitado para saque (${amount}). Taxas ou repasses podem estar impactando.`);
+    }
+
+    // 3. Ajuste de Margem (Taxa de Saque)
+    const PAGARME_TRANSFER_FEE = 367;
+    const liquidAmount = amount - PAGARME_TRANSFER_FEE;
+    
+    if (liquidAmount <= 0) {
+      throw new Error('Saldo insuficiente para cobrir a taxa de saque da Pagar.me (R$ 3,67).');
+    }
+
+    console.log(`[SAQUE] Valor Bruto: ${amount} | Taxa: ${PAGARME_TRANSFER_FEE} | Valor Líquido a Enviar: ${liquidAmount}`);
+
+    console.log(`[PAGARME-V5] Tentando saque via rota de Recipient para o ID: ${actualRecipientId}`);
+    const response = await axios.post(`https://api.pagar.me/core/v5/recipients/${actualRecipientId.trim()}/transfers`, {
+      amount: liquidAmount
     }, {
       headers: headers,
       httpsAgent: proxyAgent,
@@ -496,7 +525,11 @@ export const requestPagarmeTransfer = async (recipientId: string, amount: number
 
     console.log("[Pagarme] Saque solicitado com sucesso através do Proxy Autorizado.");
 
-    return result;
+    return {
+      ...result,
+      liquidAmount,
+      fee: PAGARME_TRANSFER_FEE
+    };
   } catch (error: any) {
     if (error.response) {
       console.log("[RAIO-X-SAQUE] Status:", error.response?.status);
