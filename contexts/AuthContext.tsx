@@ -67,6 +67,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if (userDocSnap.exists()) {
                 const data = userDocSnap.data();
                 setUserData(data);
+
+                // Sync photoURL to Firestore if it exists in Auth but not in Firestore
+                // or if it's different.
+                if (user.photoURL && data.photoURL !== user.photoURL && data.photoUrl !== user.photoURL && data.photo !== user.photoURL) {
+                  try {
+                    const { updateDoc } = await import('firebase/firestore');
+                    await updateDoc(userDocRef, { photoURL: user.photoURL });
+                  } catch (e) {
+                    console.error("Failed to sync photoURL to Firestore", e);
+                  }
+                }
                 
                 const roleLower = (data.role || '').toLowerCase();
 

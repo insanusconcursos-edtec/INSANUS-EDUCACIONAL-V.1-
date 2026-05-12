@@ -107,7 +107,7 @@ const StudentChatView: React.FC<StudentChatViewProps> = ({ planId, linkedMentorI
     setLoading(true);
     try {
       let studentName = userData?.name || currentUser.displayName || 'Aluno';
-      let studentPhoto = userData?.photoURL || currentUser.photoURL || '';
+      let studentPhoto = userData?.photoURL || userData?.photoUrl || userData?.photo || currentUser.photoURL || '';
 
       // Fallback: if name is still 'Aluno' or empty, try fetching directly from Firestore
       if (studentName === 'Aluno' || !studentName) {
@@ -115,7 +115,7 @@ const StudentChatView: React.FC<StudentChatViewProps> = ({ planId, linkedMentorI
         if (userDoc.exists()) {
           const data = userDoc.data();
           studentName = data.name || studentName;
-          studentPhoto = data.photoURL || studentPhoto;
+          studentPhoto = data.photoURL || data.photoUrl || data.photo || studentPhoto;
         }
       }
 

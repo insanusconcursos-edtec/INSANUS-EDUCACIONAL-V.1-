@@ -150,7 +150,11 @@ export const EditalMindMapsModal: React.FC<EditalMindMapsModalProps> = ({
     setSaveStatus('saving');
     try {
       await updateUserContent(currentUser.uid, planId, selectedItem.id, { data });
+      
+      // Update local state to maintain persistence without reloading everything
       setSelectedItem(prev => prev ? { ...prev, data } : null);
+      setItems(prev => prev.map(item => item.id === selectedItem.id ? { ...item, data } : item));
+      
       setSaveStatus('success');
       toast.success("Mapa salvo com sucesso");
       setTimeout(() => setSaveStatus('idle'), 2000);
@@ -318,7 +322,7 @@ export const EditalMindMapsModal: React.FC<EditalMindMapsModalProps> = ({
                 <MindMapViewerModal 
                     isOpen={true}
                     onClose={() => setEditorMode('NONE')}
-                    nodes={selectedItem.data || []}
+                    nodes={(selectedItem.data && selectedItem.data.length > 0) ? selectedItem.data : getInitialMapData(selectedItem.title)}
                     edges={[]}
                     title={selectedItem.title}
                     timerState={{ status: 'idle', formattedTime: '00:00' }}

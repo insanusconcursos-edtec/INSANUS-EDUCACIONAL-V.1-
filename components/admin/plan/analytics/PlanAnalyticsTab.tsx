@@ -45,6 +45,7 @@ import { updateStudent } from '../../../../services/userService';
 import { motion, AnimatePresence } from 'motion/react';
 
 const StudentAvatar = ({ student, size = 32, onExpand }: { student: Student; size?: number; onExpand?: (url: string) => void }) => {
+  const finalPhotoUrl = student.photoURL || student.photoUrl || student.photo || (student as any).userProfile?.photoURL || (student as any).userProfile?.photoUrl || (student as any).userProfile?.photo || (student as any).profile?.photoURL || (student as any).profile?.photoUrl || (student as any).profile?.photo || (student as any).avatar || (student as any).avatarURL || (student as any).avatarUrl;
   const initials = student.name
     ? student.name.split(' ').filter(Boolean).map(n => n[0]).join('').substring(0, 2).toUpperCase()
     : '??';
@@ -61,17 +62,17 @@ const StudentAvatar = ({ student, size = 32, onExpand }: { student: Student; siz
 
   return (
     <div 
-      className={`rounded-full flex items-center justify-center text-white font-black overflow-hidden border border-white/10 ${bgColor} shrink-0 shadow-inner ${student.photoURL ? 'cursor-pointer hover:ring-2 hover:ring-yellow-400/50 transition-all' : ''}`}
+      className={`rounded-full flex items-center justify-center text-white font-black overflow-hidden border border-white/10 ${bgColor} shrink-0 shadow-inner ${finalPhotoUrl ? 'cursor-pointer hover:ring-2 hover:ring-yellow-400/50 transition-all' : ''}`}
       style={{ width: size, height: size, fontSize: size * 0.35 }}
       onClick={(e) => {
-        if (student.photoURL && onExpand) {
+        if (finalPhotoUrl && onExpand) {
           e.stopPropagation();
-          onExpand(student.photoURL);
+          onExpand(finalPhotoUrl);
         }
       }}
     >
-      {student.photoURL ? (
-        <img src={student.photoURL} alt={student.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+      {finalPhotoUrl ? (
+        <img src={finalPhotoUrl} alt={student.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
       ) : (
         <span className="tracking-tighter">{initials}</span>
       )}

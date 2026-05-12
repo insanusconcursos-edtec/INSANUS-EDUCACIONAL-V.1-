@@ -74,8 +74,8 @@ export const AdminLiveChat: React.FC<AdminLiveChatProps> = ({ eventId }) => {
         userName: resolvedName,
         senderName: resolvedName,
         userEmail: currentUser.email || userData?.email || '',
-        userPhoto: userData?.photoUrl || currentUser.photoURL || null,
-        senderPhoto: userData?.photoUrl || currentUser.photoURL || null,
+        userPhoto: userData?.photoUrl || userData?.photoURL || userData?.photo || currentUser.photoURL || null,
+        senderPhoto: userData?.photoUrl || userData?.photoURL || userData?.photo || currentUser.photoURL || null,
         text: newMessage.trim(),
         isAdmin: true,
         replyTo: replyingTo ? {

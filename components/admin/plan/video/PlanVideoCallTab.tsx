@@ -69,7 +69,7 @@ export const PlanVideoCallTab: React.FC<PlanVideoCallTabProps> = ({ planId }) =>
         mentorId: currentUser.uid,
         studentId: selectedStudent.id,
         studentName: selectedStudent.name || 'Aluno',
-        studentPhotoUrl: selectedStudent.photoURL || '',
+        studentPhotoUrl: selectedStudent.photoURL || selectedStudent.photoUrl || selectedStudent.photo || '',
         scheduledAt: Timestamp.fromDate(scheduledAt),
       });
 
@@ -142,8 +142,8 @@ export const PlanVideoCallTab: React.FC<PlanVideoCallTabProps> = ({ planId }) =>
               <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-6">
                 <div className="flex items-center gap-4 mb-6">
                   <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-brand-red/20">
-                    {selectedStudent.photoURL ? (
-                      <img src={selectedStudent.photoURL} alt={selectedStudent.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    {(selectedStudent.photoURL || selectedStudent.photoUrl || selectedStudent.photo) ? (
+                      <img src={selectedStudent.photoURL || selectedStudent.photoUrl || selectedStudent.photo} alt={selectedStudent.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                     ) : (
                       <div className="w-full h-full bg-zinc-800 flex items-center justify-center text-zinc-500">
                         <UserIcon size={32} />
@@ -201,8 +201,8 @@ export const PlanVideoCallTab: React.FC<PlanVideoCallTabProps> = ({ planId }) =>
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full overflow-hidden border border-zinc-800">
-                      {student.photoURL ? (
-                        <img src={student.photoURL} alt={student.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      {(student.photoURL || student.photoUrl || student.photo) ? (
+                        <img src={student.photoURL || student.photoUrl || student.photo} alt={student.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                       ) : (
                         <div className="w-full h-full bg-zinc-800 flex items-center justify-center text-zinc-500">
                           <UserIcon size={20} />

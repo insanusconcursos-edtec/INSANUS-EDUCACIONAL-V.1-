@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { 
   X, Plus, FileText, Trash2, 
@@ -9,12 +9,15 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { notebookService, EditalNote, NoteType } from '../../../services/notebookService';
+// ... in EditalNotebookModal.tsx ...
 import { TipTapEditor } from '../../ui/TipTapEditor';
 import { ConfirmationModal } from '../../ui/ConfirmationModal';
 import { InsanusPdfViewer } from './InsanusPdfViewer';
 import { EdictDiscipline, EdictTopic, EdictSubtopic } from '../../../services/edictService';
 import { Meta } from '../../../services/metaService';
 import toast from 'react-hot-toast';
+import { DraggableNotesList } from './DraggableNotesList';
+import { MoveNoteModal } from './MoveNoteModal';
 
 export interface NotebookEditorModalProps {
   isOpen: boolean;
@@ -133,8 +136,12 @@ export const EditalNotebookModal: React.FC<NotebookEditorModalProps> = ({
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const lastSavedRef = React.useRef({ title: '', content: '' });
   
-  // Deletion State
+  // Modals & Actions State
   const [noteToDelete, setNoteToDelete] = useState<string | null>(null);
+  const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
+  const [noteToMove, setNoteToMove] = useState<EditalNote | null>(null);
+
+  const folders = useMemo(() => notes.filter(n => n.isFolder), [notes]);
   const [isDeleting, setIsDeleting] = useState(false);
 
   // Load notes on mount/open
@@ -242,6 +249,81 @@ export const EditalNotebookModal: React.FC<NotebookEditorModalProps> = ({
     return () => clearTimeout(timeoutId);
   }, [title, content, isDataLoaded, isLoading]);
 
+  const handleUpdatePositions = async (updates: {id: string, position: number, folderId?: string | null}[]) => {
+     try {
+         await notebookService.updatePositions(updates);
+         // Update local state smoothly
+         setNotes(prev => {
+             const map = new Map(prev.map(n => [n.id!, n]));
+             updates.forEach(u => {
+                 const n = map.get(u.id);
+                 if (n) {
+                     n.position = u.position;
+                     n.folderId = u.folderId;
+                 }
+             });
+             return [...prev].sort((a, b) => {
+                 const pA = a.position ?? 999999;
+                 const pB = b.position ?? 999999;
+                 return pA - pB;
+             });
+         });
+     } catch (err) {
+         toast.error("Erro ao reordenar pastas");
+     }
+  };
+
+  const handleNewFolder = async () => {
+    try {
+      const newFolder: Omit<EditalNote, 'id'> = {
+        userId: currentUser!.uid,
+        planId,
+        editalNodeId,
+        type,
+        title: 'Nova Pasta',
+        content: '',
+        isFolder: true,
+        position: notes.length
+      };
+
+      const id = await notebookService.saveNote(newFolder);
+      const savedFolder = { ...newFolder, id, createdAt: { toDate: () => new Date() }, updatedAt: { toDate: () => new Date() } };
+      
+      setNotes(prev => [...prev, savedFolder]);
+      toast.success("Pasta criada");
+    } catch (err) {
+      toast.error('Erro ao criar pasta');
+    }
+  };
+
+  const handleMoveNote = (note: EditalNote) => {
+    setNoteToMove(note);
+    setIsMoveModalOpen(true);
+  };
+
+  const executeMove = async (noteId: string, folderId: string | null) => {
+    try {
+      await notebookService.updatePositions([{ id: noteId, position: 0, folderId }]);
+      setNotes(prev => prev.map(n => n.id === noteId ? { ...n, folderId } : n));
+      toast.success("Nota movida");
+    } catch (err) {
+      toast.error("Erro ao mover nota");
+    }
+  };
+
+  const handleRenameNote = async (noteId: string, newTitle: string) => {
+    try {
+      await notebookService.updateNote(noteId, { title: newTitle });
+      setNotes(prev => prev.map(n => n.id === noteId ? { ...n, title: newTitle } : n));
+      if (selectedNote?.id === noteId) {
+        setTitle(newTitle);
+      }
+      toast.success("Renomeado com sucesso");
+    } catch (err) {
+      toast.error("Erro ao renomear");
+    }
+  };
+
   const handleAutosave = async () => {
     if (!currentUser || !title.trim()) return;
 
@@ -277,8 +359,13 @@ export const EditalNotebookModal: React.FC<NotebookEditorModalProps> = ({
         
         // Update local ref to current state
         lastSavedRef.current = { title: title.trim(), content };
+        
+        const updatedVersion = { ...selectedNote, title: title.trim(), content, updatedAt: { toDate: () => new Date() } as any };
         // Update selectedNote's content without triggering full reload
-        setSelectedNote({ ...selectedNote, title: title.trim(), content, updatedAt: { toDate: () => new Date() } as any });
+        setSelectedNote(updatedVersion);
+        
+        // Update it in the notes array as well
+        setNotes(prev => prev.map(n => n.id === selectedNote.id ? updatedVersion : n));
       } else {
         const newNoteId = await notebookService.saveNote({
           userId: currentUser.uid,
@@ -523,13 +610,20 @@ export const EditalNotebookModal: React.FC<NotebookEditorModalProps> = ({
 
               {sidebarTab === 'notes' ? (
               <>
-                <div className="p-4 border-b border-white/5">
+                <div className="p-4 border-b border-white/5 flex gap-2">
                   <button 
                     onClick={handleNewNote}
-                    className="w-full py-2.5 flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-white font-bold text-xs uppercase tracking-widest transition-all"
+                    className="flex-1 py-2.5 flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-white font-bold text-xs uppercase tracking-widest transition-all"
                   >
                     <Plus size={16} />
-                    Nova Anotação
+                    Nota
+                  </button>
+                  <button 
+                    onClick={handleNewFolder}
+                    className="flex-1 py-2.5 flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-white font-bold text-xs uppercase tracking-widest transition-all"
+                  >
+                    <Plus size={16} />
+                    Pasta
                   </button>
                 </div>
                 
@@ -544,36 +638,15 @@ export const EditalNotebookModal: React.FC<NotebookEditorModalProps> = ({
                         <p className="text-[10px] text-zinc-600 font-bold uppercase">Nenhuma anotação vinculada.</p>
                     </div>
                   ) : (
-                    notes.map(note => (
-                      <div 
-                        key={note.id}
-                        onClick={() => handleSelectNote(note)}
-                        className={`group flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer ${
-                          selectedNote?.id === note.id 
-                            ? 'bg-white/10 border-white/20' 
-                            : 'bg-transparent border-transparent hover:bg-white/5 hover:border-white/5'
-                        }`}
-                      >
-                        <FileText size={16} className={selectedNote?.id === note.id ? 'text-white' : 'text-zinc-600'} />
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-xs font-bold truncate ${selectedNote?.id === note.id ? 'text-white' : 'text-zinc-500'}`}>
-                            {note.title}
-                          </p>
-                          <p className="text-[9px] text-zinc-600 mt-0.5">
-                            {note.updatedAt?.toDate?.() ? new Date(note.updatedAt.toDate()).toLocaleDateString() : 'Agora'}
-                          </p>
-                        </div>
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setNoteToDelete(note.id!);
-                          }}
-                          className="p-1.5 opacity-0 group-hover:opacity-100 text-zinc-600 hover:text-red-500 hover:bg-red-500/10 rounded transition-all"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    ))
+                    <DraggableNotesList 
+                       notes={notes}
+                       selectedNote={selectedNote}
+                       onSelectNote={handleSelectNote}
+                       onDeleteNote={(id) => setNoteToDelete(id)}
+                       onMoveNote={handleMoveNote}
+                       onRenameNote={handleRenameNote}
+                       onUpdatePositions={handleUpdatePositions}
+                    />
                   )}
                 </div>
               </>
@@ -755,6 +828,13 @@ export const EditalNotebookModal: React.FC<NotebookEditorModalProps> = ({
         variant="danger"
       />
 
+      <MoveNoteModal 
+         isOpen={isMoveModalOpen}
+         onClose={() => setIsMoveModalOpen(false)}
+         note={noteToMove}
+         folders={folders}
+         onMove={executeMove}
+      />
     </div>
   );
 

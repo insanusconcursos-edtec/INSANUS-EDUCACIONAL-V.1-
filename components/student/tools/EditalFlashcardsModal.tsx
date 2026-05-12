@@ -153,7 +153,11 @@ export const EditalFlashcardsModal: React.FC<EditalFlashcardsModalProps> = ({
     setSaveStatus('saving');
     try {
       await updateUserContent(currentUser.uid, planId, selectedItem.id, { data });
+      
+      // Update local state to maintain persistence without reloading everything
       setSelectedItem(prev => prev ? { ...prev, data } : null);
+      setItems(prev => prev.map(item => item.id === selectedItem.id ? { ...item, data } : item));
+      
       setSaveStatus('success');
       toast.success("Conteúdo salvo");
       setTimeout(() => setSaveStatus('idle'), 2000);

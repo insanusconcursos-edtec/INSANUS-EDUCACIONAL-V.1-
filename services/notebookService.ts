@@ -25,6 +25,9 @@ export interface EditalNote {
   type: NoteType;
   title: string;
   content: string;
+  isFolder?: boolean;
+  folderId?: string | null;
+  position?: number;
   createdAt?: any;
   updatedAt?: any;
 }
@@ -99,10 +102,21 @@ export const notebookService = {
     );
 
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => toPlainObject({
+    const notes = snapshot.docs.map(doc => toPlainObject({
       id: doc.id,
       ...doc.data()
     }) as EditalNote);
+    
+    // Sort by position on client if available, else retain createdAt desc
+    return notes.sort((a, b) => {
+      const posA = a.position !== undefined ? a.position : 999999;
+      const posB = b.position !== undefined ? b.position : 999999;
+      if (posA !== posB) return posA - posB;
+      // fallback to created at
+      const timeA = a.createdAt?.seconds || 0;
+      const timeB = b.createdAt?.seconds || 0;
+      return timeB - timeA;
+    });
   },
 
   /**
@@ -126,6 +140,22 @@ export const notebookService = {
       ...data,
       updatedAt: serverTimestamp()
     });
+  },
+
+  /**
+   * Batch update positions and folders
+   */
+  updatePositions: async (updates: { id: string; position: number; folderId?: string | null }[]): Promise<void> => {
+    // Note: A true batch requires writeBatch. For simplicity we can use Promise.all here
+    // or import writeBatch from firestore. Let's use Promise.all.
+    await Promise.all(updates.map(update => {
+      const docRef = doc(db, COLLECTION_NAME, update.id);
+      return updateDoc(docRef, {
+        position: update.position,
+        folderId: update.folderId !== undefined ? update.folderId : null,
+        updatedAt: serverTimestamp()
+      });
+    }));
   },
 
   /**
