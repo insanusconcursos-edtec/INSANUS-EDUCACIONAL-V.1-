@@ -97,7 +97,7 @@ export default function StandaloneCheckout() {
     if (!buyerData.email.trim()) errors.email = 'E-mail é obrigatório';
     if (buyerData.email !== buyerData.emailConfirm) errors.emailConfirm = 'Os e-mails não coincidem';
     
-    const cleanCpf = buyerData.cpf.replace(/\D/g, '');
+    const cleanCpf = (buyerData.cpf || "").replace(/\D/g, '');
     if (cleanCpf.length !== 11) errors.cpf = 'CPF inválido (11 dígitos)';
     
     const cleanPhone = buyerData.phone.replace(/\D/g, '');
@@ -283,7 +283,7 @@ export default function StandaloneCheckout() {
           userName: buyerData.name,
           userEmail: buyerData.email,
           userPhone: buyerData.phone,
-          userCpf: buyerData.cpf.replace(/\D/g, ''),
+          userCpf: (buyerData.cpf || "").replace(/\D/g, ''),
           isStandalone: "true",
           refId: refId || ''
         },
