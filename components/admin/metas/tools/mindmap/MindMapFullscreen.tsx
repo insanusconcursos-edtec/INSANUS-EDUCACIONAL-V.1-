@@ -118,17 +118,6 @@ const MindMapFullscreen: React.FC<MindMapFullscreenProps> = ({ nodes, onChange, 
     setScale(1);
   }, []);
 
-  // --- DEBOUNCED AUTO-SAVE ---
-  useEffect(() => {
-    if (treeData && !readOnly) {
-      const handler = setTimeout(() => {
-        const flat = flattenTree(treeData);
-        onChange(flat, false);
-      }, 1500); // Auto-save after 1.5s of no changes
-      return () => clearTimeout(handler);
-    }
-  }, [treeData, readOnly, onChange]);
-
   // --- INITIALIZATION EFFECT ---
   useEffect(() => {
     let tree = buildTree(nodes);
@@ -246,10 +235,6 @@ const MindMapFullscreen: React.FC<MindMapFullscreenProps> = ({ nodes, onChange, 
   };
 
   const handleCloseWrapper = () => {
-    if (treeData && !readOnly) {
-        const flat = flattenTree(treeData);
-        onChange(flat, false);
-    }
     onClose();
   };
 
