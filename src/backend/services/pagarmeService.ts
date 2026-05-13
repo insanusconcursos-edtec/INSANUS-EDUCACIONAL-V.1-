@@ -60,9 +60,8 @@ export const createPagarmeOrder = async (orderData: any, initialCoproducers: any
     const offerId = metadata.offerId;
     
     if (productId) {
-      console.log(`[AUDITORIA-SPLIT] Iniciando pedido para o produto: ${productId}`);
-      console.log(`[Pagarme] Buscando regras no Produto: ${productId}`);
-      if (process.env.NODE_ENV === 'production') process.stdout.write(`[AUDITORIA-SPLIT] Iniciando pedido para o produto: ${productId}\n`);
+      const startLog = `[AUDITORIA-INICIO] Processando ${orderData.payment_method || 'PEDIDO'} para Produto ID: ${productId}\n`;
+      process.stdout.write(startLog);
       const productDoc = await dbAdmin.collection('products').doc(productId).get();
       
       if (productDoc.exists) {
@@ -126,10 +125,10 @@ export const createPagarmeOrder = async (orderData: any, initialCoproducers: any
       }
     }
     
-    console.log(`[AUDITORIA-SPLIT] Regras encontradas - Afiliado: ${JSON.stringify(affiliateDataFromDB)}, Coprodutores: ${JSON.stringify(coproducers)}`);
-    if (process.env.NODE_ENV === 'production') process.stdout.write(`[AUDITORIA-SPLIT] Regras encontradas: ${JSON.stringify({ affiliateDataFromDB, coproducers })}\n`);
+    const rulesLog = `[AUDITORIA-REGRAS] SplitRules do Firestore: ${JSON.stringify({ affiliateDataFromDB, coproducers })}\n`;
+    process.stdout.write(rulesLog);
   } catch (error) {
-    console.error('[Pagarme] ❌ Erro ao buscar dados de split no Firestore:', error);
+    process.stdout.write(`[AUDITORIA-ERRO-FIREBASE] Erro ao buscar dados de split: ${error instanceof Error ? error.message : String(error)}\n`);
   }
 
   // Recalculate total amount with interest based on installments
@@ -215,12 +214,13 @@ export const createPagarmeOrder = async (orderData: any, initialCoproducers: any
       type: 'flat',
       options: { charge_processing_fee: true, charge_remainder_fee: true, liable: true } // Master assume taxas e estornos
     });
-    console.log(`✅ [Pagarme Split] Master ${masterRecipientId} recebe ${masterAmount} (Arcará com as taxas de ${pagarmeFees})`);
     
-    // Auditoria de cálculo final
-    const auditMsg = `[AUDITORIA-SPLIT] Valor Líquido Master: ${masterAmount} | Vendedor: ${affiliateAmount} | Total Coprodutores: ${totalDeductionsAfterFees - affiliateAmount}`;
-    console.log(auditMsg);
-    if (process.env.NODE_ENV === 'production') process.stdout.write(auditMsg + '\n');
+    // LOG 3: Auditoria de cálculo final
+    const calcLog = `[AUDITORIA-CALCULO] Valor Bruto: ${grossAmount} | Taxa Pagar.me Est.: ${pagarmeFees} | Montante Final Split: ${totalDeductionsAfterFees + masterAmount}\n`;
+    process.stdout.write(calcLog);
+    
+    const auditMsg = `[AUDITORIA-DETALHE-VALORES] Valor Líquido Master: ${masterAmount} | Vendedor: ${affiliateAmount} | Total Coprodutores: ${totalDeductionsAfterFees - affiliateAmount}\n`;
+    process.stdout.write(auditMsg);
   } else {
     console.error("❌ [ERRO CRÍTICO] PAGARME_MASTER_RECIPIENT_ID não configurado!");
   }
@@ -300,9 +300,12 @@ export const createPagarmeOrder = async (orderData: any, initialCoproducers: any
   }
   console.log("🚀 [Pagarme] Payload Final do Pedido (Safe):", JSON.stringify(safePayload, null, 2));
   
-  const splitAuditMsg = `[AUDITORIA-SPLIT] Payload de Split enviado à Pagar.me: ${JSON.stringify(payload.payments[0].splits || payload.payments[0].split)}`;
-  console.log(splitAuditMsg);
-  if (process.env.NODE_ENV === 'production') process.stdout.write(splitAuditMsg + '\n');
+  // LOG 4: Verificação dos recebedores no payload final
+  const recIdsLog = `[AUDITORIA-IDS] Recebedores no Payload: ${splitArray.map((s: any) => s.recipient_id).join(', ')}\n`;
+  process.stdout.write(recIdsLog);
+
+  const splitAuditMsg = `[AUDITORIA-PAYLOAD-SPLIT] Payload de Split enviado à Pagar.me: ${JSON.stringify(payload.payments[0].splits || payload.payments[0].split)}\n`;
+  process.stdout.write(splitAuditMsg);
 
   try {
     console.log("[CHECKOUT] Iniciando criação de pedido via Axios padrão");
@@ -365,6 +368,14 @@ export const createPagarmeOrder = async (orderData: any, initialCoproducers: any
 
     return result;
   } catch (error: any) {
+    const errorLog = `[AUDITORIA-ERRO-CRITICO] ${JSON.stringify({
+      message: error.message,
+      status: error.response?.status,
+      data: error.response?.data,
+      path: error.config?.url
+    })}\n`;
+    process.stdout.write(errorLog);
+
     if (error.response) {
       console.error('[Pagarme] API Error:', error.response.data);
       const result = error.response.data;
