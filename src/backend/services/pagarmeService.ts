@@ -3,7 +3,18 @@ import { provisionPurchase } from './provisioningService.js';
 import { getAdminConfig } from './firebaseAdmin.js';
 import { sendPushNotification } from './notificationAdminService.js';
 
-const PAGARME_API_URL = 'https://api.pagar.me/core/v5/orders';
+const PAGARME_BASE_URL = 'https://api.pagar.me/core/v5';
+const PAGARME_API_URL = `${PAGARME_BASE_URL}/orders`;
+
+// Configuração limpa do Axios para Pagar.me
+const getPagarmeClient = async () => {
+  const axios = (await import('axios')).default;
+  return axios.create({
+    baseURL: PAGARME_BASE_URL,
+    headers: getHeaders(),
+    timeout: 30000 // 30 segundos
+  });
+};
 
 // Pagar.me Fees (in cents) - Updated based on PDF 14/05/2026
 const calculatePagarmeFees = (amountCents: number, method: string, installments: number = 1): number => {
@@ -60,6 +71,9 @@ export const createPagarmeOrder = async (orderData: any, initialCoproducers: any
     const offerId = metadata.offerId;
     
     if (productId) {
+      if (orderData.payment_method === 'pix') {
+        process.stdout.write(`>>>> [CRITICAL-LOG] INICIANDO PIX - TIMESTAMP: ${new Date().toISOString()} <<<<\n`);
+      }
       const startLog = `[AUDITORIA-INICIO] Processando ${orderData.payment_method || 'PEDIDO'} para Produto ID: ${productId}\n`;
       process.stdout.write(startLog);
       const productDoc = await dbAdmin.collection('products').doc(productId).get();
@@ -312,8 +326,8 @@ export const createPagarmeOrder = async (orderData: any, initialCoproducers: any
     
     let result;
     try {
-      const axios = (await import('axios')).default;
-      const response = await axios.post(PAGARME_API_URL, payload, { headers: getHeaders() });
+      const pagarme = await getPagarmeClient();
+      const response = await pagarme.post('/orders', payload);
       result = response.data;
       
     } catch (reqError: any) {
@@ -508,11 +522,11 @@ export const requestPagarmeTransfer = async (recipientId: string, amount: number
   console.log(`[Pagarme] Requesting transfer for recipient: ${actualRecipientId}, amount: ${amount}`);
   
   try {
-    const axios = (await import('axios')).default;
+    const pagarme = await getPagarmeClient();
 
     // 1. Log Detalhado do Recebedor
     try {
-      const recipientInfoRes = await axios.get(`https://api.pagar.me/core/v5/recipients/${actualRecipientId.trim()}`, { headers: getHeaders() });
+      const recipientInfoRes = await pagarme.get(`/recipients/${actualRecipientId.trim()}`);
       console.log(`[PAGARME-V5] Status do recebedor (${actualRecipientId}): ${recipientInfoRes.data?.status}`);
     } catch (err: any) {
       console.log(`[PAGARME-V5] Erro ao buscar status do recebedor:`, err.message);
@@ -538,11 +552,10 @@ export const requestPagarmeTransfer = async (recipientId: string, amount: number
 
     console.log(`[PAGARME-V5] Tentando saque via rota de Recipient para o ID: ${actualRecipientId}`);
     
-    const response = await axios.post(`https://api.pagar.me/core/v5/recipients/${actualRecipientId.trim()}/transfers`, {
+    const response = await pagarme.post(`/recipients/${actualRecipientId.trim()}/transfers`, {
         amount: liquidAmount
     }, {
         headers: {
-            ...getHeaders(),
             'Idempotency-Key': `saque_master_${Date.now()}`
         }
     });
@@ -575,8 +588,8 @@ export const getPagarmeOrderStatus = async (orderId: string) => {
   console.log(`[Pagarme] Checking status for order: ${orderId}`);
   
   try {
-    const axios = (await import('axios')).default;
-    const response = await axios.get(`${PAGARME_API_URL}/${orderId}`, { headers: getHeaders() });
+    const pagarme = await getPagarmeClient();
+    const response = await pagarme.get(`/orders/${orderId}`);
 
     return response.data;
   } catch (error: any) {

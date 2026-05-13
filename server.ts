@@ -1,3 +1,4 @@
+process.stdout.write(">>>> [CRITICAL-LOG] SERVIDOR REINICIADO SEM PROXY <<<<\n");
 import express from 'express';
 import path from 'path';
 import { fetchPandaVideoTranscription } from './src/backend/services/pandaVideoService.js';
