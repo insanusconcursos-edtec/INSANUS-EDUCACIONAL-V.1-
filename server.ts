@@ -1,4 +1,5 @@
 process.stdout.write(">>>> [CRITICAL-LOG] SERVIDOR REINICIADO SEM PROXY <<<<\n");
+
 import express from 'express';
 import path from 'path';
 import { fetchPandaVideoTranscription } from './src/backend/services/pandaVideoService.js';
@@ -8,8 +9,7 @@ import { provisionExternalPurchase, revokePurchase } from './src/backend/service
 import { createPagarmeOrder, handlePagarmeWebhook, getPagarmeOrderStatus, requestPagarmeTransfer } from './src/backend/services/pagarmeService.js';
 import { calculateRecipientBalance } from './src/backend/services/walletService.js';
 
-console.log(">>>> [SISTEMA] SERVIDOR INICIALIZADO COM SUCESSO <<<<");
-process.stdout.write(">>>> [SISTEMA] FORCE OUTPUT TEST <<<<\n");
+process.stdout.write(">>>> [SISTEMA] SERVIDOR INICIALIZADO COM SUCESSO <<<<\n");
 
 // Monkey patch console.log to use process.stdout.write for Vercel
 const originalLog = console.log;
@@ -79,6 +79,10 @@ interface StudentProfile {
 
 const app = express();
 const PORT = 3000;
+
+try {
+  // No Vercel, o middleware da rota /api/index.ts já cuida do roteamento
+  // mas mantemos as rotas aqui para o dev server
 
 // Middleware para JSON
 app.use(express.json());
@@ -960,20 +964,26 @@ async function setupVite(app: any) {
   }
 
 async function startServer() {
-  await setupVite(app);
+  try {
+    await setupVite(app);
 
-  // In AI Studio / Local, we want to listen. 
-  // In Vercel, we export the app and don't listen.
-  if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log(`Server running on http://localhost:${PORT}`);
-    });
+    if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
+      app.listen(PORT, '0.0.0.0', () => {
+        console.log(`Server running on http://localhost:${PORT}`);
+      });
+    }
+  } catch (error) {
+    process.stderr.write(`>>>> [FATAL-ERROR] FALHA NA INICIALIZAÇÃO DO SERVIDOR: ${error instanceof Error ? error.message : String(error)} <<<<\n`);
   }
 }
 
 // Start the server if we're not being imported as a module (simple check)
 if (!process.env.VERCEL) {
   startServer();
+}
+
+} catch (globalError) {
+  process.stderr.write(`>>>> [FATAL-ERROR] ERRO NO CONTEXTO GLOBAL DO SERVIDOR: ${globalError instanceof Error ? globalError.message : String(globalError)} <<<<\n`);
 }
 
 export default app;
