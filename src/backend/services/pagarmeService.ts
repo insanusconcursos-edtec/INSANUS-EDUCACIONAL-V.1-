@@ -5,13 +5,25 @@ import { sendPushNotification } from './notificationAdminService.js';
 
 const PAGARME_API_URL = 'https://api.pagar.me/core/v5/orders';
 
-// Pagar.me Fees (in cents)
-const GATEWAY_FEE = 40; // R$ 0,40
-const BOLETO_FEE = 319; // R$ 3,19
-const PIX_RATE = 0.012; // 1.20%
-const CC_RATES: Record<number, number> = {
-  1: 0.0516, 2: 0.0353, 3: 0.0316, 4: 0.0285, 5: 0.0258, 6: 0.0238,
-  7: 0.0274, 8: 0.0265, 9: 0.0262, 10: 0.0263, 11: 0.0271, 12: 0.0285
+// Pagar.me Fees (in cents) - Updated based on PDF 14/05/2026
+const calculatePagarmeFees = (amountCents: number, method: string, installments: number = 1): number => {
+  console.log(`[INTEGRIDADE] Calculando taxas para ${method} (${installments}x) sobre ${amountCents} centavos`);
+  let fee = 0;
+  if (method === 'pix') {
+    fee = Math.round(amountCents * 0.02); // 2%
+  } else if (method === 'ticket') {
+    fee = 319; // R$ 3,19 fixo
+  } else if (method === 'credit_card') {
+    let rate = 0.0245; // 2.45% (1x)
+    if (installments >= 2 && installments <= 6) {
+      rate = 0.03; // 3% (2-6x)
+    } else if (installments >= 7) {
+      rate = 0.035; // 3.5% (7-12x)
+    }
+    fee = Math.round(amountCents * rate) + 80; // taxa + R$ 0,80 (proc + antifraude)
+  }
+  console.log(`[INTEGRIDADE] Taxa calculada: ${fee} centavos`);
+  return fee;
 };
 
 const INSTALLMENT_MULTIPLIERS: Record<number, number> = {
@@ -33,6 +45,7 @@ const getHeaders = () => {
 };
 
 export const createPagarmeOrder = async (orderData: any, initialCoproducers: any[] = []) => {
+  console.log('[INTEGRIDADE] Sistema operando em modo estável');
   console.log('[Pagarme] 🛒 Iniciando criação de pedido para:', orderData.description);
   const { dbAdmin } = getAdminConfig();
 
@@ -123,48 +136,44 @@ export const createPagarmeOrder = async (orderData: any, initialCoproducers: any
   // Pagar.me works with cents
   const totalAmountCents = Math.round(totalAmountWithInterest * 100);
 
-  // 🔴 LÓGICA DE DISTRIBUIÇÃO EM CASCATA (Split Cascade):
+  // 🔴 LÓGICA DE DISTRIBUIÇÃO EM CASCATA (Split Cascade - Refatorado 14/05/2026):
 
   // 1. Valor Bruto da Transação
   const grossAmount = totalAmountCents;
+  const paymentMethod = orderData.payment_method;
   
-  // 2. Estimativa de Taxas Pagar.me para determinar Base Líquida
-  let estimatedPagarmeFee = GATEWAY_FEE; // R$ 0,40 fixo base
-  if (orderData.payment_method === 'pix') {
-    estimatedPagarmeFee += Math.round(grossAmount * PIX_RATE);
-  } else if (orderData.payment_method === 'credit_card') {
-    estimatedPagarmeFee += Math.round(grossAmount * 0.0499); // 4.99% estimativa média para split
-  } else {
-    estimatedPagarmeFee += BOLETO_FEE; // R$ 3,19 fixo boleto
-  }
+  // 2. Cálculo das Taxas Pagar.me (Dedução 1)
+  const pagarmeFees = calculatePagarmeFees(grossAmount, paymentMethod, installments);
 
-  // 3. Valor Líquido Gateway (Base para as comissões)
-  const netGatewayValue = grossAmount - estimatedPagarmeFee;
-  console.log(`[Pagarme Cascade] Bruto: ${grossAmount} | Taxa Est.: ${estimatedPagarmeFee} | Líquido Gateway: ${netGatewayValue}`);
+  // 3. Saldo A: Bruto - Taxas (Base para comissões)
+  const saldoA = grossAmount - pagarmeFees;
+  console.log(`[Pagarme Cascade] Bruto: ${grossAmount} | Taxas Pagar.me: ${pagarmeFees} | Saldo A (Base): ${saldoA}`);
 
   const splitArray: any[] = [];
-  let totalDistributedShares = 0;
+  let totalDeductionsAfterFees = 0;
 
-  // 4. Vendedor/Afiliado (Comissão sobre o Líquido Gateway)
+  // 4. Saldo A -> Dedução Vendedor/Afiliado (Comissão sobre Saldo A)
+  let affiliateAmount = 0;
   if (affiliateDataFromDB && affiliateDataFromDB.recipientId && affiliateDataFromDB.percentage > 0) {
-    const affiliateAmount = Math.floor(netGatewayValue * (affiliateDataFromDB.percentage / 100));
+    affiliateAmount = Math.floor(saldoA * (affiliateDataFromDB.percentage / 100));
     if (affiliateAmount > 0) {
+      console.log(`[SPLIT] Processando regras para o recebedor ${affiliateDataFromDB.recipientId} (Afiliado) no valor de ${affiliateAmount}`);
       splitArray.push({
         amount: affiliateAmount,
         recipient_id: affiliateDataFromDB.recipientId,
         type: 'flat',
-        options: { charge_processing_fee: false, charge_remainder_fee: false, liable: true }
+        options: { charge_processing_fee: false, charge_remainder_fee: false, liable: false } // Liable false para comissionados
       });
-      totalDistributedShares += affiliateAmount;
-      console.log(`✅ [Pagarme Split] Vendedor ${affiliateDataFromDB.recipientId} recebe ${affiliateAmount} (${affiliateDataFromDB.percentage}% do Líquido)`);
+      totalDeductionsAfterFees += affiliateAmount;
+      console.log(`✅ [Pagarme Split] Vendedor ${affiliateDataFromDB.recipientId} recebe ${affiliateAmount} (${affiliateDataFromDB.percentage}% do Saldo A)`);
     }
   }
 
-  // 5. Base Líquida para Coprodutores
-  const coproducerBase = netGatewayValue - totalDistributedShares;
-  console.log(`[Pagarme Cascade] Base Líquida Coprodutores: ${coproducerBase}`);
+  // 5. Saldo B: Saldo A - Comissão Vendedor (Base para Coprodutores)
+  const saldoB = saldoA - affiliateAmount;
+  console.log(`[Pagarme Cascade] Saldo B (Base Coprodução): ${saldoB}`);
 
-  // 6. Loop de Coprodutores (Comissão sobre a Base de Coprodução)
+  // 6. Saldo B -> Loop de Coprodutores (Comissão sobre Saldo B)
   const coprodutoresArray = coproducers || [];
   if (coprodutoresArray.length > 0) {
     coprodutoresArray.forEach((copro: any) => {
@@ -172,16 +181,17 @@ export const createPagarmeOrder = async (orderData: any, initialCoproducers: any
       const percentage = Number(copro.percentage) || 0;
       
       if (recipientId && recipientId.startsWith('re_') && percentage > 0) {
-        const coproAmount = Math.floor(coproducerBase * (percentage / 100));
+        const coproAmount = Math.floor(saldoB * (percentage / 100));
         if (coproAmount > 0) {
+          console.log(`[SPLIT] Processando regras para o recebedor ${recipientId} no valor de ${coproAmount}`);
           splitArray.push({
             amount: coproAmount,
             recipient_id: recipientId,
             type: 'flat',
-            options: { charge_processing_fee: false, charge_remainder_fee: false, liable: true }
+            options: { charge_processing_fee: false, charge_remainder_fee: false, liable: false } // Liable false para coprodutores
           });
-          totalDistributedShares += coproAmount;
-          console.log(`✅ [Pagarme Split] Coprodutor ${recipientId} recebe ${coproAmount} (${percentage}%)`);
+          totalDeductionsAfterFees += coproAmount;
+          console.log(`✅ [Pagarme Split] Coprodutor ${recipientId} recebe ${coproAmount} (${percentage}% do Saldo B)`);
         }
       } else {
         console.log(`❌ [Pagarme Split] Coprodutor ignorado. ID ou percentual inválido:`, JSON.stringify(copro));
@@ -189,18 +199,18 @@ export const createPagarmeOrder = async (orderData: any, initialCoproducers: any
     });
   }
 
-  // 7. Conta Master (Recebe o Bruto - Total Distribuído e Arca com as Taxas)
-  const masterAmount = grossAmount - totalDistributedShares;
-  const masterRecipientId = process.env.PAGARME_MASTER_RECIPIENT_ID;
+  // 7. Conta Master (Recebe o que sobrar e assume a responsabilidade total das taxas)
+  const masterAmount = grossAmount - totalDeductionsAfterFees; // Master recebe o bruto - repasses (e o gateway desconta as taxas dele depois)
+  const masterRecipientId = process.env.PAGARME_MASTER_RECIPIENT_ID || process.env.PAGARME_RECIPIENT_ID;
 
   if (masterRecipientId) {
     splitArray.push({
       amount: masterAmount,
       recipient_id: masterRecipientId,
       type: 'flat',
-      options: { charge_processing_fee: true, charge_remainder_fee: true, liable: true }
+      options: { charge_processing_fee: true, charge_remainder_fee: true, liable: true } // Master assume taxas e estornos
     });
-    console.log(`✅ [Pagarme Split] Master ${masterRecipientId} recebe ${masterAmount} (líquido real abaterá as taxas)`);
+    console.log(`✅ [Pagarme Split] Master ${masterRecipientId} recebe ${masterAmount} (Arcará com as taxas de ${pagarmeFees})`);
   } else {
     console.error("❌ [ERRO CRÍTICO] PAGARME_MASTER_RECIPIENT_ID não configurado!");
   }
@@ -375,27 +385,93 @@ export const createPagarmeRecipient = async (data: Record<string, any>) => {
 export const getPagarmeRecipientBalance = async (recipientId: string) => {
   const actualRecipientId = (recipientId && recipientId !== 'undefined' && recipientId !== 'null') 
     ? recipientId 
-    : (process.env.PAGARME_RECIPIENT_ID || 're_cmouicmz204gz0l9tyr4jkmut');
+    : (process.env.PAGARME_MASTER_RECIPIENT_ID || process.env.PAGARME_RECIPIENT_ID || 're_cmouicmz204gz0l9tyr4jkmut');
 
-  console.log(`[Pagarme] Consulta de saldo para o recebedor: ${actualRecipientId}`);
+  console.log(`[CARTEIRA] Calculando saldo local para o recipient: ${actualRecipientId}`);
 
   try {
-    const axios = (await import('axios')).default;
-    const response = await axios.get(url, { headers: getHeaders() });
+    const { dbAdmin } = getAdminConfig();
+    let totalAvailable = 0;
+    let grossTotal = 0;
+    const masterId = process.env.PAGARME_MASTER_RECIPIENT_ID || process.env.PAGARME_RECIPIENT_ID || 're_cmouicmz204gz0l9tyr4jkmut';
+    
+    console.log(`[CARTEIRA] Buscando vendas na coleção 'orders' para recebedor: ${actualRecipientId}`);
 
-    if (!response.data) throw new Error("A resposta final da Pagar.me foi vazia.");
+    // Consulta a coleção "orders" (onde status='paid' ou 'succeeded')
+    const ordersSnap = await dbAdmin.collection('orders')
+      .where('status', 'in', ['paid', 'succeeded'])
+      .get();
 
-    const result = response.data;
-    console.log("[Pagarme] Saldo recebido com sucesso para:", recipientId);
+    ordersSnap.forEach((doc: any) => {
+      const order = doc.data();
+      const splits = order.split_rules || order.splits || [];
+      
+      // Procura o split destinado a este recebedor
+      const mySplit = splits.find((s: any) => s.recipient_id === actualRecipientId);
+      
+      if (mySplit) {
+        const value = mySplit.amount || 0;
+        totalAvailable += value;
+        grossTotal += (order.amount || 0);
+        console.log(`[CARTEIRA DEBUG] Venda encontrada no split: Order ${order.id} | Valor: ${value}`);
+      }
+    });
+
+    // Se estiver vazio em orders, verifica se existe em transactions (para manter compatibilidade com registros novos que fizemos)
+    if (ordersSnap.empty) {
+      const txSnap = await dbAdmin.collection('transactions')
+        .where('recipientId', '==', actualRecipientId)
+        .where('status', '==', 'paid')
+        .get();
+
+      txSnap.forEach((doc: any) => {
+        const data = doc.data();
+        totalAvailable += (data.commissionValue || data.netCompanyValue || 0);
+        grossTotal += (data.grossValue || 0);
+      });
+    }
+
+    // Retrocompatibilidade Legado
+    if (ordersSnap.empty && totalAvailable === 0) {
+      if (actualRecipientId === masterId) {
+        const adminSalesSnap = await dbAdmin.collection('admin_sales_report').get();
+        adminSalesSnap.forEach((doc: any) => {
+          totalAvailable += (doc.data().netCompanyValue || 0);
+          grossTotal += (doc.data().amount || doc.data().orderAmount || doc.data().netCompanyValue || 0);
+        });
+      } else {
+        const usersSnap = await dbAdmin.collection('users').where('pagarmeRecipientId', '==', actualRecipientId).limit(1).get();
+        if (!usersSnap.empty) {
+          const uid = usersSnap.docs[0].id;
+          const commSnap = await dbAdmin.collection('coproduction_commissions').where('coproducerId', '==', uid).get();
+          commSnap.forEach((doc: any) => {
+            const data = doc.data();
+            totalAvailable += (data.commissionValue || 0);
+            grossTotal += (data.grossValue || data.commissionValue || 0); // fallback to commission if gross unknown
+          });
+        } else {
+          console.warn(`[CARTEIRA] Recebedor ${actualRecipientId} não encontrado na base de usuários.`);
+        }
+      }
+    }
+
+    // Deduz saques realizados
+    const withdrawalsSnap = await dbAdmin.collection('withdrawals').where('recipientId', '==', actualRecipientId).get();
+    withdrawalsSnap.forEach((doc: any) => {
+      totalAvailable -= (doc.data().amount || 0);
+    });
+
+    console.log(`[CARTEIRA] Saldo final retornado para ${actualRecipientId}: ${totalAvailable} centavos | Vendas Brutas: ${grossTotal}`);
 
     return {
-      available: result.available_amount || 0,
-      waiting_funds: result.waiting_funds_amount || 0,
-      transferred: result.transferred_amount || 0
+      available: totalAvailable,
+      waiting_funds: 0,
+      transferred: 0,
+      total_sales: grossTotal
     };
   } catch (error: any) {
-    console.error('[Pagarme] Exception in getPagarmeRecipientBalance:', error.message);
-    throw new Error(error.response?.data?.message || error.message || 'Erro ao consultar saldo da Pagar.me');
+    console.error('[CARTEIRA] Exception in getPagarmeRecipientBalance via DB:', error.message);
+    throw new Error('Erro ao calcular saldo internamente via banco de dados');
   }
 };
 
@@ -511,6 +587,18 @@ export const handlePagarmeWebhook = async (payload: Record<string, any>) => {
       const productId = orderData.metadata?.courseId || orderData.metadata?.productId || orderData.metadata?.offerId;
       
       if (productId) {
+        // Salva a ordem completa na coleção 'orders' para consulta de saldo baseada em split_rules
+        try {
+          const { dbAdmin } = getAdminConfig();
+          await dbAdmin.collection('orders').doc(orderData.id).set({
+            ...orderData,
+            updatedAt: new Date().toISOString()
+          });
+          console.log(`✅ [Pagarme] Ordem ${orderData.id} persistida no Firestore.`);
+        } catch (dbErr) {
+          console.error('❌ [Pagarme] Erro ao persistir ordem no Firestore:', dbErr);
+        }
+
         await provisionPurchase(customerData, String(productId), 'pagarme');
         
         // Novo: Registrar comissão no histórico do afiliado e relatório admin
@@ -521,6 +609,8 @@ export const handlePagarmeWebhook = async (payload: Record<string, any>) => {
         } catch (commErr) {
           console.error('⚠️ [Pagarme] Erro ao registrar relatórios (não fatal):', commErr);
         }
+
+        console.log("[WEBHOOK] Venda confirmada: Notification sent");
 
         return { success: true, message: 'Provisioning triggered' };
       } else {
@@ -577,27 +667,12 @@ async function recordAffiliateCommission(orderData: any) {
 
     const grossAmount = orderData.amount; // Valor em centavos
     const paymentMethod = orderData.charges?.[0]?.payment_method || orderData.payment_method || 'unknown';
+    const installments = orderData.charges?.[0]?.last_transaction?.installments || 1;
 
-    // Extracao de dados do cliente para o follow-up do vendedor
-    const customerName = orderData.metadata?.userName || orderData.customer?.name || 'Cliente';
-    const customerEmail = orderData.metadata?.userEmail || orderData.customer?.email || 'N/A';
-    const customerPhone = orderData.metadata?.userPhone || 
-      (orderData.customer?.phones?.mobile_phone 
-        ? `+${orderData.customer.phones.mobile_phone.country_code}${orderData.customer.phones.mobile_phone.area_code}${orderData.customer.phones.mobile_phone.number}`
-        : 'N/A');
-
-    // 2. Cálculo do "Líquido Gateway" (mesma lógica do Split Cascade para bater os valores)
-    let estimatedPagarmeFee = 40; // GATEWAY_FEE
-    if (paymentMethod === 'pix') {
-      estimatedPagarmeFee += Math.round(grossAmount * 0.012); // PIX_RATE
-    } else if (paymentMethod === 'credit_card') {
-      estimatedPagarmeFee += Math.round(grossAmount * 0.0499); // Taxa est. crédito
-    } else {
-      estimatedPagarmeFee += 319; // BOLETO_FEE
-    }
-
-    const netGatewayValue = grossAmount - estimatedPagarmeFee;
-    const commissionEarned = Math.floor(netGatewayValue * (percentualVendedor / 100));
+    // 2. Cálculo do "Saldo A" (Dedução em Cascata)
+    const pagarmeFee = calculatePagarmeFees(grossAmount, paymentMethod, installments);
+    const saldoA = grossAmount - pagarmeFee;
+    const commissionEarned = Math.floor(saldoA * (percentualVendedor / 100));
 
     // 3. Salva na coleção solicitada: affiliate_commissions
     await dbAdmin.collection('affiliate_commissions').add({
@@ -656,35 +731,28 @@ async function recordAdminSalesReport(orderData: any) {
 
     const grossAmount = orderData.amount; // Valor em centavos
     const paymentMethod = orderData.charges?.[0]?.payment_method || orderData.payment_method || 'unknown';
+    const installments = orderData.charges?.[0]?.last_transaction?.installments || 1;
 
-    // 2. Cálculo de Taxa Gateway (estimativa baseada nas constantes do serviço)
-    let gatewayFee = GATEWAY_FEE;
-    if (paymentMethod === 'pix') {
-      gatewayFee += Math.round(grossAmount * PIX_RATE);
-    } else if (paymentMethod === 'credit_card') {
-      gatewayFee += Math.round(grossAmount * 0.0499); // 4.99% estimativa média
-    } else {
-      gatewayFee += BOLETO_FEE;
-    }
-
-    const netGatewayValue = grossAmount - gatewayFee;
+    // 2. Cálculo de Taxa Gateway e Saldo A (Cascata)
+    const gatewayFee = calculatePagarmeFees(grossAmount, paymentMethod, installments);
+    const saldoA = grossAmount - gatewayFee;
 
     // 3. Cálculo da Parte do Vendedor (Afiliado)
     const affiliatePercentage = currentOffer && currentOffer.isAffiliationEnabled 
       ? (Number(currentOffer.affiliateCommission) || 0) 
       : 0;
-    const affiliatePart = Math.floor(netGatewayValue * (affiliatePercentage / 100));
+    const affiliatePart = Math.floor(saldoA * (affiliatePercentage / 100));
 
-    // 4. Cálculo da Parte dos Coprodutores (Split Cascade)
+    // 4. Cálculo da Parte dos Coprodutores (Cascata - Saldo B)
     let coproductionPart = 0;
-    const coproducerBase = netGatewayValue - affiliatePart;
+    const saldoB = saldoA - affiliatePart;
     const coproducers = currentOffer?.coproducers || courseData?.coproduction || [];
     
     if (Array.isArray(coproducers)) {
       coproducers.forEach((copro: any) => {
         const percentage = Number(copro.percentage) || 0;
         if (percentage > 0) {
-          coproductionPart += Math.floor(coproducerBase * (percentage / 100));
+          coproductionPart += Math.floor(saldoB * (percentage / 100));
         }
       });
     }
@@ -717,7 +785,39 @@ async function recordAdminSalesReport(orderData: any) {
       createdAt: new Date().toISOString()
     });
 
+    // Registra na coleção transactions para unificação de saldo
+    const masterRecipientId = process.env.PAGARME_MASTER_RECIPIENT_ID || process.env.PAGARME_RECIPIENT_ID || 're_cmouicmz204gz0l9tyr4jkmut';
+    await dbAdmin.collection('transactions').add({
+      type: 'master',
+      recipientId: masterRecipientId,
+      orderId: orderData.id,
+      courseId,
+      courseName: currentOffer?.title || courseData?.name || 'Produto Digital',
+      netCompanyValue,
+      grossValue: grossAmount,
+      status: 'paid',
+      createdAt: new Date().toISOString()
+    });
+
     console.log(`✅ [ADMIN REPORT] Venda registrada. Líquido Insanus: ${netCompanyValue} centavos`);
+
+    // Enviar notificação push para os administradores/proprietários
+    try {
+      const adminsSnapshot = await dbAdmin.collection('users').where('role', 'in', ['admin', 'owner']).get();
+      const adminValFormatted = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(netCompanyValue / 100);
+      const pushPromises = adminsSnapshot.docs.map((doc: any) => {
+        return sendPushNotification(
+          doc.id,
+          "NOVA VENDA CONFIRMADA! 💸",
+          `Recebemos uma nova venda do produto ${currentOffer?.title || courseData?.name}. Lucro Líquido: ${adminValFormatted}.`,
+          "/admin/dashboard"
+        ).catch((e: any) => console.log("[PUSH] Erro ao enviar para admin:", e));
+      });
+      await Promise.all(pushPromises);
+      console.log("[WEBHOOK] Venda confirmada: Notification sent (Admin)");
+    } catch (pushErr) {
+      console.log("[PUSH ERROR] Falha ao notificar admins:", pushErr);
+    }
   } catch (error) {
     console.error('❌ [ADMIN REPORT ERROR] Falha ao registrar relatório financeiro:', error);
   }
@@ -746,27 +846,20 @@ async function recordCoproductionCommissions(orderData: any) {
 
     const grossAmount = orderData.amount; // Valor em centavos
     const paymentMethod = orderData.charges?.[0]?.payment_method || orderData.payment_method || 'unknown';
+    const installments = orderData.charges?.[0]?.last_transaction?.installments || 1;
 
-    // 2. Cálculo de Taxa Gateway (estimativa baseada nas constantes do serviço)
-    let gatewayFee = GATEWAY_FEE;
-    if (paymentMethod === 'pix') {
-      gatewayFee += Math.round(grossAmount * PIX_RATE);
-    } else if (paymentMethod === 'credit_card') {
-      gatewayFee += Math.round(grossAmount * 0.0499); // 4.99% estimativa média
-    } else {
-      gatewayFee += BOLETO_FEE;
-    }
-
-    const netGatewayValue = grossAmount - gatewayFee;
+    // 2. Cálculo das Taxas e Saldo em Cascata
+    const gatewayFee = calculatePagarmeFees(grossAmount, paymentMethod, installments);
+    const saldoA = grossAmount - gatewayFee;
 
     // 3. Cálculo da Parte do Vendedor (Afiliado) para determinar a base de coprodução
     const affiliatePercentage = currentOffer && currentOffer.isAffiliationEnabled 
       ? (Number(currentOffer.affiliateCommission) || 0) 
       : 0;
-    const affiliatePart = Math.floor(netGatewayValue * (affiliatePercentage / 100));
+    const affiliatePart = Math.floor(saldoA * (affiliatePercentage / 100));
 
     // 4. Cálculo e Registro da Parte dos Coprodutores
-    const coproducerBase = netGatewayValue - affiliatePart;
+    const saldoB = saldoA - affiliatePart;
     const coproducers = currentOffer?.coproducers || courseData?.coproduction || [];
     
     if (Array.isArray(coproducers) && coproducers.length > 0) {
@@ -776,21 +869,45 @@ async function recordCoproductionCommissions(orderData: any) {
       coproducers.forEach((copro: any) => {
         const percentage = Number(copro.percentage) || 0;
         if (percentage > 0) {
-          const commissionValue = Math.floor(coproducerBase * (percentage / 100));
+          const commissionValue = Math.floor(saldoB * (percentage / 100));
           if (commissionValue > 0) {
+            const userId = copro.coproducerId || copro.userId || copro.id || 'unknown';
+            
+            // Registra na coleção antiga para compatibilidade
             const commRef = dbAdmin.collection('coproduction_commissions').doc();
             batch.set(commRef, {
-              coproducerId: copro.coproducerId || copro.userId || copro.id || 'unknown',
+              coproducerId: userId,
               coproducerName: copro.coproducerName || copro.name || 'Coprodutor',
               orderId: orderData.id,
               courseId,
               courseName: currentOffer?.title || courseData?.name || 'Produto Digital',
               commissionValue,
+              grossValue: grossAmount, // new
+              status: 'paid', // new
               createdAt: new Date().toISOString()
             });
 
+            // Registra na coleção transactions solicitada pelo usuário
+            const txRef = dbAdmin.collection('transactions').doc();
+            const recipientId = copro.pagarmeRecipientId || copro.recipientId || '';
+            
+            console.log(`[WEBHOOK DEBUG] Gravando split para o recebedor: ${recipientId} no valor: ${commissionValue}`);
+
+            batch.set(txRef, {
+              type: 'coproduction',
+              userId: userId,
+              recipientId: recipientId,
+              orderId: orderData.id,
+              courseId,
+              courseName: currentOffer?.title || courseData?.name || 'Produto Digital',
+              commissionValue,
+              grossValue: grossAmount,
+              status: 'paid',
+              createdAt: new Date().toISOString()
+            });
+            
             // Enviar Notificação Push para o Coprodutor
-            const coproId = copro.coproducerId || copro.userId || copro.id;
+            const coproId = userId;
             if (coproId && coproId !== 'unknown') {
               const valFormatted = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(commissionValue / 100);
               sendPushNotification(

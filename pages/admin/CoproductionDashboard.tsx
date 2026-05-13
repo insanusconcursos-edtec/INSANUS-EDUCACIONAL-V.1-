@@ -99,6 +99,7 @@ const CoproductionDashboard: React.FC = () => {
   const [dateRange, setDateRange] = useState<'today' | '7d' | '30d' | 'month' | 'custom'>('30d');
   const [customStartDate, setCustomStartDate] = useState<string>('');
   const [customEndDate, setCustomEndDate] = useState<string>('');
+  const [withdrawalsAmount, setWithdrawalsAmount] = useState<number>(0);
 
   const dateFilter = useMemo(() => {
     const now = new Date();
@@ -137,32 +138,9 @@ const CoproductionDashboard: React.FC = () => {
   };
 
   const fetchBalance = async (recipientId: string) => {
-    setLoadingBalance(true);
-    try {
-      const response = await fetch(`/api/payments/pagarme/balance?recipientId=${recipientId}`);
-      let errorMessage = 'Falha ao carregar saldo';
-      if (!response.ok) {
-        try {
-          const errData = await response.json();
-          if (errData.error) errorMessage = errData.error;
-        } catch(e) {}
-        throw new Error(errorMessage);
-      }
-      const data = await response.json();
-      if (data.success) {
-        setBalance(data.balance);
-      } else {
-        // Fallback to zero if API returns success: false
-        setBalance({ available: 0, waiting_funds: 0 });
-        console.error("Dashboard Pagarme: Erro retornado pela API ->", data.error);
-      }
-    } catch (err: any) {
-      console.error('Error fetching Pagar.me balance:', err.message);
-      // Ensure UI shows 0,00 if error occurs, mas não trava
-      setBalance({ available: 0, waiting_funds: 0 });
-    } finally {
-      setLoadingBalance(false);
-    }
+    // A tela agora é responsiva via onSnapshot (tempo real) utilizando o Firebase DB diretamente
+    // Evita chamadas API para o Pagar.me ou rotas que podem estar bloqueadas ou retornar stale data.
+    console.log(`[CARTEIRA] Fetch balance request bypassado (usando tempo real localmente) para ${recipientId}`);
   };
 
   const handleRequestPayout = async () => {
@@ -330,7 +308,7 @@ const CoproductionDashboard: React.FC = () => {
       commissionsQuery = commissionsCollection;
     }
 
-    const unsubscribe = onSnapshot(commissionsQuery, 
+    const unsubscribeComms = onSnapshot(commissionsQuery, 
       (snapshot) => {
         const comms: Commission[] = snapshot.docs.map(doc => ({
           id: doc.id,
@@ -346,8 +324,122 @@ const CoproductionDashboard: React.FC = () => {
       }
     );
 
-    return () => unsubscribe();
-  }, [currentUser, dateFilter, isCoprodutorRole]); // Added dateFilter visibility to ensure range is handled if we pivot to server-side range later. Local filtering is safer for now if createdAt storage format is inconsistent.
+    const unsubscribeWithdrawals = () => {};
+    if (isCoprodutorRole && currentUser) {
+      // Usamos recipientId se já estiver carregado (do fetchBalance antigo) ou uid
+      // Para manter tudo reativo, podemos assinar withdrawals via userProfile
+    }
+
+    return () => {
+      unsubscribeComms();
+      unsubscribeWithdrawals();
+    };
+  }, [currentUser, dateFilter, isCoprodutorRole]); 
+
+  // Efeito isolado para a Carteira em tempo real
+  useEffect(() => {
+    if (!userProfile?.pagarmeRecipientId || !currentUser) return;
+    
+    setLoadingBalance(true);
+    console.log("[CARTEIRA DEBUG] Iniciando onSnapshot para:", userProfile.pagarmeRecipientId);
+
+    // 1. Assinatura de Saques
+    const wQuery = query(
+      collection(db, 'withdrawals'), 
+      where('recipientId', '==', userProfile.pagarmeRecipientId)
+    );
+    const unsubscribeWithdrawals = onSnapshot(wQuery, (snap) => {
+      let totalWd = 0;
+      snap.forEach(doc => totalWd += (doc.data().amount || 0));
+      setWithdrawalsAmount(totalWd);
+    });
+
+    // 2. Assinatura de Transações (Novo sistema via 'orders' e 'transactions')
+    const ordersQuery = query(
+      collection(db, 'orders'),
+      where('status', 'in', ['paid', 'succeeded'])
+    );
+
+    const unsubscribeOrders = onSnapshot(ordersQuery, async (snap) => {
+      let availTotal = 0;
+      let grossTotal = 0;
+      const myRecipientId = userProfile.pagarmeRecipientId;
+      const myEmail = currentUser.email?.toLowerCase();
+
+      console.log(`[INTEGRIDADE] Sincronizando carteira | Recebedor: ${myRecipientId}`);
+
+      snap.forEach(doc => {
+        const order = doc.data();
+        const splits = order.split_rules || order.splits || [];
+        
+        // 1. Busca por Recipient ID no Split (Prioridade Máxima)
+        const mySplit = splits.find((s: any) => s.recipient_id === myRecipientId);
+        
+        if (mySplit) {
+          const amount = mySplit.amount || 0;
+          availTotal += amount;
+          grossTotal += (order.amount || 0);
+          console.log(`[SPLIT] Processando regras para o recebedor ${myRecipientId} na ordem ${order.id}: ${amount} centavos`);
+        } else if (myEmail) {
+          // 2. Fallback por Email nos Metadados da Ordem
+          const meta = order.metadata || {};
+          const orderEmail = (meta.userEmail || meta.email || meta.affiliateEmail || '').toLowerCase();
+          
+          if (orderEmail === myEmail) {
+            console.log(`[INTEGRIDADE] Ordem ${order.id} corresponde ao seu email, mas seu recipientId não está no split. Verifique as configurações.`);
+            // Nota: Não somamos aqui para evitar duplicidade ou valores incorretos se o split for a fonte da verdade.
+            // O fallback real de valores vem do bloco 'availTotal === 0' abaixo (Legado).
+          }
+        }
+      });
+
+      console.log(`[CARTEIRA DEBUG] Vendas em 'orders' encontradas: ${snap.size}. Saldo: ${availTotal}`);
+
+      // Se orders estiver com pouco dado, tenta comissões legadas
+      if (availTotal === 0) {
+        try {
+          if (userRole === 'ADMIN' || userRole === 'OWNER') {
+            const adminSnap = await getDocs(collection(db, 'admin_sales_report'));
+            adminSnap.forEach(doc => {
+              const d = doc.data();
+              availTotal += (d.netCompanyValue || 0);
+              grossTotal += (d.grossValue || d.amount || 0);
+            });
+          } else {
+            const qUid = query(collection(db, 'coproduction_commissions'), where('coproducerId', '==', currentUser.uid));
+            const qEmail = query(collection(db, 'coproduction_commissions'), where('coproducerEmail', '==', currentUser.email));
+            const [snapUid, snapEmail] = await Promise.all([getDocs(qUid), getDocs(qEmail)]);
+            const seenOrders = new Set();
+            [...snapUid.docs, ...snapEmail.docs].forEach(doc => {
+              const d = doc.data();
+              if (!seenOrders.has(d.orderId)) {
+                seenOrders.add(d.orderId);
+                availTotal += (d.commissionValue || 0);
+                grossTotal += (d.grossValue || d.commissionValue || 0);
+              }
+            });
+          }
+        } catch (err) {
+          console.error("[CARTEIRA ERROR] Fallback legado:", err);
+        }
+      }
+
+      setBalance((prev: any) => ({
+        ...prev,
+        available: availTotal - withdrawalsAmount,
+        total_sales: grossTotal,
+        waiting_funds: 0
+      }));
+      setLoadingBalance(false);
+    });
+
+    return () => {
+      unsubscribeWithdrawals();
+      unsubscribeOrders();
+    };
+  }, [userProfile?.pagarmeRecipientId, currentUser, userRole, withdrawalsAmount]);
+
+
 
   // Main Logic: Group gains by Coproducer
   const coproducerGains = useMemo(() => {
@@ -687,7 +779,9 @@ const CoproductionDashboard: React.FC = () => {
             </div>
             <p className="text-[10px] text-gray-500 font-bold tracking-[0.2em] uppercase mb-1">Saldo Disponível</p>
             <h3 className="text-2xl font-black text-green-400 tracking-tighter">
-              {loadingBalance ? "..." : formatCurrency((balance?.available || 0) / 100)}
+              {loadingBalance ? (
+                <span className="text-xs font-medium animate-pulse text-gray-500">Sincronizando...</span>
+              ) : formatCurrency((balance?.available || 0) / 100)}
             </h3>
             <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
                <Wallet className="w-24 h-24" />
@@ -706,7 +800,9 @@ const CoproductionDashboard: React.FC = () => {
             </div>
             <p className="text-[10px] text-gray-500 font-bold tracking-[0.2em] uppercase mb-1">A Receber</p>
             <h3 className="text-2xl font-black text-amber-400 tracking-tighter">
-              {loadingBalance ? "..." : formatCurrency((balance?.waiting_funds || 0) / 100)}
+              {loadingBalance ? (
+                <span className="text-xs font-medium animate-pulse text-gray-500">Calculando...</span>
+              ) : formatCurrency((balance?.waiting_funds || 0) / 100)}
             </h3>
             <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
                <Lock className="w-24 h-24" />
@@ -723,9 +819,11 @@ const CoproductionDashboard: React.FC = () => {
                 <ShoppingBag className="w-5 h-5 text-green-400" />
               </div>
             </div>
-            <p className="text-[10px] text-gray-500 font-bold tracking-[0.2em] uppercase mb-1">Total de Vendas</p>
+            <p className="text-[10px] text-gray-500 font-bold tracking-[0.2em] uppercase mb-1">Vendas Totais (Bruto)</p>
             <h3 className="text-2xl font-black text-white tracking-tighter">
-              {globalStats.count}
+              {loadingBalance ? (
+                <span className="text-xs font-medium animate-pulse text-gray-500">Processando...</span>
+              ) : formatCurrency(((balance as any)?.total_sales || 0) / 100)}
             </h3>
             <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
                <ShoppingBag className="w-24 h-24" />

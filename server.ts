@@ -4,7 +4,24 @@ import { fetchPandaVideoTranscription } from './src/backend/services/pandaVideoS
 import { generateStudyMaterial } from './src/backend/services/geminiService.js';
 import { getAdminConfig } from './src/backend/services/firebaseAdmin.js';
 import { provisionExternalPurchase, revokePurchase } from './src/backend/services/provisioningService.js';
-import { createPagarmeOrder, handlePagarmeWebhook, getPagarmeOrderStatus, getPagarmeRecipientBalance, requestPagarmeTransfer } from './src/backend/services/pagarmeService.js';
+import { createPagarmeOrder, handlePagarmeWebhook, getPagarmeOrderStatus, requestPagarmeTransfer } from './src/backend/services/pagarmeService.js';
+import { calculateRecipientBalance } from './src/backend/services/walletService.js';
+
+// Monkey patch console.log to use process.stdout.write for Vercel
+const originalLog = console.log;
+const originalError = console.error;
+
+console.log = (...args) => {
+  const msg = args.map(arg => (typeof arg === 'object' ? JSON.stringify(arg) : arg)).join(' ');
+  process.stdout.write(msg + '\n');
+  originalLog.apply(console, args);
+};
+
+console.error = (...args) => {
+  const msg = args.map(arg => (typeof arg === 'object' ? JSON.stringify(arg) : arg)).join(' ');
+  process.stderr.write(msg + '\n');
+  originalError.apply(console, args);
+};
 
 // const __filename = fileURLToPath(import.meta.url);
 // __dirname is not used in this file, but kept for reference if needed
@@ -755,10 +772,12 @@ async function setupVite(app: any) {
   app.get('/api/payments/pagarme/balance', async (req, res) => {
     try {
       const recipientId = req.query.recipientId as string;
+      const email = req.query.userEmail as string; // Adicionado suporte para email
       if (!recipientId) {
         return res.status(400).json({ success: false, error: 'recipientId é obrigatório' });
       }
-      const balance = await getPagarmeRecipientBalance(recipientId);
+      // [INTEGRIDADE] Usando novo serviço ReadOnly baseado em consulta de dados de orders
+      const balance = await calculateRecipientBalance(recipientId, email);
       return res.status(200).json({ success: true, balance });
     } catch (error: any) {
       console.error("Erro ao consultar saldo Pagar.me:", error);
