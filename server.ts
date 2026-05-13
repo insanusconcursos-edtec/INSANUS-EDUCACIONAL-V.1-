@@ -1,4 +1,5 @@
-process.stdout.write(">>>> [INTEGRIDADE] SERVIDOR REESTABELECIDO <<<<\n");
+process.stdout.write(">>>> [DIAGNOSTICO] SERVIDOR INICIANDO - LINHA 1 <<<<\n");
+console.log(">>>> [DIAGNOSTICO] SERVIDOR INICIANDO - CONSOLE.LOG TEST <<<<");
 
 import express from 'express';
 import path from 'path';
@@ -13,17 +14,34 @@ import { calculateRecipientBalance } from './src/backend/services/walletService.
 const originalLog = console.log;
 const originalError = console.error;
 
+const safeFormat = (arg: any) => {
+  if (arg === null) return 'null';
+  if (arg === undefined) return 'undefined';
+  if (arg instanceof Error) return `[Error: ${arg.message}]\n${arg.stack}`;
+  if (typeof arg === 'object') {
+    try {
+      return JSON.stringify(arg);
+    } catch {
+      return '[Circular or Non-Stringifiable Object]';
+    }
+  }
+  return String(arg);
+};
+
 console.log = (...args) => {
-  const msg = args.map(arg => (typeof arg === 'object' ? JSON.stringify(arg) : arg)).join(' ');
-  process.stdout.write(msg + '\n');
+  const msg = args.map(safeFormat).join(' ');
+  process.stdout.write('LOG: ' + msg + '\n');
   originalLog.apply(console, args);
 };
 
 console.error = (...args) => {
-  const msg = args.map(arg => (typeof arg === 'object' ? JSON.stringify(arg) : arg)).join(' ');
-  process.stderr.write(msg + '\n');
+  const msg = args.map(safeFormat).join(' ');
+  process.stderr.write('ERROR: ' + msg + '\n');
   originalError.apply(console, args);
 };
+
+process.stdout.write(">>>> [SISTEMA] SERVIDOR INICIALIZADO COM SUCESSO <<<<\n");
+process.stdout.write(">>>> [SISTEMA] FORCE OUTPUT TEST <<<<\n");
 
 // const __filename = fileURLToPath(import.meta.url);
 // __dirname is not used in this file, but kept for reference if needed
@@ -81,6 +99,23 @@ const PORT = 3000;
 try {
   // No Vercel, o middleware da rota /api/index.ts já cuida do roteamento
   // mas mantemos as rotas aqui para o dev server
+
+app.get('/api/log-test', (req, res) => {
+  console.log(">>>> [TESTE] LOG VIA CONSOLE.LOG <<<<");
+  process.stdout.write(">>>> [TESTE] LOG VIA STDOUT.WRITE <<<<\n");
+  res.json({ 
+    success: true, 
+    message: "Logs enviados para stdout",
+    env: {
+      VERCEL: process.env.VERCEL,
+      NODE_ENV: process.env.NODE_ENV
+    }
+  });
+});
+
+app.get('/api/health', (req, res) => {
+  res.status(200).send('OK');
+});
 
 // Middleware para JSON
 app.use(express.json());
