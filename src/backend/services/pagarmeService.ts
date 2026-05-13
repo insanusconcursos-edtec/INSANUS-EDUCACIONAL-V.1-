@@ -674,6 +674,14 @@ async function recordAffiliateCommission(orderData: any) {
     const saldoA = grossAmount - pagarmeFee;
     const commissionEarned = Math.floor(saldoA * (percentualVendedor / 100));
 
+    // EXTRAÇÃO DE DADOS DO CLIENTE PARA O RELATÓRIO
+    const customerName = orderData.metadata?.userName || orderData.customer?.name || 'Cliente';
+    const customerEmail = orderData.metadata?.userEmail || orderData.customer?.email || 'N/A';
+    const customerPhone = orderData.metadata?.userPhone || 
+      (orderData.customer?.phones?.mobile_phone 
+        ? `+${orderData.customer.phones.mobile_phone.country_code}${orderData.customer.phones.mobile_phone.area_code}${orderData.customer.phones.mobile_phone.number}`
+        : 'N/A');
+
     // 3. Salva na coleção solicitada: affiliate_commissions
     await dbAdmin.collection('affiliate_commissions').add({
       affiliateId,
