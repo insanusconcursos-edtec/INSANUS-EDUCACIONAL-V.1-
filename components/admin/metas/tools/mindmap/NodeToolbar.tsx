@@ -22,7 +22,6 @@ const PRESET_COLORS = [
 
 interface NodeToolbarProps {
   node: MindMapNode;
-  position: { x: number; y: number };
   onUpdate: (id: string, data: Partial<MindMapNode>) => void;
   onAddChild: (parentId: string) => void;
   onDelete: (id: string) => void;
@@ -31,7 +30,7 @@ interface NodeToolbarProps {
   onAddNote: (nodeId: string) => void; // New Prop
 }
 
-export default function NodeToolbar({ node, position, onUpdate, onAddChild, onDelete, onClose, onReorder, onAddNote }: NodeToolbarProps) {
+export default function NodeToolbar({ node, onUpdate, onAddChild, onDelete, onClose, onReorder, onAddNote }: NodeToolbarProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [customNodeColor, setCustomNodeColor] = useState(node.color || '#a855f7');
   const [hiliteColor, setHiliteColor] = useState('#facc15'); // Cor padrão do marca-texto (Amarelo)
@@ -66,21 +65,9 @@ export default function NodeToolbar({ node, position, onUpdate, onAddChild, onDe
     onUpdate(node.id, { color: hex });
   };
 
-  // Lógica Adaptativa de Posicionamento
-  // Se a imagem estiver no topo, a toolbar fica embaixo (translate Y=0). 
-  // Se não, fica em cima (translate Y=-100%).
-  const isImageTop = node.media?.position === 'top';
-
   return (
     <div 
-      className="absolute z-[120] flex flex-col gap-3 rounded-xl border border-zinc-700 bg-zinc-900/95 p-4 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-200 w-[340px]"
-      style={{ 
-        left: position.x, 
-        // Se imagem top, empurra pra baixo (+15px de margem). Se normal, empurra pra cima (-15px).
-        top: isImageTop ? position.y + 15 : position.y - 15,
-        // Altera ponto de origem da transformação
-        transform: isImageTop ? 'translate(-50%, 0)' : 'translate(-50%, -100%)'
-      }}
+      className="fixed z-[120] top-[50%] right-8 -translate-y-1/2 flex flex-col gap-3 rounded-xl border border-zinc-700 bg-zinc-900/95 p-4 shadow-2xl backdrop-blur-xl animate-in fade-in slide-in-from-right-8 duration-200 w-[340px] max-h-[90vh] overflow-y-auto custom-scrollbar"
       onMouseDown={(e) => e.stopPropagation()} 
       onClick={(e) => e.stopPropagation()}
     >

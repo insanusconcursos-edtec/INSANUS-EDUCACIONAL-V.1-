@@ -100,7 +100,6 @@ const MindMapFullscreen: React.FC<MindMapFullscreenProps> = ({ nodes, onChange, 
 
   // Toolbar State
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [toolbarPos, setToolbarPos] = useState<{x: number, y: number} | null>(null);
 
   // Notes State
   const [editingNote, setEditingNote] = useState<PostItNote | undefined>(undefined); // If set, editor open
@@ -413,21 +412,7 @@ const MindMapFullscreen: React.FC<MindMapFullscreenProps> = ({ nodes, onChange, 
       });
   };
 
-  // Update Toolbar Position
-  useEffect(() => {
-      if (selectedId) {
-          const el = document.getElementById(`node-${selectedId}`);
-          if (el) {
-              const rect = el.getBoundingClientRect();
-              setToolbarPos({
-                  x: rect.left + rect.width / 2,
-                  y: rect.top
-              });
-          }
-      } else {
-          setToolbarPos(null);
-      }
-  }, [selectedId, scale, position, treeData]);
+
 
   // Get current notes being viewed
   const viewingNode = viewingNotesId && treeData ? findNode(treeData, viewingNotesId) : null;
@@ -476,10 +461,9 @@ const MindMapFullscreen: React.FC<MindMapFullscreenProps> = ({ nodes, onChange, 
             )}
         </div>
 
-        {!readOnly && selectedId && toolbarPos && treeData && findNode(treeData, selectedId) && (
+        {!readOnly && selectedId && treeData && findNode(treeData, selectedId) && (
             <NodeToolbar 
                 node={findNode(treeData, selectedId)!}
-                position={toolbarPos}
                 onUpdate={(id, data) => handleUpdateNode(id, data)}
                 onAddChild={handleAddChild}
                 onDelete={handleDeleteNode}
