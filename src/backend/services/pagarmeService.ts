@@ -273,16 +273,32 @@ export const createPagarmeOrder = async (orderData: any, initialCoproducers: any
   };
 
   // Critical Log for Auditing as requested
-  console.log("🚀 [Pagarme] Payload Final do Pedido:", JSON.stringify(payload, null, 2));
+  const safePayload = JSON.parse(JSON.stringify(payload));
+  if (safePayload.payments && safePayload.payments[0] && safePayload.payments[0].credit_card && safePayload.payments[0].credit_card.card) {
+      safePayload.payments[0].credit_card.card.number = '***';
+      safePayload.payments[0].credit_card.card.cvv = '***';
+  }
+  console.log("🚀 [Pagarme] Payload Final do Pedido (Safe):", JSON.stringify(safePayload, null, 2));
 
   try {
+    console.log("🚀 [Pagarme] Iniciando requisição para Pagar.me com axios nativo (SEM proxy da Webshare)...");
     const axios = (await import('axios')).default;
-    const response = await axios.post(PAGARME_API_URL, payload, {
-      headers: getHeaders(),
-      proxy: false
-    });
-
-    const result = response.data;
+    
+    let result;
+    try {
+      const response = await axios.post(PAGARME_API_URL, payload, {
+        headers: getHeaders(),
+        proxy: false
+      });
+      result = response.data;
+    } catch (reqError: any) {
+      console.error("🚨 [Pagarme] FALHA CRÍTICA DE REDE/API NA CRIAÇÃO DO PEDIDO:", reqError.message);
+      if (reqError.response) {
+        console.error("🚨 [Pagarme] HTTP Status:", reqError.response.status);
+        console.error("🚨 [Pagarme] Response Data do ERRO:", JSON.stringify(reqError.response.data, null, 2));
+      }
+      throw reqError; // Rethrow to be caught by the outer catch
+    }
 
     // Check for payment failure in the charge
     const charge = result.charges?.[0];
