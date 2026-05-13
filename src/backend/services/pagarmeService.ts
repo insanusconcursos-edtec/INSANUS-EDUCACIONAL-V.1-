@@ -276,20 +276,13 @@ export const createPagarmeOrder = async (orderData: any, initialCoproducers: any
   console.log("🚀 [Pagarme] Payload Final do Pedido:", JSON.stringify(payload, null, 2));
 
   try {
-    const response = await fetch(PAGARME_API_URL, {
-      method: 'POST',
+    const axios = (await import('axios')).default;
+    const response = await axios.post(PAGARME_API_URL, payload, {
       headers: getHeaders(),
-      body: JSON.stringify(payload)
+      proxy: false
     });
 
-    const result = await response.json();
-
-    if (!response.ok) {
-      console.error('[Pagarme] API Error:', result);
-      // Pagar.me often returns errors in an 'errors' array or just a 'message'
-      const errorMessage = result.message || (result.errors && result.errors[0]?.message);
-      throw new Error(errorMessage || 'Erro ao criar pedido no Pagar.me');
-    }
+    const result = response.data;
 
     // Check for payment failure in the charge
     const charge = result.charges?.[0];
@@ -333,6 +326,18 @@ export const createPagarmeOrder = async (orderData: any, initialCoproducers: any
 
     return result;
   } catch (error: any) {
+    if (error.response) {
+      console.error('[Pagarme] API Error:', error.response.data);
+      const result = error.response.data;
+      const errorMessage = result.message || (result.errors && result.errors[0]?.message);
+      
+      console.error('[Pagarme] fetch error details:', {
+        message: errorMessage || error.message,
+        pagarmeResponse: JSON.stringify(result, null, 2)
+      });
+      throw new Error(errorMessage || 'Erro ao criar pedido no Pagar.me');
+    }
+
     console.error('[Pagarme] fetch error details:', {
       message: error.message,
       stack: error.stack,
@@ -581,21 +586,19 @@ export const getPagarmeOrderStatus = async (orderId: string) => {
   console.log(`[Pagarme] Checking status for order: ${orderId}`);
   
   try {
-    const response = await fetch(`${PAGARME_API_URL}/${orderId}`, {
-      method: 'GET',
-      headers: getHeaders()
+    const axios = (await import('axios')).default;
+    const response = await axios.get(`${PAGARME_API_URL}/${orderId}`, {
+      headers: getHeaders(),
+      proxy: false
     });
 
-    const result = await response.json();
-
-    if (!response.ok) {
-      console.error('[Pagarme] Status Check API Error:', result);
+    return response.data;
+  } catch (error: any) {
+    if (error.response) {
+      console.error('[Pagarme] Status Check API Error:', error.response.data);
       throw new Error('Erro ao consultar status no Pagar.me');
     }
-
-    return result;
-  } catch (error) {
-    console.error('[Pagarme] Error checking order status:', error);
+    console.error('[Pagarme] Error checking order status:', error.message);
     throw error;
   }
 };
