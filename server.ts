@@ -67,9 +67,8 @@ interface StudentProfile {
 const app = express();
 const PORT = 3000;
 
-try {
-  // No Vercel, o middleware da rota /api/index.ts já cuida do roteamento
-  // mas mantemos as rotas aqui para o dev server
+// No Vercel, o middleware da rota /api/index.ts já cuida do roteamento
+// mas mantemos as rotas aqui para o dev server
 
 app.get('/api/log-test', (req, res) => {
   console.log(">>>> [TESTE] LOG ENVIADO PARA VERCEL <<<<");
@@ -955,8 +954,8 @@ async function setupVite(app: any) {
     }
   });
 
-  // Função auxiliar extractPandaId
-  function extractPandaId(url: string): string | null {
+// Função auxiliar extractPandaId
+function extractPandaId(url: string): string | null {
     try {
       if (!url) return null;
       if (!url.includes('http')) return url.split('?v=')[1] || url.split('/embed/')[1] || url.split('/video/')[1] || url;
@@ -993,17 +992,13 @@ async function startServer() {
       });
     }
   } catch (error) {
-    process.stderr.write(`>>>> [FATAL-ERROR] FALHA NA INICIALIZAÇÃO DO SERVIDOR: ${error instanceof Error ? error.message : String(error)} <<<<\n`);
+    console.error(`>>>> [FATAL-ERROR] FALHA NA INICIALIZAÇÃO DO SERVIDOR: ${error instanceof Error ? error.message : String(error)} <<<<`);
   }
 }
 
 // Start the server if we're not being imported as a module (simple check)
 if (!process.env.VERCEL) {
   startServer();
-}
-
-} catch (globalError) {
-  process.stderr.write(`>>>> [FATAL-ERROR] ERRO NO CONTEXTO GLOBAL DO SERVIDOR: ${globalError instanceof Error ? globalError.message : String(globalError)} <<<<\n`);
 }
 
 export default app;
