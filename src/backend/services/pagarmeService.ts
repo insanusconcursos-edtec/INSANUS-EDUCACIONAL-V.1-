@@ -21,7 +21,7 @@ const INSTALLMENT_MULTIPLIERS: Record<number, number> = {
 };
 
 const getHeaders = () => {
-  const secretKey = process.env.PAGARME_API_KEY || process.env.PAGARME_SECRET_KEY;
+  const secretKey = (process.env.PAGARME_API_KEY || process.env.PAGARME_SECRET_KEY || '').trim();
   if (!secretKey) throw new Error('PAGARME_SECRET_KEY/PAGARME_API_KEY not found in environment');
   
   const auth = Buffer.from(`${secretKey}:`).toString('base64');
@@ -318,13 +318,29 @@ export const createPagarmeOrder = async (orderData: any, initialCoproducers: any
   console.log("🚀 [Pagarme] Payload Final do Pedido (Safe):", JSON.stringify(safePayload, null, 2));
 
   try {
-    console.log("[CHECKOUT] Iniciando criação de pedido via CONEXÃO DIRETA (Sem Proxy)");
-    const directClient = await getPagarmeDirectClient();
+    console.log("[CHECKOUT] Iniciando criação de pedido via CONEXÃO DIRETA (Sem Proxy utilizando fetch nativo)");
     
     let result;
     try {
-      const response = await directClient.post(PAGARME_API_URL, payload);
-      result = response.data;
+      const response = await fetch(PAGARME_API_URL, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(payload)
+      });
+      
+      const responseText = await response.text();
+      try {
+        result = JSON.parse(responseText);
+      } catch (e) {
+        throw new Error(`Resposta não-JSON da Pagar.me: ${responseText.substring(0, 200)}`);
+      }
+
+      if (!response.ok) {
+        const errorObj: any = new Error(result.message || 'Erro na requisição');
+        errorObj.response = { status: response.status, data: result };
+        throw errorObj;
+      }
+      
     } catch (reqError: any) {
       console.error("[CRITICAL-CHECKOUT]", reqError.message);
       console.error("🚨 [Pagarme] FALHA CRÍTICA DE REDE/API NA CRIAÇÃO DO PEDIDO:", reqError.message);
@@ -569,10 +585,26 @@ export const getPagarmeOrderStatus = async (orderId: string) => {
   console.log(`[Pagarme] Checking status for order: ${orderId}`);
   
   try {
-    const directClient = await getPagarmeDirectClient();
-    const response = await directClient.get(`${PAGARME_API_URL}/${orderId}`);
+    const response = await fetch(`${PAGARME_API_URL}/${orderId}`, {
+      method: 'GET',
+      headers: getHeaders()
+    });
 
-    return response.data;
+    const responseText = await response.text();
+    let result;
+    try {
+        result = JSON.parse(responseText);
+    } catch (e) {
+        throw new Error(`Resposta não-JSON: ${responseText.substring(0, 100)}`);
+    }
+    
+    if (!response.ok) {
+        const err: any = new Error(result.message || 'Erro na requisição');
+        err.response = { status: response.status, data: result };
+        throw err;
+    }
+
+    return result;
   } catch (error: any) {
     if (error.response) {
       console.error('[Pagarme] Status Check API Error:', error.response.data);
