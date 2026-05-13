@@ -32,6 +32,41 @@ const getHeaders = () => {
   };
 };
 
+const getPagarmeDirectClient = async () => {
+  const axios = (await import('axios')).default;
+  return axios.create({
+    headers: getHeaders(),
+    proxy: false
+  });
+};
+
+const getPagarmeProxyClient = async () => {
+  const axios = (await import('axios')).default;
+  const proxyUrl = process.env.PROXY_URL || process.env.FIXIE_URL;
+  const HttpsProxyAgent = (await import('https-proxy-agent')).HttpsProxyAgent;
+  
+  let httpsAgent;
+  if (proxyUrl) {
+    const parsed = new URL(proxyUrl);
+    let agentOptions: any = { keepAlive: true, timeout: 30000 };
+    if (parsed.username && parsed.password) {
+      const proxyAuth = Buffer.from(`${parsed.username}:${parsed.password}`).toString('base64');
+      agentOptions.headers = { 'Proxy-Authorization': `Basic ${proxyAuth}` };
+      const cleanProxyUrl = `${parsed.protocol}//${parsed.host}`;
+      httpsAgent = new (HttpsProxyAgent as any)(cleanProxyUrl, agentOptions);
+    } else {
+      httpsAgent = new (HttpsProxyAgent as any)(proxyUrl, agentOptions);
+    }
+  }
+
+  return axios.create({
+    headers: getHeaders(),
+    httpsAgent,
+    proxy: false, // Ignora proxy nativo do axios para forçar o HttpsProxyAgent
+    timeout: 30000
+  });
+};
+
 export const createPagarmeOrder = async (orderData: any, initialCoproducers: any[] = []) => {
   console.log('[Pagarme] 🛒 Iniciando criação de pedido para:', orderData.description);
   const { dbAdmin } = getAdminConfig();
@@ -281,17 +316,15 @@ export const createPagarmeOrder = async (orderData: any, initialCoproducers: any
   console.log("🚀 [Pagarme] Payload Final do Pedido (Safe):", JSON.stringify(safePayload, null, 2));
 
   try {
-    console.log("🚀 [Pagarme] Iniciando requisição para Pagar.me com axios nativo (SEM proxy da Webshare)...");
-    const axios = (await import('axios')).default;
+    console.log("[CHECKOUT] Iniciando criação de pedido via CONEXÃO DIRETA (Sem Proxy)");
+    const directClient = await getPagarmeDirectClient();
     
     let result;
     try {
-      const response = await axios.post(PAGARME_API_URL, payload, {
-        headers: getHeaders(),
-        proxy: false
-      });
+      const response = await directClient.post(PAGARME_API_URL, payload);
       result = response.data;
     } catch (reqError: any) {
+      console.error("[CRITICAL-CHECKOUT]", reqError.message);
       console.error("🚨 [Pagarme] FALHA CRÍTICA DE REDE/API NA CRIAÇÃO DO PEDIDO:", reqError.message);
       if (reqError.response) {
         console.error("🚨 [Pagarme] HTTP Status:", reqError.response.status);
@@ -380,43 +413,14 @@ export const getPagarmeRecipientBalance = async (recipientId: string) => {
 
   console.log(`[Pagarme] Consulta de saldo para o recebedor: ${actualRecipientId}`);
 
-  const proxyUrl = process.env.PROXY_URL || process.env.FIXIE_URL;
-  const HttpsProxyAgent = (await import('https-proxy-agent')).HttpsProxyAgent;
-  const axios = (await import('axios')).default;
-  
-  let proxyAgent;
-  if (proxyUrl) {
-    const parsed = new URL(proxyUrl);
-    let agentOptions: any = { keepAlive: true, timeout: 30000 };
-    if (parsed.username && parsed.password) {
-      const proxyAuth = Buffer.from(`${parsed.username}:${parsed.password}`).toString('base64');
-      agentOptions.headers = { 'Proxy-Authorization': `Basic ${proxyAuth}` };
-      const cleanProxyUrl = `${parsed.protocol}//${parsed.host}`;
-      proxyAgent = new (HttpsProxyAgent as any)(cleanProxyUrl, agentOptions);
-    } else {
-      proxyAgent = new (HttpsProxyAgent as any)(proxyUrl, agentOptions);
-    }
-  }
-
-  // Autenticação Explícita - Manual
-  const api_key = process.env.PAGARME_API_KEY || process.env.PAGARME_SECRET_KEY || '';
-  if (!api_key) throw new Error('API Key da Pagar.me não encontrada.');
-  const auth = Buffer.from(api_key + ":").toString("base64");
-
-  console.log("[Pagarme] Verificando Key: " + api_key.substring(0, 5) + "****");
-
-  const headers = {
-    'Authorization': `Basic ${auth}`,
-    'Content-Type': 'application/json',
-    'Accept': 'application/json'
-  };
-
+  const proxyClient = await getPagarmeProxyClient();
   const url = `https://api.pagar.me/core/v5/recipients/${actualRecipientId.trim()}/balance`;
   console.log("[Pagarme] Tentando consulta de saldo na URL:", url);
   
   try {
     try {
-      const test = await axios.get('https://api.ipify.org?format=json', { httpsAgent: proxyAgent });
+      const axios = (await import('axios')).default;
+      const test = await axios.get('https://api.ipify.org?format=json', { httpsAgent: proxyClient.defaults.httpsAgent });
       console.log("[CHECK-TÚNEL] O proxy está respondendo? Sim. IP:", test.data.ip);
     } catch (e: any) {
       console.log("[CHECK-TÚNEL] O proxy FALHOU:", e.message);
@@ -426,12 +430,7 @@ export const getPagarmeRecipientBalance = async (recipientId: string) => {
     const maxRetries = 1;
     for (let i = 0; i <= maxRetries; i++) {
         try {
-            response = await axios.get(url, {
-                headers: headers,
-                httpsAgent: proxyAgent,
-                proxy: false,
-                timeout: 30000
-            });
+            response = await proxyClient.get(url);
             break;
         } catch (error: any) {
             if (i < maxRetries && error.response && (error.response.status === 502 || error.response.status === 407 || error.response.status === 503 || error.response.status === 504)) {
@@ -466,55 +465,28 @@ export const requestPagarmeTransfer = async (recipientId: string, amount: number
 
   console.log(`[Pagarme] Requesting transfer for recipient: ${actualRecipientId}, amount: ${amount}`);
   
-  const proxyUrl = process.env.PROXY_URL || process.env.FIXIE_URL;
-  const HttpsProxyAgent = (await import('https-proxy-agent')).HttpsProxyAgent;
-  const axios = (await import('axios')).default;
-  
-  let proxyAgent;
-  if (proxyUrl) {
-    const parsed = new URL(proxyUrl);
-    let agentOptions: any = { keepAlive: true, timeout: 30000 };
-    if (parsed.username && parsed.password) {
-      const proxyAuth = Buffer.from(`${parsed.username}:${parsed.password}`).toString('base64');
-      agentOptions.headers = { 'Proxy-Authorization': `Basic ${proxyAuth}` };
-      const cleanProxyUrl = `${parsed.protocol}//${parsed.host}`;
-      proxyAgent = new (HttpsProxyAgent as any)(cleanProxyUrl, agentOptions);
-    } else {
-      proxyAgent = new (HttpsProxyAgent as any)(proxyUrl, agentOptions);
-    }
-  }
-
-  // Autenticação Explícita - Manual
-  const api_key = process.env.PAGARME_API_KEY || process.env.PAGARME_SECRET_KEY || '';
-  if (!api_key) throw new Error('API Key da Pagar.me não encontrada.');
-  const auth = Buffer.from(api_key + ":").toString("base64");
-
-  console.log("[Pagarme] Verificando Key: " + api_key.substring(0, 5) + "****");
-
-  const headers = {
-    'Authorization': `Basic ${auth}`,
-    'Content-Type': 'application/json',
-    'Accept': 'application/json',
-    'Idempotency-Key': `saque_master_${Date.now()}`
-  };
+  const proxyClient = await getPagarmeProxyClient();
 
   try {
     try {
-      const ipCheck = await axios.get('https://ifconfig.me/ip', { httpsAgent: proxyAgent, proxy: false });
+      const axios = (await import('axios')).default;
+      const ipCheck = await axios.get('https://ifconfig.me/ip', { httpsAgent: proxyClient.defaults.httpsAgent, proxy: false });
       console.log(`[DEBUG-SAQUE] Iniciando transferência via IP: ${ipCheck.data}`);
     } catch (ipErr: any) {
       console.log("[DEBUG-SAQUE] Falha ao verificar IP do túnel:", ipErr.message);
     }
 
     try {
-      const test1 = await axios.get('https://api-bd.pagar.me/ip', { httpsAgent: proxyAgent, proxy: false });
+      const axios = (await import('axios')).default;
+      const test1 = await axios.get('https://api-bd.pagar.me/ip', { httpsAgent: proxyClient.defaults.httpsAgent, proxy: false });
       console.log("[IP-CHECK-PAGARME] O que a Pagar.me vê:", typeof test1.data === 'object' ? JSON.stringify(test1.data) : test1.data);
     } catch (e: any) {
       console.log("[IP-CHECK-PAGARME] Erro ao verificar IP na Pagar.me:", e.message);
     }
 
     try {
-      const test2 = await axios.get('https://icanhazip.com', { httpsAgent: proxyAgent, proxy: false });
+      const axios = (await import('axios')).default;
+      const test2 = await axios.get('https://icanhazip.com', { httpsAgent: proxyClient.defaults.httpsAgent, proxy: false });
       console.log("[IP-CHECK-EXTERNO] IP de saída real:", typeof test2.data === 'object' ? JSON.stringify(test2.data) : test2.data?.trim());
     } catch (e: any) {
       console.log("[IP-CHECK-EXTERNO] Erro ao verificar IP externo:", e.message);
@@ -522,11 +494,7 @@ export const requestPagarmeTransfer = async (recipientId: string, amount: number
 
     // 1. Log Detalhado do Recebedor
     try {
-      const recipientInfoRes = await axios.get(`https://api.pagar.me/core/v5/recipients/${actualRecipientId.trim()}`, {
-        headers,
-        httpsAgent: proxyAgent,
-        proxy: false
-      });
+      const recipientInfoRes = await proxyClient.get(`https://api.pagar.me/core/v5/recipients/${actualRecipientId.trim()}`);
       console.log(`[PAGARME-V5] Status do recebedor (${actualRecipientId}): ${recipientInfoRes.data?.status}`);
     } catch (err: any) {
       console.log(`[PAGARME-V5] Erro ao buscar status do recebedor:`, err.message);
@@ -555,13 +523,10 @@ export const requestPagarmeTransfer = async (recipientId: string, amount: number
     const maxRetries = 1;
     for (let i = 0; i <= maxRetries; i++) {
         try {
-            response = await axios.post(`https://api.pagar.me/core/v5/recipients/${actualRecipientId.trim()}/transfers`, {
+            response = await proxyClient.post(`https://api.pagar.me/core/v5/recipients/${actualRecipientId.trim()}/transfers`, {
                 amount: liquidAmount
             }, {
-                headers: headers,
-                httpsAgent: proxyAgent,
-                proxy: false,
-                timeout: 30000
+                headers: { 'Idempotency-Key': `saque_master_${Date.now()}` }
             });
             break;
         } catch (error: any) {
@@ -602,11 +567,8 @@ export const getPagarmeOrderStatus = async (orderId: string) => {
   console.log(`[Pagarme] Checking status for order: ${orderId}`);
   
   try {
-    const axios = (await import('axios')).default;
-    const response = await axios.get(`${PAGARME_API_URL}/${orderId}`, {
-      headers: getHeaders(),
-      proxy: false
-    });
+    const directClient = await getPagarmeDirectClient();
+    const response = await directClient.get(`${PAGARME_API_URL}/${orderId}`);
 
     return response.data;
   } catch (error: any) {
