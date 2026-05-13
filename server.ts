@@ -7,6 +7,9 @@ import { provisionExternalPurchase, revokePurchase } from './src/backend/service
 import { createPagarmeOrder, handlePagarmeWebhook, getPagarmeOrderStatus, requestPagarmeTransfer } from './src/backend/services/pagarmeService.js';
 import { calculateRecipientBalance } from './src/backend/services/walletService.js';
 
+console.log(">>>> [SISTEMA] SERVIDOR INICIALIZADO COM SUCESSO <<<<");
+process.stdout.write(">>>> [SISTEMA] FORCE OUTPUT TEST <<<<\n");
+
 // Monkey patch console.log to use process.stdout.write for Vercel
 const originalLog = console.log;
 const originalError = console.error;
@@ -688,6 +691,7 @@ async function setupVite(app: any) {
 
   // Rota de Criação de Pagamento Pagar.me
   app.post('/api/payments/pagarme/create', async (req, res) => {
+    console.log(">>>> [FLUXO] REQUISIÇÃO DE PAGAMENTO RECEBIDA <<<<");
     try {
       const { dbAdmin } = getAdminConfig();
       const body = req.body;
