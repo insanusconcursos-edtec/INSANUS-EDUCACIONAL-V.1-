@@ -36,13 +36,15 @@ const getPagarmeDirectClient = async () => {
   const axios = (await import('axios')).default;
   return axios.create({
     headers: getHeaders(),
-    proxy: false
+    proxy: false,
+    timeout: 10000
   });
 };
 
 const getPagarmeProxyClient = async () => {
   const axios = (await import('axios')).default;
   const proxyUrl = process.env.PROXY_URL || process.env.FIXIE_URL;
+  // @ts-ignore: Ignore moduleResolution warning for https-proxy-agent
   const HttpsProxyAgent = (await import('https-proxy-agent')).HttpsProxyAgent;
   
   let httpsAgent;

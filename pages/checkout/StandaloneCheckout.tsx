@@ -238,6 +238,11 @@ export default function StandaloneCheckout() {
   const handlePayment = async () => {
     if (!product || !offer) return;
 
+    if (!buyerData.cpf || !buyerData.name || !buyerData.email) {
+      toast.error('Por favor, preencha seus dados pessoais (Nome, E-mail e CPF) corretamente.');
+      return;
+    }
+
     if (paymentMethod === 'credit_card') {
       if (!cardNumber || !cardHolder || !cardMonth || !cardYear || !cardCVV) {
         toast.error('Por favor, preencha todos os campos do cartão.');
@@ -269,7 +274,7 @@ export default function StandaloneCheckout() {
         }),
         payer: {
           email: buyerData.email,
-          document: buyerData.cpf.replace(/\D/g, ''),
+          document: (buyerData.cpf || "").replace(/\D/g, ''),
           name: buyerData.name
         },
         metadata: {
