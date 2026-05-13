@@ -60,7 +60,9 @@ export const createPagarmeOrder = async (orderData: any, initialCoproducers: any
     const offerId = metadata.offerId;
     
     if (productId) {
+      console.log(`[AUDITORIA-SPLIT] Iniciando pedido para o produto: ${productId}`);
       console.log(`[Pagarme] Buscando regras no Produto: ${productId}`);
+      if (process.env.NODE_ENV === 'production') process.stdout.write(`[AUDITORIA-SPLIT] Iniciando pedido para o produto: ${productId}\n`);
       const productDoc = await dbAdmin.collection('products').doc(productId).get();
       
       if (productDoc.exists) {
@@ -123,6 +125,9 @@ export const createPagarmeOrder = async (orderData: any, initialCoproducers: any
         }
       }
     }
+    
+    console.log(`[AUDITORIA-SPLIT] Regras encontradas - Afiliado: ${JSON.stringify(affiliateDataFromDB)}, Coprodutores: ${JSON.stringify(coproducers)}`);
+    if (process.env.NODE_ENV === 'production') process.stdout.write(`[AUDITORIA-SPLIT] Regras encontradas: ${JSON.stringify({ affiliateDataFromDB, coproducers })}\n`);
   } catch (error) {
     console.error('[Pagarme] ❌ Erro ao buscar dados de split no Firestore:', error);
   }
@@ -211,6 +216,11 @@ export const createPagarmeOrder = async (orderData: any, initialCoproducers: any
       options: { charge_processing_fee: true, charge_remainder_fee: true, liable: true } // Master assume taxas e estornos
     });
     console.log(`✅ [Pagarme Split] Master ${masterRecipientId} recebe ${masterAmount} (Arcará com as taxas de ${pagarmeFees})`);
+    
+    // Auditoria de cálculo final
+    const auditMsg = `[AUDITORIA-SPLIT] Valor Líquido Master: ${masterAmount} | Vendedor: ${affiliateAmount} | Total Coprodutores: ${totalDeductionsAfterFees - affiliateAmount}`;
+    console.log(auditMsg);
+    if (process.env.NODE_ENV === 'production') process.stdout.write(auditMsg + '\n');
   } else {
     console.error("❌ [ERRO CRÍTICO] PAGARME_MASTER_RECIPIENT_ID não configurado!");
   }
@@ -289,6 +299,10 @@ export const createPagarmeOrder = async (orderData: any, initialCoproducers: any
       safePayload.payments[0].credit_card.card.cvv = '***';
   }
   console.log("🚀 [Pagarme] Payload Final do Pedido (Safe):", JSON.stringify(safePayload, null, 2));
+  
+  const splitAuditMsg = `[AUDITORIA-SPLIT] Payload de Split enviado à Pagar.me: ${JSON.stringify(payload.payments[0].splits || payload.payments[0].split)}`;
+  console.log(splitAuditMsg);
+  if (process.env.NODE_ENV === 'production') process.stdout.write(splitAuditMsg + '\n');
 
   try {
     console.log("[CHECKOUT] Iniciando criação de pedido via Axios padrão");
