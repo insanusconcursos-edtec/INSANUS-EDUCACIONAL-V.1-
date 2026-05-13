@@ -1,4 +1,3 @@
-process.stdout.write(">>>> [BOOT] API INDEX INICIADO <<<<\n");
-console.log(">>>> [BOOT] API INDEX CONSOLE.LOG TEST <<<<");
+console.log(`>>>> [AUDITORIA] API INDEX LOADED - TIMESTAMP: ${new Date().toISOString()} <<<<`);
 import app from '../server.js';
 export default app;

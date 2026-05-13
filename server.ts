@@ -1,5 +1,5 @@
-process.stdout.write(">>>> [DIAGNOSTICO] SERVIDOR INICIANDO - LINHA 1 <<<<\n");
-console.log(">>>> [DIAGNOSTICO] SERVIDOR INICIANDO - CONSOLE.LOG TEST <<<<");
+console.log(`>>>> [AUDITORIA] SERVIDOR INICIANDO - TIMESTAMP: ${new Date().toISOString()} <<<<`);
+console.warn(`>>>> [AUDITORIA] AMBIENTE: ${process.env.NODE_ENV} | VERCEL: ${process.env.VERCEL} <<<<`);
 
 import express from 'express';
 import path from 'path';
@@ -10,38 +10,9 @@ import { provisionExternalPurchase, revokePurchase } from './src/backend/service
 import { createPagarmeOrder, handlePagarmeWebhook, getPagarmeOrderStatus, requestPagarmeTransfer } from './src/backend/services/pagarmeService.js';
 import { calculateRecipientBalance } from './src/backend/services/walletService.js';
 
-// Monkey patch console.log to use process.stdout.write for Vercel
-const originalLog = console.log;
-const originalError = console.error;
-
-const safeFormat = (arg: any) => {
-  if (arg === null) return 'null';
-  if (arg === undefined) return 'undefined';
-  if (arg instanceof Error) return `[Error: ${arg.message}]\n${arg.stack}`;
-  if (typeof arg === 'object') {
-    try {
-      return JSON.stringify(arg);
-    } catch {
-      return '[Circular or Non-Stringifiable Object]';
-    }
-  }
-  return String(arg);
-};
-
-console.log = (...args) => {
-  const msg = args.map(safeFormat).join(' ');
-  process.stdout.write('LOG: ' + msg + '\n');
-  originalLog.apply(console, args);
-};
-
-console.error = (...args) => {
-  const msg = args.map(safeFormat).join(' ');
-  process.stderr.write('ERROR: ' + msg + '\n');
-  originalError.apply(console, args);
-};
-
+// Removido Monkey Patching para depuração (Vercel captura console.log nativamente)
 process.stdout.write(">>>> [SISTEMA] SERVIDOR INICIALIZADO COM SUCESSO <<<<\n");
-process.stdout.write(">>>> [SISTEMA] FORCE OUTPUT TEST <<<<\n");
+console.log(">>>> [SISTEMA] BOOT COMPLETO <<<<");
 
 // const __filename = fileURLToPath(import.meta.url);
 // __dirname is not used in this file, but kept for reference if needed
@@ -101,19 +72,16 @@ try {
   // mas mantemos as rotas aqui para o dev server
 
 app.get('/api/log-test', (req, res) => {
-  console.log(">>>> [TESTE] LOG VIA CONSOLE.LOG <<<<");
-  process.stdout.write(">>>> [TESTE] LOG VIA STDOUT.WRITE <<<<\n");
+  console.log(">>>> [TESTE] LOG ENVIADO PARA VERCEL <<<<");
   res.json({ 
     success: true, 
-    message: "Logs enviados para stdout",
-    env: {
-      VERCEL: process.env.VERCEL,
-      NODE_ENV: process.env.NODE_ENV
-    }
+    message: "Logs enviados",
+    env: { VERCEL: process.env.VERCEL, NODE_ENV: process.env.NODE_ENV }
   });
 });
 
 app.get('/api/health', (req, res) => {
+  console.log(">>>> [HEALTH] OK <<<<");
   res.status(200).send('OK');
 });
 
