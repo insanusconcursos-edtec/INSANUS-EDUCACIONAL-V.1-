@@ -1,4 +1,4 @@
-process.stdout.write(">>>> [CRITICAL-LOG] SERVIDOR REINICIADO SEM PROXY <<<<\n");
+process.stdout.write(">>>> [INTEGRIDADE] SERVIDOR REESTABELECIDO <<<<\n");
 
 import express from 'express';
 import path from 'path';
@@ -8,8 +8,6 @@ import { getAdminConfig } from './src/backend/services/firebaseAdmin.js';
 import { provisionExternalPurchase, revokePurchase } from './src/backend/services/provisioningService.js';
 import { createPagarmeOrder, handlePagarmeWebhook, getPagarmeOrderStatus, requestPagarmeTransfer } from './src/backend/services/pagarmeService.js';
 import { calculateRecipientBalance } from './src/backend/services/walletService.js';
-
-process.stdout.write(">>>> [SISTEMA] SERVIDOR INICIALIZADO COM SUCESSO <<<<\n");
 
 // Monkey patch console.log to use process.stdout.write for Vercel
 const originalLog = console.log;
