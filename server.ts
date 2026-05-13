@@ -1,6 +1,3 @@
-console.log(`>>>> [AUDITORIA] SERVIDOR INICIANDO - TIMESTAMP: ${new Date().toISOString()} <<<<`);
-console.warn(`>>>> [AUDITORIA] AMBIENTE: ${process.env.NODE_ENV} | VERCEL: ${process.env.VERCEL} <<<<`);
-
 import express from 'express';
 import path from 'path';
 import { fetchPandaVideoTranscription } from './src/backend/services/pandaVideoService.js';
@@ -10,9 +7,7 @@ import { provisionExternalPurchase, revokePurchase } from './src/backend/service
 import { createPagarmeOrder, handlePagarmeWebhook, getPagarmeOrderStatus, requestPagarmeTransfer } from './src/backend/services/pagarmeService.js';
 import { calculateRecipientBalance } from './src/backend/services/walletService.js';
 
-// Removido Monkey Patching para depuração (Vercel captura console.log nativamente)
 process.stdout.write(">>>> [SISTEMA] SERVIDOR INICIALIZADO COM SUCESSO <<<<\n");
-console.log(">>>> [SISTEMA] BOOT COMPLETO <<<<");
 
 // const __filename = fileURLToPath(import.meta.url);
 // __dirname is not used in this file, but kept for reference if needed
@@ -80,21 +75,7 @@ app.get('/api/log-test', (req, res) => {
 });
 
 app.get('/api/health', (req, res) => {
-  console.log(">>>> [HEALTH] OK <<<<");
   res.status(200).send('OK');
-});
-
-// Middleware para Log de Auditoria na Vercel
-app.use((req, res, next) => {
-  const timestamp = new Date().toISOString();
-  console.log(`>>>> [REQ] ${timestamp} | ${req.method} ${req.url} <<<<`);
-  
-  // Garantir que manifest.json e assets sejam liberados se chegarem aqui
-  if (req.url.includes('manifest.json') || req.url.includes('/assets/')) {
-    console.log(`>>>> [ESTATICO] Servindo arquivo estático: ${req.url} <<<<`);
-  }
-  
-  next();
 });
 
 // Middleware para JSON
@@ -978,7 +959,9 @@ function extractPandaId(url: string): string | null {
 
 // Error handler global
 app.use((err: any, req: any, res: any, next: any) => {
-  console.error(`>>>> [ERRO-GLOBAL] ${err.message} <<<<`);
+  if (process.env.NODE_ENV !== 'production') {
+    console.error(`>>>> [ERRO-GLOBAL] ${err.message} <<<<`);
+  }
   res.status(500).json({ success: false, error: 'Erro interno no servidor' });
 });
 

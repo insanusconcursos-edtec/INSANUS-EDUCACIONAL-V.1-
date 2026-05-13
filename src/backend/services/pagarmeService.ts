@@ -76,7 +76,7 @@ export const createPagarmeOrder = async (orderData: any, initialCoproducers: any
       }
       const startLog = `[AUDITORIA-INICIO] Processando ${orderData.payment_method || 'PEDIDO'} para Produto ID: ${productId}\n`;
       process.stdout.write(startLog);
-      const productDoc = await dbAdmin.collection('products').doc(productId).get();
+      const productDoc = await dbAdmin.collection('ticto_products').doc(productId).get();
       
       if (productDoc.exists) {
         const courseData = productDoc.data();
@@ -108,16 +108,16 @@ export const createPagarmeOrder = async (orderData: any, initialCoproducers: any
 
         console.log(`✅ [DEBUG AFILIADO] Oferta ID: ${offerId} | Comissão Extraída: ${percentualVendedor}%`);
 
-        // Extrair coprodutores da oferta (priorizando o que está no array da oferta)
-        if (currentOffer?.coproducers && Array.isArray(currentOffer.coproducers) && currentOffer.coproducers.length > 0) {
-          coproducers = currentOffer.coproducers;
-          console.log(`[Pagarme] ✅ ${coproducers.length} Coprodutores encontrados na Oferta (array).`);
-        } else if (courseData?.coproduction && Array.isArray(courseData.coproduction)) {
+        // Extrair coprodutores do produto (Prioridade conforme solicitação: campo 'coproduction' do produto)
+        if (courseData?.coproduction && Array.isArray(courseData.coproduction) && courseData.coproduction.length > 0) {
           coproducers = courseData.coproduction;
-          console.log(`[Pagarme] ✅ ${coproducers.length} Coprodutores encontrados no Produto (coproduction).`);
+          console.log(`[Pagarme] ✅ ${coproducers.length} Coprodutores encontrados em ticto_products (coproduction).`);
+        } else if (currentOffer?.coproducers && Array.isArray(currentOffer.coproducers)) {
+          coproducers = currentOffer.coproducers;
+          console.log(`[Pagarme] ✅ ${coproducers.length} Coprodutores encontrados na Oferta.`);
         }
       } else {
-        console.error(`❌ [ERRO CRÍTICO] O ID ${productId} não existe na coleção products!`);
+        console.error(`❌ [ERRO CRÍTICO] O ID ${productId} não existe na coleção ticto_products!`);
       }
     }
         
@@ -217,23 +217,26 @@ export const createPagarmeOrder = async (orderData: any, initialCoproducers: any
     });
   }
 
-  // 7. Conta Master (Recebe o que sobrar e assume a responsabilidade total das taxas)
-  const masterAmount = grossAmount - totalDeductionsAfterFees; // Master recebe o bruto - repasses (e o gateway desconta as taxas dele depois)
-  const masterRecipientId = process.env.PAGARME_MASTER_RECIPIENT_ID || process.env.PAGARME_RECIPIENT_ID;
+  // 7. Conta Master 
+  const masterAmount = grossAmount - totalDeductionsAfterFees; 
+  const masterRecipientId = process.env.PAGARME_MASTER_RECIPIENT_ID || process.env.PAGARME_RECIPIENT_ID || 're_cmouicmz204gz0l9tyr4jkmut';
 
   if (masterRecipientId) {
+    // 14/05/2026: Todos os recebedores passam a ter liable e charge_processing_fee como false
+    // A taxa é rateada manualmente no cálculo dos amounts acima
     splitArray.push({
       amount: masterAmount,
       recipient_id: masterRecipientId,
       type: 'flat',
-      options: { charge_processing_fee: true, charge_remainder_fee: true, liable: true } // Master assume taxas e estornos
+      options: { charge_processing_fee: false, charge_remainder_fee: false, liable: false }
     });
     
     // LOG 3: Auditoria de cálculo final
     const calcLog = `[AUDITORIA-CALCULO] Valor Bruto: ${grossAmount} | Taxa Pagar.me Est.: ${pagarmeFees} | Montante Final Split: ${totalDeductionsAfterFees + masterAmount}\n`;
     process.stdout.write(calcLog);
     
-    const auditMsg = `[AUDITORIA-DETALHE-VALORES] Valor Líquido Master: ${masterAmount} | Vendedor: ${affiliateAmount} | Total Coprodutores: ${totalDeductionsAfterFees - affiliateAmount}\n`;
+    // Mostrando o Líquido Real do Master no log de auditoria
+    const auditMsg = `[AUDITORIA-DETALHE-VALORES] Valor Líquido Master: ${masterAmount - pagarmeFees} | Vendedor: ${affiliateAmount} | Total Coprodutores: ${totalDeductionsAfterFees - affiliateAmount}\n`;
     process.stdout.write(auditMsg);
   } else {
     console.error("❌ [ERRO CRÍTICO] PAGARME_MASTER_RECIPIENT_ID não configurado!");
@@ -683,9 +686,9 @@ async function recordAffiliateCommission(orderData: any) {
 
   try {
     // 1. Busca as regras do produto para garantir que estamos aplicando o percentual correto
-    const productDoc = await dbAdmin.collection('products').doc(courseId).get();
+    const productDoc = await dbAdmin.collection('ticto_products').doc(courseId).get();
     if (!productDoc.exists) {
-      console.error(`[Commission] Produto ${courseId} não encontrado.`);
+      console.error(`[Commission] Produto ${courseId} não encontrado em ticto_products.`);
       return;
     }
 
@@ -768,7 +771,7 @@ async function recordAdminSalesReport(orderData: any) {
 
   try {
     // 1. Busca as regras do produto para cálculos precisos
-    const productDoc = await dbAdmin.collection('products').doc(courseId).get();
+    const productDoc = await dbAdmin.collection('ticto_products').doc(courseId).get();
     if (!productDoc.exists) return;
 
     const courseData = productDoc.data();
@@ -792,7 +795,7 @@ async function recordAdminSalesReport(orderData: any) {
     // 4. Cálculo da Parte dos Coprodutores (Cascata - Saldo B)
     let coproductionPart = 0;
     const saldoB = saldoA - affiliatePart;
-    const coproducers = currentOffer?.coproducers || courseData?.coproduction || [];
+    const coproducers = courseData?.coproduction || currentOffer?.coproducers || [];
     
     if (Array.isArray(coproducers)) {
       coproducers.forEach((copro: any) => {
@@ -883,7 +886,7 @@ async function recordCoproductionCommissions(orderData: any) {
 
   try {
     // 1. Busca as regras do produto para cálculos precisos
-    const productDoc = await dbAdmin.collection('products').doc(courseId).get();
+    const productDoc = await dbAdmin.collection('ticto_products').doc(courseId).get();
     if (!productDoc.exists) return;
 
     const courseData = productDoc.data();
@@ -906,7 +909,7 @@ async function recordCoproductionCommissions(orderData: any) {
 
     // 4. Cálculo e Registro da Parte dos Coprodutores
     const saldoB = saldoA - affiliatePart;
-    const coproducers = currentOffer?.coproducers || courseData?.coproduction || [];
+    const coproducers = courseData?.coproduction || currentOffer?.coproducers || [];
     
     if (Array.isArray(coproducers) && coproducers.length > 0) {
       const batch = dbAdmin.batch();

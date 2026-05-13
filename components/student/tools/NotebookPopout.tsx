@@ -49,7 +49,11 @@ export const NotebookPopout: React.FC = () => {
       
       // Cleanup localStorage
       if (sessionId) {
-        try { localStorage.removeItem(sessionId); } catch(e) {}
+        try { 
+          localStorage.removeItem(sessionId); 
+        } catch (_err) {
+          // Ignore removal errors
+        }
       }
     };
     
