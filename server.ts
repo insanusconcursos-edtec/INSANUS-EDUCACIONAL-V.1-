@@ -85,6 +85,19 @@ app.get('/api/health', (req, res) => {
   res.status(200).send('OK');
 });
 
+// Middleware para Log de Auditoria na Vercel
+app.use((req, res, next) => {
+  const timestamp = new Date().toISOString();
+  console.log(`>>>> [REQ] ${timestamp} | ${req.method} ${req.url} <<<<`);
+  
+  // Garantir que manifest.json e assets sejam liberados se chegarem aqui
+  if (req.url.includes('manifest.json') || req.url.includes('/assets/')) {
+    console.log(`>>>> [ESTATICO] Servindo arquivo estático: ${req.url} <<<<`);
+  }
+  
+  next();
+});
+
 // Middleware para JSON
 app.use(express.json());
 
@@ -963,6 +976,12 @@ async function setupVite(app: any) {
       return url;
     }
   }
+
+// Error handler global
+app.use((err: any, req: any, res: any, next: any) => {
+  console.error(`>>>> [ERRO-GLOBAL] ${err.message} <<<<`);
+  res.status(500).json({ success: false, error: 'Erro interno no servidor' });
+});
 
 async function startServer() {
   try {
