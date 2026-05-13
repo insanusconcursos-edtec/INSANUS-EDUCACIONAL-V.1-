@@ -8,7 +8,7 @@ import { CheckCircle2 } from 'lucide-react';
 
 interface MindMapFullscreenProps {
   nodes: MindMapNode[];
-  onChange: (nodes: MindMapNode[]) => void;
+  onChange: (nodes: MindMapNode[], isManualSave?: boolean) => void;
   onClose: () => void;
   readOnly?: boolean;
 }
@@ -123,7 +123,7 @@ const MindMapFullscreen: React.FC<MindMapFullscreenProps> = ({ nodes, onChange, 
     if (treeData && !readOnly) {
       const handler = setTimeout(() => {
         const flat = flattenTree(treeData);
-        onChange(flat);
+        onChange(flat, false);
       }, 1500); // Auto-save after 1.5s of no changes
       return () => clearTimeout(handler);
     }
@@ -237,7 +237,7 @@ const MindMapFullscreen: React.FC<MindMapFullscreenProps> = ({ nodes, onChange, 
   const handleSave = () => {
     if (treeData && !readOnly) {
         const flat = flattenTree(treeData);
-        onChange(flat);
+        onChange(flat, true);
         
         // Ativar notificação de sucesso
         setShowSuccessToast(true);
@@ -248,7 +248,7 @@ const MindMapFullscreen: React.FC<MindMapFullscreenProps> = ({ nodes, onChange, 
   const handleCloseWrapper = () => {
     if (treeData && !readOnly) {
         const flat = flattenTree(treeData);
-        onChange(flat);
+        onChange(flat, false);
     }
     onClose();
   };

@@ -145,7 +145,7 @@ export const EditalMindMapsModal: React.FC<EditalMindMapsModalProps> = ({
     }
   };
 
-  const handleSaveData = async (data: any) => {
+  const handleSaveData = async (data: any, isManualSave?: boolean) => {
     if (!currentUser || !selectedItem) return;
     setSaveStatus('saving');
     try {
@@ -155,11 +155,17 @@ export const EditalMindMapsModal: React.FC<EditalMindMapsModalProps> = ({
       setSelectedItem(prev => prev ? { ...prev, data } : null);
       setItems(prev => prev.map(item => item.id === selectedItem.id ? { ...item, data } : item));
       
-      setSaveStatus('success');
-      toast.success("Mapa salvo com sucesso");
-      setTimeout(() => setSaveStatus('idle'), 2000);
+      if (isManualSave) {
+        setSaveStatus('success');
+        toast.success("Mapa salvo com sucesso");
+        setTimeout(() => setSaveStatus('idle'), 2000);
+      } else {
+        setSaveStatus('idle'); // Silent background save
+      }
     } catch (error) {
-      toast.error("Erro ao salvar mapa");
+      if (isManualSave) {
+        toast.error("Erro ao salvar mapa");
+      }
       setSaveStatus('idle');
     }
   };

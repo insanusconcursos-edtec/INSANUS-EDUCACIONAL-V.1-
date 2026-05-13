@@ -208,7 +208,7 @@ function StudentTopicAccordion({ topic, courseId, planId, disciplineId, discipli
       }
   };
 
-  const handleSaveStudentMindMap = async (data: any) => {
+  const handleSaveStudentMindMap = async (data: any, isManualSave?: boolean) => {
       if (studentContent.mindmap?.id && user) {
           await updateUserContent(user.uid, courseId, studentContent.mindmap.id, { data });
           setStudentContent((prev: any) => ({ ...prev, mindmap: { ...prev.mindmap, data } }));

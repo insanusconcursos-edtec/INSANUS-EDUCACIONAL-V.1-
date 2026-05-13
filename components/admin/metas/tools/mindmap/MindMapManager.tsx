@@ -7,7 +7,7 @@ import { generateMindMapStructure, AIMindMapNode } from '../../../../../services
 
 interface MindMapManagerProps {
   nodes: MindMapNode[];
-  onChange: (nodes: MindMapNode[]) => void;
+  onChange: (nodes: MindMapNode[], isManualSave?: boolean) => void;
   planId?: string;
 }
 
